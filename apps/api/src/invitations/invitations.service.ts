@@ -99,9 +99,11 @@ export class InvitationsService {
   private async assertRoom(workspaceId: string) {
     const sub = await this.system.subscription.findUnique({ where: { workspaceId } });
     if (isLocked(sub)) throw new BadRequestException("Рабочее пространство сейчас в режиме чтения. Попросите администратора оплатить тариф");
-    const plan = await this.billing.effectivePlan(workspaceId);
-    if (plan.maxUsers === null) return;
-    const users = await this.system.user.count({ where: { workspaceId, isActive: true } });
-    if (users >= plan.maxUsers) throw new BadRequestException(`В рабочем пространстве уже ${users} пользователей, максимум на тарифе ${plan.name}. Попросите администратора освободить место`);
+    try {
+      // This invitation already holds a seat, so count active users only.
+      await this.billing.assertSeat(workspaceId, { countInvitations: false });
+    } catch {
+      throw new BadRequestException("В рабочем пространстве закончились места. Попросите администратора добавить места или освободить одно");
+    }
   }
 }

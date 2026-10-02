@@ -328,6 +328,8 @@ export interface PlanDto {
 
 export interface BillingUsage {
   users: number;
+  // Pending invitations; each reserves a seat.
+  invitations: number;
   projects: number;
   recurring: number;
   storageMb: number;
@@ -359,7 +361,11 @@ export interface BillingDto {
     currentPeriodEnd: string | null;
     cancelAtPeriodEnd: boolean;
     cardMask: string | null;
+    // Paid seats; null on FREE and during a trial.
+    seats: number | null;
   };
+  // Active users allowed right now; null = unlimited (trial, unlimited plan).
+  seatLimit: number | null;
   usage: BillingUsage;
   // Storage allowed on the current plan, MB (null = unlimited).
   storageLimitMb: number | null;

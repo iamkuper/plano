@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check } from "lucide-react";
+import { Check, Minus, Plus } from "lucide-react";
 import { formatRub, planAmount, type BillingDto, type BillingInterval, type PlanDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
@@ -53,9 +53,40 @@ function Usage({ label, used, max, unit }: { label: string; used: number; max: n
   );
 }
 
-function PlanCard({ plan, b, interval, canPay, onPick, busy }: { plan: PlanDto; b: BillingDto; interval: BillingInterval; canPay: boolean; onPick: () => void; busy: boolean }) {
+// Seats stepper: never below the active users, never above the cap.
+function SeatPicker({ value, min, max, onChange }: { value: number; min: number; max: number | null; onChange: (n: number) => void }) {
+  const clamp = (n: number) => Math.max(min, max === null ? n : Math.min(n, max));
+  const btn = "grid size-8 place-items-center text-ink-faint transition-colors hover:bg-surface-soft hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent";
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-sm text-ink-faint">Пользователей</span>
+      <div className="flex h-8 items-center overflow-hidden rounded-md border border-border">
+        <button type="button" aria-label="Меньше мест" className={btn} disabled={value <= min} onClick={() => onChange(clamp(value - 1))}>
+          <Minus size={14} />
+        </button>
+        <input
+          aria-label="Количество пользователей"
+          inputMode="numeric"
+          className="h-8 w-12 border-x border-border bg-transparent text-center text-sm outline-none"
+          value={value}
+          onChange={(e) => {
+            const n = parseInt(e.target.value.replace(/\D/g, ""), 10);
+            if (!Number.isNaN(n)) onChange(clamp(n));
+          }}
+        />
+        <button type="button" aria-label="Больше мест" className={btn} disabled={max !== null && value >= max} onClick={() => onChange(clamp(value + 1))}>
+          <Plus size={14} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, busy }: { plan: PlanDto; b: BillingDto; interval: BillingInterval; seats: number; canPay: boolean; onPick: () => void; busy: boolean }) {
   const current = !b.locked && b.plan.id === plan.id && b.subscription.status !== "TRIALING";
-  const seats = Math.max(b.usage.users, 1);
+  const seats = plan.maxUsers === null ? wanted : Math.min(wanted, plan.maxUsers);
+  const tooSmall = plan.maxUsers !== null && b.usage.users > plan.maxUsers;
+  const same = current && b.subscription.interval === interval && b.subscription.seats === seats;
   const monthly = interval === "YEAR" ? (plan.priceKopecks * 10) / 12 : plan.priceKopecks;
   const features = [
     `Пользователей: ${limit(plan.maxUsers)}`,
@@ -79,17 +110,19 @@ function PlanCard({ plan, b, interval, canPay, onPick, busy }: { plan: PlanDto; 
       </ul>
       {plan.priceKopecks > 0 && (
         <p className="mt-4 text-sm text-ink-faint">
-          Сейчас к оплате {formatRub(planAmount(plan, seats, interval))} за {interval === "YEAR" ? "год" : "месяц"} ({seats} польз.)
+          {tooSmall
+            ? `Тариф рассчитан на ${plan.maxUsers} польз., а активных уже ${b.usage.users}`
+            : `К оплате ${formatRub(planAmount(plan, seats, interval))} за ${interval === "YEAR" ? "год" : "месяц"} (${seats} польз.)`}
         </p>
       )}
       <div className="mt-3">
         {plan.priceKopecks === 0 ? (
           <Button disabled className="w-full">{current ? "Текущий тариф" : "Бесплатный"}</Button>
-        ) : current && b.subscription.interval === interval ? (
+        ) : same ? (
           <Button disabled className="w-full">Текущий тариф</Button>
         ) : (
-          <Button variant="primary" className="w-full" disabled={!canPay} loading={busy} onClick={onPick}>
-            {current ? "Сменить период" : "Выбрать"}
+          <Button variant="primary" className="w-full" disabled={!canPay || tooSmall} loading={busy} onClick={onPick}>
+            {current ? "Изменить и оплатить" : "Выбрать"}
           </Button>
         )}
       </div>
@@ -105,8 +138,20 @@ function BillingView() {
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState(false);
   const canPay = can("billing.manage");
+  const [seats, setSeats] = useState<number | null>(null);
 
-  const load = useCallback(() => api.billing().then(setB).catch((e) => toast((e as Error).message, "error")), []);
+  const load = useCallback(
+    () =>
+      api
+        .billing()
+        .then((next) => {
+          setB(next);
+          // Start from the paid seats, or from the people already here.
+          setSeats((cur) => cur ?? Math.max(next.subscription.seats ?? 0, next.usage.users + next.usage.invitations, 1));
+        })
+        .catch((e) => toast((e as Error).message, "error")),
+    [],
+  );
   useEffect(() => {
     load();
   }, [load]);
@@ -123,7 +168,7 @@ function BillingView() {
   async function pick(plan: PlanDto) {
     setBusy(plan.id);
     try {
-      const { paymentUrl } = await api.checkout(plan.id, interval);
+      const { paymentUrl } = await api.checkout(plan.id, interval, plan.maxUsers === null ? seatCount : Math.min(seatCount, plan.maxUsers));
       window.location.href = paymentUrl;
     } catch (e) {
       toast((e as Error).message, "error");
@@ -142,6 +187,10 @@ function BillingView() {
   }
 
   if (!b) return <Skeleton className="h-64" />;
+  const minSeats = Math.max(b.usage.users, 1);
+  const seatCount = Math.max(seats ?? minSeats, minSeats);
+  const maxSeats = b.plans.reduce<number | null>((m, p) => (p.priceKopecks <= 0 ? m : p.maxUsers === null || m === null ? null : Math.max(m, p.maxUsers)), 0);
+  const trial = b.subscription.status === "TRIALING" && !b.locked;
   const paidPlan = b.subscription.planId !== "FREE" && b.subscription.status !== "TRIALING" && !b.locked;
   const canLeaveForFree = canPay && (b.locked || b.subscription.status === "TRIALING");
   return (
@@ -171,7 +220,11 @@ function BillingView() {
         ) : undefined
       }>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Usage label="Пользователи" used={b.usage.users} max={b.plan.maxUsers} />
+          <div>
+            <Usage label={b.subscription.seats != null && !trial ? "Пользователи (оплачено мест)" : "Пользователи"} used={b.usage.users} max={b.seatLimit} />
+            {trial && <p className="mt-1 text-xs text-ink-faint">В пробный период — без ограничений. После оплаты — столько, сколько мест оплачено.</p>}
+            {!trial && b.usage.invitations > 0 && <p className="mt-1 text-xs text-ink-faint">Ещё {b.usage.invitations} в приглашениях — они тоже занимают места.</p>}
+          </div>
           <Usage label="Проекты" used={b.usage.projects} max={b.plan.maxProjects} />
           <Usage label="Повторяющиеся задачи" used={b.usage.recurring} max={b.plan.maxRecurring} />
           <Usage label="Файлы" used={b.usage.storageMb} max={b.storageLimitMb} unit={(n) => storage(Math.round(n))} />
@@ -181,13 +234,16 @@ function BillingView() {
         )}
       </Card>
 
-      <Card title="Выбрать тариф" description="Цена считается по числу активных пользователей. Год стоит как 10 месяцев." action={
-        <Segmented label="Период оплаты" value={interval} onChange={setInterval_} options={[{ value: "MONTH", label: "Месяц" }, { value: "YEAR", label: "Год" }]} />
+      <Card title="Выбрать тариф" description="Цена — за каждое оплаченное место. Добавить больше пользователей, чем оплачено мест, нельзя. Год стоит как 10 месяцев." action={
+        <div className="flex flex-wrap items-center justify-end gap-3">
+          <SeatPicker value={seatCount} min={minSeats} max={maxSeats === 0 ? null : maxSeats} onChange={setSeats} />
+          <Segmented label="Период оплаты" value={interval} onChange={setInterval_} options={[{ value: "MONTH", label: "Месяц" }, { value: "YEAR", label: "Год" }]} />
+        </div>
       }>
         {!canPay && <p className="mb-3 text-sm text-ink-faint">Менять тариф может администратор или сотрудник с правом «Управлять тарифом и оплатой».</p>}
         <div className="grid gap-4 md:grid-cols-3">
           {b.plans.map((p) => (
-            <PlanCard key={p.id} plan={p} b={b} interval={interval} canPay={canPay} busy={busy === p.id} onPick={() => pick(p)} />
+            <PlanCard key={p.id} plan={p} b={b} interval={interval} seats={seatCount} canPay={canPay} busy={busy === p.id} onPick={() => pick(p)} />
           ))}
         </div>
         <p className="mt-4 text-sm text-ink-faint">Оплата нового тарифа начинает новый оплаченный период с сегодняшнего дня. При превышении лимитов существующие данные остаются, новые записи создать нельзя.</p>

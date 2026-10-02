@@ -450,6 +450,8 @@ model Subscription {
   plan               Plan               @relation(fields: [planId], references: [id])
   status             SubscriptionStatus @default(ACTIVE)
   interval           BillingInterval    @default(MONTH)
+  // Paid user seats. null on FREE and during a trial (no seat limit then).
+  seats              Int?
   trialEndsAt        DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?

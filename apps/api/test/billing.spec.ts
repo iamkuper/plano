@@ -123,16 +123,16 @@ describe("bank notifications (webhook)", () => {
 });
 
 describe("renewals, cancellation and the lock", () => {
-  const paid = async (tag: string, planId: "PRO" | "BUSINESS" = "PRO") => {
+  const paid = async (tag: string, planId: "PRO" | "BUSINESS" = "PRO", seats = 1) => {
     const a = await register(t, tag);
-    const co = (await api(t, a.token).post("/billing/checkout", { planId, interval: "MONTH" })).body;
+    const co = (await api(t, a.token).post("/billing/checkout", { planId, interval: "MONTH", seats })).body;
     await api(t, a.token).post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
     return a;
   };
   const expire = (workspaceId: string, extra: object = {}) => t.db.subscription.update({ where: { workspaceId }, data: { currentPeriodEnd: new Date(Date.now() - 3600_000), ...extra } });
 
-  it("renews from the old period end by the saved card, charging current seats", async () => {
-    const a = await paid("renew");
+  it("renews from the old period end by the saved card, charging the paid seats", async () => {
+    const a = await paid("renew", "PRO", 2);
     await api(t, a.token).post("/users", { email: `${unique("u")}@iso.test`, name: "U", password: "password-123" }).expect(201);
     const before = new Date(Date.now() - 3600_000);
     await expire(a.workspaceId);
@@ -400,5 +400,53 @@ describe("T-Bank provider", () => {
       expect(sent).toMatchObject({ NotificationURL: "https://api.test/billing/webhooks/tbank", SuccessURL: "https://app.test/settings/billing?paid=1" });
     });
     expect(createProvider({ MOCK_CHARGE_FAIL: "1" } as NodeJS.ProcessEnv)).toBeInstanceOf(MockProvider);
+  });
+});
+
+describe("paid seats", () => {
+  const pay = async (a: { token: string }, seats: number) => {
+    const co = (await api(t, a.token).post("/billing/checkout", { planId: "PRO", interval: "MONTH", seats }).expect(201)).body;
+    await api(t, a.token).post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
+  };
+  const addUser = (a: { token: string }) => api(t, a.token).post("/users", { email: `${unique("s")}@iso.test`, name: "S", password: "password-123" });
+
+  it("has no seat limit during the trial", async () => {
+    const a = await register(t, "trialseats");
+    for (let i = 0; i < 4; i++) await addUser(a).expect(201);
+    const o = (await api(t, a.token).get("/billing").expect(200)).body;
+    expect([o.seatLimit, o.subscription.seats, o.usage.users]).toEqual([null, null, 5]);
+  });
+
+  it("charges for the chosen seats and refuses users beyond them", async () => {
+    const a = await register(t, "seats");
+    await addUser(a).expect(201);
+    // fewer seats than active users is refused
+    await api(t, a.token).post("/billing/checkout", { planId: "PRO", interval: "MONTH", seats: 1 }).expect(400);
+    await pay(a, 3);
+    const payment = await t.db.payment.findFirstOrThrow({ where: { workspaceId: a.workspaceId, status: "PAID" } });
+    expect([payment.seats, payment.amount]).toEqual([3, 3 * 49000]);
+    const o = (await api(t, a.token).get("/billing").expect(200)).body;
+    expect([o.seatLimit, o.subscription.seats]).toEqual([3, 3]);
+
+    await addUser(a).expect(201); // 3 of 3
+    const refused = await addUser(a).expect(402);
+    expect(refused.body.message).toContain("Оплачено мест: 3");
+    await api(t, a.token).post("/invitations", { email: `${unique("inv")}@iso.test` }).expect(402);
+
+    // freeing a seat lets one back in; reactivating needs a free seat too
+    const users = (await api(t, a.token).get("/users").expect(200)).body as { id: string; role: string }[];
+    const member = users.find((u) => u.role !== "ADMIN")!;
+    await api(t, a.token).patch(`/users/${member.id}`, { isActive: false }).expect(200);
+    await api(t, a.token).post("/invitations", { email: `${unique("inv")}@iso.test` }).expect(201); // reserves the seat
+    await api(t, a.token).patch(`/users/${member.id}`, { isActive: true }).expect(402);
+  });
+
+  it("renews the paid seats even if fewer people are active", async () => {
+    const a = await register(t, "seatsrenew");
+    await pay(a, 4);
+    await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { currentPeriodEnd: new Date(Date.now() - 3600_000) } });
+    await billing.runDue();
+    const renewal = await t.db.payment.findFirstOrThrow({ where: { workspaceId: a.workspaceId, kind: "RENEWAL" } });
+    expect([renewal.status, renewal.seats]).toEqual(["PAID", 4]);
   });
 });

@@ -104,6 +104,8 @@ describe("invitations", () => {
     await api(t, b.token).del(`/invitations/${inv.body.id}`).expect(404);
 
     await setPlan(t, a.workspaceId, "FREE"); // 3 seats
+    // admin + the pending invitation already hold 2 of them
+    await api(t, a.token).del(`/invitations/${inv.body.id}`).expect(204);
     const e1 = await api(t, a.token).post("/invitations", { email: `${unique("s1")}@iso.test` }).expect(201);
     await api(t).post("/auth/accept-invite", { token: e1.body.link.split("/").pop(), name: "Второй", password: "password-123" }).expect(201);
     const e2 = await api(t, a.token).post("/invitations", { email: `${unique("s2")}@iso.test` }).expect(201);

@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from "@nestjs/common";
-import { IsBoolean, IsIn, IsString } from "class-validator";
+import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
@@ -11,6 +11,13 @@ class CheckoutDto {
 
   @IsIn(["MONTH", "YEAR"])
   interval!: "MONTH" | "YEAR";
+
+  // Defaults to the active users.
+  @IsOptional()
+  @IsInt({ message: "Укажите число мест" })
+  @Min(1, { message: "Нужно хотя бы одно место" })
+  @Max(10000)
+  seats?: number;
 }
 
 class CancelDto {
@@ -38,7 +45,7 @@ export class BillingController {
   @UseGuards(JwtAuthGuard, PermissionGuard)
   @RequirePermission("billing.manage")
   checkout(@CurrentUser() user: AuthenticatedUser, @Body() dto: CheckoutDto) {
-    return this.billing.checkout(dto.planId, dto.interval, user.email);
+    return this.billing.checkout(dto.planId, dto.interval, dto.seats, user.email);
   }
 
   @Post("cancel")

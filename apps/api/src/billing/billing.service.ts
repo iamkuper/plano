@@ -53,13 +53,39 @@ export class BillingService {
   }
 
   private async usage(workspaceId: string) {
-    const [users, projects, recurring, bytes] = await Promise.all([
+    const [users, invitations, projects, recurring, bytes] = await Promise.all([
       this.db.user.count({ where: { workspaceId, isActive: true } }),
+      this.db.invitation.count({ where: { workspaceId, acceptedAt: null, expiresAt: { gt: new Date() } } }),
       this.db.project.count({ where: { workspaceId, status: { not: "ARCHIVED" } } }),
       this.db.recurringRule.count({ where: { project: { workspaceId }, active: true } }),
       this.db.attachment.aggregate({ where: { card: { workspaceId } }, _sum: { size: true } }),
     ]);
-    return { users, projects, recurring, storageMb: Math.round(((bytes._sum.size ?? 0) / 1024 / 1024) * 10) / 10 };
+    return { users, invitations, projects, recurring, storageMb: Math.round(((bytes._sum.size ?? 0) / 1024 / 1024) * 10) / 10 };
+  }
+
+  // How many active users the workspace may have: unlimited during a trial,
+  // the paid seats on a paid plan, the plan's cap on FREE.
+  seatLimit(sub: Subscription | null, plan: Plan): number | null {
+    if (sub?.status === "TRIALING" && !isLocked(sub)) return null;
+    if (plan.priceKopecks > 0 && sub?.seats != null) return plan.maxUsers === null ? sub.seats : Math.min(sub.seats, plan.maxUsers);
+    return plan.maxUsers;
+  }
+
+  // Throws 402 unless one more active user fits. `invitations` reserve seats
+  // too, except when the person accepting one is that reservation.
+  async assertSeat(workspaceId: string, { countInvitations }: { countInvitations: boolean }) {
+    const sub = await this.db.subscription.findUnique({ where: { workspaceId } });
+    const plan = await this.effectivePlan(workspaceId, sub);
+    const max = this.seatLimit(sub, plan);
+    if (max === null) return;
+    const usage = await this.usage(workspaceId);
+    const taken = usage.users + (countInvitations ? usage.invitations : 0);
+    if (taken < max) return;
+    const invited = countInvitations && usage.invitations ? ` (из них ${usage.invitations} — в приглашениях)` : "";
+    if (plan.priceKopecks > 0 && sub?.seats != null) {
+      this.deny(`Оплачено мест: ${max}, все заняты${invited}. Добавьте места в разделе «Тариф и оплата» или отключите неактивных сотрудников.`);
+    }
+    this.deny(`На тарифе ${plan.name} — не больше ${max} пользователей${invited}. Перейдите на платный тариф в разделе «Тариф и оплата».`);
   }
 
   private storageLimitMb(plan: Plan, users: number) {
@@ -78,8 +104,7 @@ export class BillingService {
     const hint = plan.id === "BUSINESS" ? "" : " Перейдите на более высокий тариф в разделе «Тариф и оплата».";
     switch (limit) {
       case "users":
-        if (plan.maxUsers !== null && usage.users >= plan.maxUsers) this.deny(`На тарифе ${plan.name} — не больше ${plan.maxUsers} пользователей.${hint}`);
-        break;
+        return this.assertSeat(workspaceId, { countInvitations: true });
       case "projects":
         if (plan.maxProjects !== null && usage.projects >= plan.maxProjects) this.deny(`На тарифе ${plan.name} — не больше ${plan.maxProjects} проектов.${hint}`);
         break;
@@ -115,6 +140,7 @@ export class BillingService {
     const plan = await this.effectivePlan(workspaceId, sub);
     return {
       plan: toDto(plan),
+      seatLimit: this.seatLimit(sub, plan),
       plans: plans.map(toDto),
       locked: isLocked(sub),
       subscription: {
@@ -125,6 +151,7 @@ export class BillingService {
         currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
         cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
         cardMask: sub.cardMask,
+        seats: sub.seats,
       },
       usage,
       storageLimitMb: this.storageLimitMb(plan, usage.users),
@@ -144,11 +171,14 @@ export class BillingService {
 
   // Starts a payment of a paid plan: returns the bank's payment page URL.
   // The price covers the active users now; the period starts when paid.
-  async checkout(planId: string, interval: BillingInterval, email: string) {
+  async checkout(planId: string, interval: BillingInterval, seatsWanted: number | undefined, email: string) {
     const workspaceId = this.ws;
     const plan = await this.db.plan.findUnique({ where: { id: planId } });
     if (!plan || plan.priceKopecks <= 0) throw new BadRequestException("Выберите платный тариф");
-    const seats = await this.db.user.count({ where: { workspaceId, isActive: true } });
+    const active = await this.db.user.count({ where: { workspaceId, isActive: true } });
+    const seats = seatsWanted ?? Math.max(active, 1);
+    if (seats < Math.max(active, 1)) throw new BadRequestException(`Мест должно быть не меньше, чем активных пользователей: ${active}. Лишних сотрудников можно отключить`);
+    if (plan.maxUsers !== null && seats > plan.maxUsers) throw new BadRequestException(`На тарифе ${plan.name} — не больше ${plan.maxUsers} пользователей`);
     const payment = await this.db.payment.create({
       data: {
         workspaceId, kind: "INITIAL", planId: plan.id, interval, seats,
@@ -221,6 +251,7 @@ export class BillingService {
         planId: payment.planId,
         status: "ACTIVE",
         interval: payment.interval,
+        seats: payment.seats,
         trialEndsAt: null,
         currentPeriodStart: start,
         currentPeriodEnd: addInterval(start, payment.interval),
@@ -274,7 +305,7 @@ export class BillingService {
     await this.db.subscription.update({
       where: { workspaceId },
       data: {
-        planId: "FREE", status: "ACTIVE", trialEndsAt: null, currentPeriodStart: null, currentPeriodEnd: null,
+        planId: "FREE", status: "ACTIVE", seats: null, trialEndsAt: null, currentPeriodStart: null, currentPeriodEnd: null,
         cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null,
       },
     });
@@ -309,7 +340,9 @@ export class BillingService {
   private async renew(sub: Subscription & { plan: Plan }, now: Date) {
     if (sub.cancelAtPeriodEnd || !sub.rebillId) return this.lock(sub.workspaceId);
 
-    const seats = await this.db.user.count({ where: { workspaceId: sub.workspaceId, isActive: true } });
+    // Renew the paid seats (never fewer than the users actually active).
+    const active = await this.db.user.count({ where: { workspaceId: sub.workspaceId, isActive: true } });
+    const seats = Math.max(sub.seats ?? active, active, 1);
     const payment = await this.db.payment.create({
       data: {
         workspaceId: sub.workspaceId, kind: "RENEWAL", planId: sub.planId, interval: sub.interval, seats,

@@ -333,7 +333,8 @@ export const api = {
   platformChangeSubscription: (id: string, body: { action: "grant" | "extend-trial" | "lock" | "free"; planId?: string; days?: number }) =>
     post<PlatformWorkspaceDetail>(`/platform/workspaces/${id}/subscription`, body),
   billing: () => apiFetch<BillingDto>("/billing"),
-  checkout: (planId: string, interval: BillingInterval) => post<{ paymentUrl: string }>("/billing/checkout", { planId, interval }),
+  checkout: (planId: string, interval: BillingInterval, seats: number) =>
+    post<{ paymentUrl: string }>("/billing/checkout", { planId, interval, seats }),
   cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),
   mockPay: (orderId: string, success: boolean) => post<void>(`/billing/dev/pay/${encodeURIComponent(orderId)}`, { success }),
   roles: () => apiFetch<RoleDto[]>("/roles"),
