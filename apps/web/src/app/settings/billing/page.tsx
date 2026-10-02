@@ -7,7 +7,7 @@ import { formatRub, planAmount, type BillingDto, type BillingInterval, type Invo
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Button, Card, Dialog, Field, Input, PageHeader, Segmented, Skeleton, Textarea } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, downloadInvoicePdf } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
 
@@ -81,7 +81,7 @@ function SeatPicker({ value, min, max, onChange }: { value: number; min: number;
 }
 
 // Company details for a bank-transfer invoice. Prefilled from the last request.
-function InvoiceDialog({ plan, interval, seats, initial, onClose, onDone }: { plan: PlanDto; interval: BillingInterval; seats: number; initial: InvoicePayer | null; onClose: () => void; onDone: () => void }) {
+function InvoiceDialog({ plan, interval, seats, initial, pdfReady, onClose, onDone }: { plan: PlanDto; interval: BillingInterval; seats: number; initial: InvoicePayer | null; pdfReady: boolean; onClose: () => void; onDone: () => void }) {
   const [form, setForm] = useState({
     payerName: initial?.payerName ?? "",
     payerInn: initial?.payerInn ?? "",
@@ -107,8 +107,13 @@ function InvoiceDialog({ plan, interval, seats, initial, onClose, onDone }: { pl
           setError(null);
           setBusy(true);
           try {
-            const { invoiceNumber } = await api.requestInvoice({ planId: plan.id, interval, seats, ...form, payerKpp: form.payerKpp || null });
-            toast(`Запрос счёта №${invoiceNumber} отправлен. Счёт придёт на ${form.payerEmail}`, "success");
+            const { id, invoiceNumber, pdf } = await api.requestInvoice({ planId: plan.id, interval, seats, ...form, payerKpp: form.payerKpp || null });
+            if (pdf) {
+              await downloadInvoicePdf(id, invoiceNumber).catch(() => {});
+              toast(`Счёт №${invoiceNumber} скачан и отправлен на ${form.payerEmail}`, "success");
+            } else {
+              toast(`Запрос счёта №${invoiceNumber} отправлен. Счёт придёт на ${form.payerEmail}`, "success");
+            }
             onDone();
             onClose();
           } catch (err) {
@@ -134,7 +139,7 @@ function InvoiceDialog({ plan, interval, seats, initial, onClose, onDone }: { pl
           {(a) => <Input {...a} type="email" value={form.payerEmail} onChange={set("payerEmail")} />}
         </Field>
         <p className="text-sm text-ink-faint">
-          Пришлём счёт на эту почту. Тариф включится, когда оплата поступит на счёт — обычно 1–3 рабочих дня. Пока ждём оплату, пространство работает как сейчас.
+          {pdfReady ? "Счёт сразу скачается в PDF и придёт на эту почту." : "Пришлём счёт на эту почту."} Тариф включится, когда оплата поступит на счёт — обычно 1–3 рабочих дня. Пока ждём оплату, пространство работает как сейчас.
         </p>
         {error && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
@@ -346,6 +351,14 @@ function BillingView() {
                         : p.method === "INVOICE"
                           ? "Ждём оплату по счёту"
                           : "Ожидает оплаты"}
+                    {p.method === "INVOICE" && p.status !== "FAILED" && b.invoicePdf && canPay && (
+                      <button
+                        className="ml-2 text-xs text-ink-faint underline hover:text-ink"
+                        onClick={() => downloadInvoicePdf(p.id, p.invoiceNumber!).catch((e) => toast((e as Error).message, "error"))}
+                      >
+                        PDF
+                      </button>
+                    )}
                     {p.method === "INVOICE" && p.status === "PENDING" && canPay && (
                       <button
                         className="ml-2 text-xs text-ink-faint underline hover:text-ink"
@@ -376,6 +389,7 @@ function BillingView() {
           interval={interval}
           seats={invoiceFor.maxUsers === null ? seatCount : Math.min(seatCount, invoiceFor.maxUsers)}
           initial={b.lastPayer}
+          pdfReady={b.invoicePdf}
           onClose={() => setInvoiceFor(null)}
           onDone={load}
         />

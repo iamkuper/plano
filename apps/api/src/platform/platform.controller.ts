@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Module, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Module, StreamableFile, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PlatformAdminGuard } from "./platform-admin.guard";
@@ -50,6 +50,12 @@ export class PlatformController {
   @Get("invoices")
   invoices() {
     return this.billing.pendingInvoices();
+  }
+
+  @Get("invoices/:id/pdf")
+  async invoicePdf(@Param("id") id: string) {
+    const { filename, content } = await this.billing.invoicePdf(id, true);
+    return new StreamableFile(content, { type: "application/pdf", disposition: `attachment; filename="${filename}"` });
   }
 
   @Post("invoices/:id/paid")

@@ -389,6 +389,8 @@ export interface BillingDto {
   payments: PaymentDto[];
   // Details from the last invoice request, to prefill the next one.
   lastPayer: InvoicePayer | null;
+  // The seller's details are set, so invoices come as PDF.
+  invoicePdf: boolean;
   // True when payments go to the built-in test provider instead of T-Bank.
   testMode: boolean;
 }

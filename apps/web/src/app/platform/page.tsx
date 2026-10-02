@@ -4,28 +4,82 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { formatRub } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
-import { Button, Dialog, Field, Input, Kpi, PageHeader, Panel, Select, Segmented, td, th, tr, TableSkeleton } from "@/components/ui";
-import { api, type PlatformInvoice, type PlatformState, type PlatformStats, type PlatformWorkspaceDetail, type PlatformWorkspaceRow } from "@/lib/api";
+import {
+  Button,
+  Dialog,
+  Field,
+  Input,
+  Kpi,
+  PageHeader,
+  Panel,
+  Select,
+  Segmented,
+  td,
+  th,
+  tr,
+  TableSkeleton,
+} from "@/components/ui";
+import {
+  api,
+  downloadInvoicePdf,
+  type PlatformInvoice,
+  type PlatformState,
+  type PlatformStats,
+  type PlatformWorkspaceDetail,
+  type PlatformWorkspaceRow,
+} from "@/lib/api";
 import { toast } from "@/lib/toast";
 
-const STATE_LABELS: Record<PlatformState, string> = { trial: "Пробный", paid: "Оплачен", free: "Free", locked: "Заблокирован", past_due: "Долг" };
-const day = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }) : "—");
+const STATE_LABELS: Record<PlatformState, string> = {
+  trial: "Пробный",
+  paid: "Оплачен",
+  free: "Free",
+  locked: "Заблокирован",
+  past_due: "Долг",
+};
+const day = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleDateString("ru-RU", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
 const mb = (bytes: number) => `${Math.round(bytes / 1024 / 1024)} МБ`;
 
-function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged: () => void }) {
+function WorkspaceDialog({
+  id,
+  onClose,
+  onChanged,
+}: {
+  id: string;
+  onClose: () => void;
+  onChanged: () => void;
+}) {
   const [w, setW] = useState<PlatformWorkspaceDetail | null>(null);
   const [planId, setPlanId] = useState("PRO");
   const [days, setDays] = useState("30");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    api.platformWorkspace(id).then(setW).catch((e) => toast((e as Error).message, "error"));
+    api
+      .platformWorkspace(id)
+      .then(setW)
+      .catch((e) => toast((e as Error).message, "error"));
   }, [id]);
 
   async function act(action: "grant" | "extend-trial" | "lock" | "free") {
     setBusy(true);
     try {
-      setW(await api.platformChangeSubscription(id, { action, ...(action === "grant" ? { planId } : {}), ...(action === "grant" || action === "extend-trial" ? { days: Number(days) } : {}) }));
+      setW(
+        await api.platformChangeSubscription(id, {
+          action,
+          ...(action === "grant" ? { planId } : {}),
+          ...(action === "grant" || action === "extend-trial"
+            ? { days: Number(days) }
+            : {}),
+        }),
+      );
       toast("Готово", "success");
       onChanged();
     } catch (e) {
@@ -36,7 +90,13 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
   }
 
   return (
-    <Dialog title={w ? w.name : "Загрузка…"} description={w ? `Создано ${day(w.createdAt)}, ${STATE_LABELS[w.state]}` : undefined} onClose={onClose}>
+    <Dialog
+      title={w ? w.name : "Загрузка…"}
+      description={
+        w ? `Создано ${day(w.createdAt)}, ${STATE_LABELS[w.state]}` : undefined
+      }
+      onClose={onClose}
+    >
       {w && (
         <div className="max-h-[70vh] space-y-5 overflow-y-auto pr-1">
           <div className="grid grid-cols-3 gap-3 text-sm">
@@ -50,7 +110,12 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
             </div>
             <div>
               <div className="text-ink-faint">Тариф</div>
-              {w.subscription?.planId ?? "FREE"}, до {day(w.subscription?.trialEndsAt ?? w.subscription?.currentPeriodEnd ?? null)}
+              {w.subscription?.planId ?? "FREE"}, до{" "}
+              {day(
+                w.subscription?.trialEndsAt ??
+                  w.subscription?.currentPeriodEnd ??
+                  null,
+              )}
             </div>
           </div>
 
@@ -59,14 +124,32 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
             <div className="flex flex-wrap items-end gap-2">
               <Field label="Тариф">
                 {(a) => (
-                  <Select {...a} value={planId} onChange={(e) => setPlanId(e.target.value)}>
+                  <Select
+                    {...a}
+                    value={planId}
+                    onChange={(e) => setPlanId(e.target.value)}
+                  >
                     <option value="PRO">Pro</option>
                     <option value="BUSINESS">Business</option>
                   </Select>
                 )}
               </Field>
-              <Field label="Дней">{(a) => <Input {...a} className="w-20" inputMode="numeric" value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))} />}</Field>
-              <Button variant="primary" loading={busy} onClick={() => act("grant")}>
+              <Field label="Дней">
+                {(a) => (
+                  <Input
+                    {...a}
+                    className="w-20"
+                    inputMode="numeric"
+                    value={days}
+                    onChange={(e) => setDays(e.target.value.replace(/\D/g, ""))}
+                  />
+                )}
+              </Field>
+              <Button
+                variant="primary"
+                loading={busy}
+                onClick={() => act("grant")}
+              >
                 Выдать тариф
               </Button>
               <Button loading={busy} onClick={() => act("extend-trial")}>
@@ -75,14 +158,20 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
               <Button loading={busy} onClick={() => act("free")}>
                 На Free
               </Button>
-              <Button variant="danger" loading={busy} onClick={() => act("lock")}>
+              <Button
+                variant="danger"
+                loading={busy}
+                onClick={() => act("lock")}
+              >
                 Заблокировать
               </Button>
             </div>
           </div>
 
           <div>
-            <h3 className="mb-2 text-sm font-medium">Сотрудники ({w.users.length})</h3>
+            <h3 className="mb-2 text-sm font-medium">
+              Сотрудники ({w.users.length})
+            </h3>
             <ul className="divide-y divide-border text-sm">
               {w.users.map((u) => (
                 <li key={u.id} className="flex justify-between py-1.5">
@@ -107,10 +196,21 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
                 {w.payments.map((p) => (
                   <li key={p.id} className="flex justify-between py-1.5">
                     <span>
-                      {day(p.paidAt ?? p.createdAt)}, {p.planId}, {p.seats} польз.{p.kind === "RENEWAL" ? ", продление" : ""}{p.method === "INVOICE" ? `, счёт №${p.invoiceNumber}` : ""}
+                      {day(p.paidAt ?? p.createdAt)}, {p.planId}, {p.seats}{" "}
+                      польз.{p.kind === "RENEWAL" ? ", продление" : ""}
+                      {p.method === "INVOICE"
+                        ? `, счёт №${p.invoiceNumber}`
+                        : ""}
                     </span>
                     <span>
-                      {formatRub(p.amount)} <span className="text-ink-faint">{p.status === "PAID" ? "оплачен" : p.status === "FAILED" ? "не прошёл" : "ожидает"}</span>
+                      {formatRub(p.amount)}{" "}
+                      <span className="text-ink-faint">
+                        {p.status === "PAID"
+                          ? "оплачен"
+                          : p.status === "FAILED"
+                            ? "не прошёл"
+                            : "ожидает"}
+                      </span>
                     </span>
                   </li>
                 ))}
@@ -124,7 +224,9 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
               {w.auditLog.map((e) => (
                 <li key={e.id} className="flex justify-between gap-3 py-1.5">
                   <span>{e.summary}</span>
-                  <span className="shrink-0 text-ink-faint">{day(e.createdAt)}</span>
+                  <span className="shrink-0 text-ink-faint">
+                    {day(e.createdAt)}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -140,22 +242,36 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
 function Invoices() {
   const [items, setItems] = useState<PlatformInvoice[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const load = useCallback(() => api.platformInvoices().then(setItems).catch(() => setItems([])), []);
+  const load = useCallback(
+    () =>
+      api
+        .platformInvoices()
+        .then(setItems)
+        .catch(() => setItems([])),
+    [],
+  );
   useEffect(() => {
     load();
   }, [load]);
   if (!items?.length) return null;
   return (
     <Panel className="overflow-hidden">
-      <div className="border-b border-border px-4 py-2.5 text-sm font-medium">Счета ждут оплаты ({items.length})</div>
+      <div className="border-b border-border px-4 py-2.5 text-sm font-medium">
+        Счета ждут оплаты ({items.length})
+      </div>
       <ul className="divide-y divide-border text-sm">
         {items.map((i) => (
-          <li key={i.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+          <li
+            key={i.id}
+            className="flex flex-wrap items-start justify-between gap-3 px-4 py-3"
+          >
             <div className="min-w-0 space-y-0.5">
               <div className="font-medium">
                 Счёт №{i.invoiceNumber} — {formatRub(i.amount)}
                 <span className="ml-2 font-normal text-ink-faint">
-                  {i.workspace.name}, {i.planId}, {i.seats} польз., {i.interval === "YEAR" ? "год" : "месяц"}, запрошен {day(i.createdAt)}
+                  {i.workspace.name}, {i.planId}, {i.seats} польз.,{" "}
+                  {i.interval === "YEAR" ? "год" : "месяц"}, запрошен{" "}
+                  {day(i.createdAt)}
                 </span>
               </div>
               <div>
@@ -166,26 +282,47 @@ function Invoices() {
                 {i.payerAddress} · {i.payerEmail}
               </div>
             </div>
-            <Button
-              size="sm"
-              variant="primary"
-              loading={busy === i.id}
-              onClick={async () => {
-                if (!confirm(`Оплата по счёту №${i.invoiceNumber} на ${formatRub(i.amount)} поступила? Тариф включится сразу.`)) return;
-                setBusy(i.id);
-                try {
-                  await api.platformInvoicePaid(i.id);
-                  toast(`Счёт №${i.invoiceNumber} оплачен, тариф включён`, "success");
-                  load();
-                } catch (e) {
-                  toast((e as Error).message, "error");
-                } finally {
-                  setBusy(null);
+            <div className="flex gap-1.5">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() =>
+                  downloadInvoicePdf(i.id, i.invoiceNumber, true).catch((e) =>
+                    toast((e as Error).message, "error"),
+                  )
                 }
-              }}
-            >
-              Оплата поступила
-            </Button>
+              >
+                PDF
+              </Button>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={busy === i.id}
+                onClick={async () => {
+                  if (
+                    !confirm(
+                      `Оплата по счёту №${i.invoiceNumber} на ${formatRub(i.amount)} поступила? Тариф включится сразу.`,
+                    )
+                  )
+                    return;
+                  setBusy(i.id);
+                  try {
+                    await api.platformInvoicePaid(i.id);
+                    toast(
+                      `Счёт №${i.invoiceNumber} оплачен, тариф включён`,
+                      "success",
+                    );
+                    load();
+                  } catch (e) {
+                    toast((e as Error).message, "error");
+                  } finally {
+                    setBusy(null);
+                  }
+                }}
+              >
+                Оплата поступила
+              </Button>
+            </div>
           </li>
         ))}
       </ul>
@@ -217,37 +354,78 @@ export default function PlatformPage() {
   );
 
   useEffect(() => {
-    api.platformStats().then(setStats).catch(() => router.replace("/dashboard"));
+    api
+      .platformStats()
+      .then(setStats)
+      .catch(() => router.replace("/dashboard"));
   }, [router]);
   useEffect(() => {
     const t = setTimeout(() => load(), 250);
     return () => clearTimeout(t);
   }, [load]);
 
-  if (!stats) return <AppShell><TableSkeleton /></AppShell>;
+  if (!stats)
+    return (
+      <AppShell>
+        <TableSkeleton />
+      </AppShell>
+    );
 
   return (
     <AppShell>
       <PageHeader title="Платформа" subtitle="Служебный раздел" />
       <div className="space-y-4 py-5">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-6">
-          <Kpi label="Компаний" value={stats.workspaces} hint={`+${stats.newWorkspaces7d} за неделю, +${stats.newWorkspaces30d} за месяц`} />
+          <Kpi
+            label="Компаний"
+            value={stats.workspaces}
+            hint={`+${stats.newWorkspaces7d} за неделю, +${stats.newWorkspaces30d} за месяц`}
+          />
           <Kpi label="Пользователей" value={stats.users} />
-          <Kpi label="Платят" value={stats.states.paid + stats.states.past_due} hint={`на пробном ${stats.states.trial}, Free ${stats.states.free}`} />
-          <Kpi label="Заблокировано" value={stats.states.locked} tone={stats.states.locked ? "danger" : undefined} />
-          <Kpi label="MRR" value={formatRub(stats.mrrKopecks)} hint={`за 30 дней получено ${formatRub(stats.paid30dKopecks)}`} />
-          <Kpi label="Неудачных платежей" value={stats.failedPayments7d} hint="за неделю" tone={stats.failedPayments7d ? "danger" : undefined} />
+          <Kpi
+            label="Платят"
+            value={stats.states.paid + stats.states.past_due}
+            hint={`на пробном ${stats.states.trial}, Free ${stats.states.free}`}
+          />
+          <Kpi
+            label="Заблокировано"
+            value={stats.states.locked}
+            tone={stats.states.locked ? "danger" : undefined}
+          />
+          <Kpi
+            label="MRR"
+            value={formatRub(stats.mrrKopecks)}
+            hint={`за 30 дней получено ${formatRub(stats.paid30dKopecks)}`}
+          />
+          <Kpi
+            label="Неудачных платежей"
+            value={stats.failedPayments7d}
+            hint="за неделю"
+            tone={stats.failedPayments7d ? "danger" : undefined}
+          />
         </div>
 
         <Invoices />
 
         <div className="flex flex-wrap items-center gap-3">
-          <Input className="w-64" placeholder="Название или почта" aria-label="Поиск" value={q} onChange={(e) => setQ(e.target.value)} />
+          <Input
+            className="w-64"
+            placeholder="Название или почта"
+            aria-label="Поиск"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
           <Segmented
             label="Состояние"
             value={state}
             onChange={setState}
-            options={[{ value: "", label: "Все" }, ...(Object.keys(STATE_LABELS) as PlatformState[]).map((s) => ({ value: s, label: STATE_LABELS[s] }))]}
+            options={[
+              { value: "", label: "Все" },
+              ...(Object.keys(STATE_LABELS) as PlatformState[]).map((s) => ({
+                value: s,
+                label: STATE_LABELS[s],
+              })),
+            ]}
           />
         </div>
 
@@ -269,24 +447,42 @@ export default function PlatformPage() {
               </thead>
               <tbody>
                 {rows.map((w) => (
-                  <tr key={w.id} className={`${tr} cursor-pointer`} onClick={() => setOpen(w.id)}>
+                  <tr
+                    key={w.id}
+                    className={`${tr} cursor-pointer`}
+                    onClick={() => setOpen(w.id)}
+                  >
                     <td className={`${td} font-medium`}>{w.name}</td>
-                    <td className={`${td} text-ink-faint`}>{w.owner?.email ?? "—"}</td>
+                    <td className={`${td} text-ink-faint`}>
+                      {w.owner?.email ?? "—"}
+                    </td>
                     <td className={td}>{w.users}</td>
                     <td className={td}>
                       {w.projects} / {w.cards}
                     </td>
                     <td className={td}>
                       {STATE_LABELS[w.state]}
-                      {w.state === "paid" || w.state === "past_due" || w.state === "locked" ? `, ${w.planId}` : ""}
+                      {w.state === "paid" ||
+                      w.state === "past_due" ||
+                      w.state === "locked"
+                        ? `, ${w.planId}`
+                        : ""}
                     </td>
-                    <td className={`${td} text-ink-faint`}>{day(w.trialEndsAt ?? w.currentPeriodEnd)}</td>
-                    <td className={`${td} text-ink-faint`}>{day(w.createdAt)}</td>
+                    <td className={`${td} text-ink-faint`}>
+                      {day(w.trialEndsAt ?? w.currentPeriodEnd)}
+                    </td>
+                    <td className={`${td} text-ink-faint`}>
+                      {day(w.createdAt)}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-            {rows.length === 0 && <p className="py-8 text-center text-sm text-ink-faint">Ничего не найдено</p>}
+            {rows.length === 0 && (
+              <p className="py-8 text-center text-sm text-ink-faint">
+                Ничего не найдено
+              </p>
+            )}
           </Panel>
         )}
         {next && (
@@ -295,7 +491,13 @@ export default function PlatformPage() {
           </div>
         )}
       </div>
-      {open && <WorkspaceDialog id={open} onClose={() => setOpen(null)} onChanged={() => load()} />}
+      {open && (
+        <WorkspaceDialog
+          id={open}
+          onClose={() => setOpen(null)}
+          onChanged={() => load()}
+        />
+      )}
     </AppShell>
   );
 }

@@ -538,3 +538,34 @@ describe("bank transfer by invoice", () => {
     await api(t, a.token).post(`/billing/invoice/${inv.id}/cancel`).expect(404);
   });
 });
+
+describe("invoice PDF", () => {
+  const payer = { payerName: "ООО «Ромашка»", payerInn: "7701234567", payerAddress: "Москва, ул. Пример, 1", payerEmail: "buh@romashka.test" };
+  const seller = { SELLER_NAME: "ИП Тест", SELLER_INN: "771234567890", SELLER_BIK: "044525974", SELLER_ACCOUNT: "40802810000000000001" };
+
+  it("is unavailable until the seller's details are set, then downloads as PDF", async () => {
+    const a = await register(t, "pdf");
+    const A = api(t, a.token);
+    const plain = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH" }).expect(201)).body;
+    expect(plain.pdf).toBe(false);
+    await A.get(`/billing/invoice/${plain.id}/pdf`).expect(503);
+
+    Object.assign(process.env, seller);
+    try {
+      const inv = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH" }).expect(201)).body;
+      expect(inv.pdf).toBe(true);
+      const res = await A.get(`/billing/invoice/${inv.id}/pdf`).buffer(true).parse((r, cb) => {
+        const chunks: Buffer[] = [];
+        r.on("data", (c: Buffer) => chunks.push(c));
+        r.on("end", () => cb(null, Buffer.concat(chunks)));
+      }).expect(200);
+      expect(res.headers["content-type"]).toContain("application/pdf");
+      expect((res.body as Buffer).subarray(0, 4).toString()).toBe("%PDF");
+      // another workspace can't fetch it
+      const b = await register(t, "pdf2");
+      await api(t, b.token).get(`/billing/invoice/${inv.id}/pdf`).expect(404);
+    } finally {
+      for (const k of Object.keys(seller)) delete process.env[k];
+    }
+  });
+});

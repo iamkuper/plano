@@ -105,6 +105,24 @@ export interface AuditEntryDto {
   user: { id: string; name: string; avatarUrl?: string | null } | null;
 }
 
+// Downloads an invoice PDF (own workspace, or any for the platform owner).
+export async function downloadInvoicePdf(id: string, number: number, platform = false) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${platform ? "/platform/invoices" : "/billing/invoice"}/${id}/pdf`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message ?? `Не удалось скачать счёт (${res.status})`);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Plano-schet-${number}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 // Downloads a project's cards as CSV (Business).
 export async function downloadProjectCsv(projectId: string, fallbackName: string) {
   const token = getToken();
@@ -353,7 +371,7 @@ export const api = {
   checkout: (planId: string, interval: BillingInterval, seats: number) =>
     post<{ paymentUrl: string }>("/billing/checkout", { planId, interval, seats }),
   requestInvoice: (body: { planId: string; interval: BillingInterval; seats: number } & InvoicePayer) =>
-    post<{ id: string; invoiceNumber: number }>("/billing/invoice", body),
+    post<{ id: string; invoiceNumber: number; pdf: boolean }>("/billing/invoice", body),
   cancelInvoice: (id: string) => post<void>(`/billing/invoice/${id}/cancel`, {}),
   platformInvoices: () => apiFetch<PlatformInvoice[]>("/platform/invoices"),
   platformInvoicePaid: (id: string) => post<void>(`/platform/invoices/${id}/paid`, {}),

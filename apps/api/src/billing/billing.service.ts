@@ -11,6 +11,8 @@ import { AuditService } from "../audit/audit.service";
 import { appUrl } from "../auth/tokens";
 import { MailService } from "../mail/mail.service";
 import { platformAdminEmails } from "../platform/platform-admin.guard";
+import { plural } from "./amount-words";
+import { renderInvoicePdf, sellerFromEnv } from "./invoice-pdf";
 
 const DAY = 86_400_000;
 export const TRIAL_DAYS = 14;
@@ -205,6 +207,7 @@ export class BillingService {
         amount: p.amount, status: p.status, createdAt: p.createdAt.toISOString(), paidAt: p.paidAt?.toISOString() ?? null,
       })),
       lastPayer: await this.lastPayer(workspaceId),
+      invoicePdf: this.canMakeInvoicePdf,
       testMode: this.provider.test,
     };
   }
@@ -291,6 +294,8 @@ export class BillingService {
     });
     const amount = (payment.amount / 100).toLocaleString("ru-RU");
     const period = dto.interval === "YEAR" ? "год" : "месяц";
+    const pdf = await this.invoicePdfOf(payment).catch(() => null);
+    const files = pdf ? [{ filename: pdf.filename, content: pdf.content }] : undefined;
     await this.audit.record("billing.invoice", `Запрошен счёт №${payment.invoiceNumber}: тариф ${plan.name}, ${seats} польз., ${period}, ${amount} ₽`, payment.id);
 
     const details = [
@@ -305,14 +310,44 @@ export class BillingService {
       `Запросил: ${requester.email}`,
     ].join("\n");
     for (const to of platformAdminEmails()) {
-      await this.mail.send(to, `Plano: запрос счёта №${payment.invoiceNumber} — ${payment.payerName}`, `${details}\n\nКогда оплата поступит, отметьте счёт оплаченным: ${appUrl()}/platform`);
+      await this.mail.send(to, `Plano: запрос счёта №${payment.invoiceNumber} — ${payment.payerName}`, `${details}\n\nКогда оплата поступит, отметьте счёт оплаченным: ${appUrl()}/platform`, files);
     }
     await this.mail.send(
       payment.payerEmail!,
       `Plano: запрос счёта №${payment.invoiceNumber} принят`,
-      `${details}\n\nСчёт пришлём на эту почту. Тариф включится, как только оплата поступит на счёт.`,
+      pdf
+        ? `${details}\n\nСчёт во вложении. Тариф включится, как только оплата поступит на счёт.`
+        : `${details}\n\nСчёт пришлём на эту почту. Тариф включится, как только оплата поступит на счёт.`,
+      files,
     );
-    return { id: payment.id, invoiceNumber: payment.invoiceNumber };
+    return { id: payment.id, invoiceNumber: payment.invoiceNumber, pdf: !!pdf };
+  }
+
+  // PDF of an invoice made from the seller's details (SELLER_* env).
+  private async invoicePdfOf(p: Payment) {
+    const seller = sellerFromEnv();
+    if (!seller) throw new HttpException("Реквизиты продавца не настроены: счёт в PDF пока недоступен, пришлём его на почту", HttpStatus.SERVICE_UNAVAILABLE);
+    const plan = await this.db.plan.findUniqueOrThrow({ where: { id: p.planId } });
+    const period = p.interval === "YEAR" ? "12 месяцев" : "1 месяц";
+    const content = await renderInvoicePdf(seller, {
+      number: p.invoiceNumber!,
+      date: p.createdAt,
+      payer: { name: p.payerName ?? "", inn: p.payerInn ?? "", kpp: p.payerKpp, address: p.payerAddress ?? "" },
+      item: `Предоставление доступа к сервису Plano, тариф «${plan.name}», ${p.seats} ${plural(p.seats, "пользователь", "пользователя", "пользователей")}, ${period}`,
+      amount: p.amount,
+    });
+    return { filename: `Plano-schet-${p.invoiceNumber}.pdf`, content };
+  }
+
+  // The workspace's own invoice; `anyWorkspace` for the platform owner.
+  async invoicePdf(id: string, anyWorkspace = false) {
+    const p = await this.db.payment.findFirst({ where: { id, method: "INVOICE", ...(anyWorkspace ? {} : { workspaceId: this.ws }) } });
+    if (!p) throw new NotFoundException("Счёт не найден");
+    return this.invoicePdfOf(p);
+  }
+
+  get canMakeInvoicePdf() {
+    return !!sellerFromEnv();
   }
 
   async cancelInvoice(id: string) {

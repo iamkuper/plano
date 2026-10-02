@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Param, Post, StreamableFile, UseGuards } from "@nestjs/common";
 import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
@@ -73,6 +73,14 @@ export class BillingController {
   @RequirePermission("billing.manage")
   invoice(@CurrentUser() user: AuthenticatedUser, @Body() dto: InvoiceDto) {
     return this.billing.requestInvoice(dto, user);
+  }
+
+  @Get("invoice/:id/pdf")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("billing.manage")
+  async invoicePdf(@Param("id") id: string) {
+    const { filename, content } = await this.billing.invoicePdf(id);
+    return new StreamableFile(content, { type: "application/pdf", disposition: `attachment; filename="${filename}"` });
   }
 
   @Post("invoice/:id/cancel")
