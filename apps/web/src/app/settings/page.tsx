@@ -240,7 +240,7 @@ export default function SettingsPage() {
         )}
         {settings && me ? (
           <>
-            {settings.id && <AccountIdSection id={settings.id} />}
+            {settings.accountNumber && <AccountIdSection id={String(settings.accountNumber)} />}
             <WorkspaceSection key={`w-${settings.workspaceName}`} settings={settings} canEdit={canEdit} onSaved={publishSettings} />
             <PrefixSection key={`p-${settings.cardPrefix}`} settings={settings} canEdit={canEdit} onSaved={publishSettings} />
             <StagesSection key={`s-${settings.defaultColumns.join("|")}`} settings={settings} canEdit={canEdit} onSaved={publishSettings} />

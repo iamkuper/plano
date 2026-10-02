@@ -93,7 +93,7 @@ function WorkspaceDialog({
     <Dialog
       title={w ? w.name : "Загрузка…"}
       description={
-        w ? `Создано ${day(w.createdAt)}, ${STATE_LABELS[w.state]}` : undefined
+        w ? `ID ${w.accountNumber} · создано ${day(w.createdAt)} · ${STATE_LABELS[w.state]}` : undefined
       }
       onClose={onClose}
     >
@@ -269,7 +269,7 @@ function Invoices() {
               <div className="font-medium">
                 Счёт №{i.invoiceNumber} — {formatRub(i.amount)}
                 <span className="ml-2 font-normal text-ink-faint">
-                  {i.workspace.name} (ID {i.workspace.id}), {i.planId}, {i.seats} польз.,{" "}
+                  {i.workspace.name} (ID {i.workspace.accountNumber}), {i.planId}, {i.seats} польз.,{" "}
                   {i.interval === "YEAR" ? "год" : "месяц"}, запрошен{" "}
                   {day(i.createdAt)}
                 </span>
@@ -410,7 +410,7 @@ export default function PlatformPage() {
         <div className="flex flex-wrap items-center gap-3">
           <Input
             className="w-64"
-            placeholder="Название или почта"
+            placeholder="Название, почта или ID"
             aria-label="Поиск"
             value={q}
             onChange={(e) => setQ(e.target.value)}

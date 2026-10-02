@@ -70,6 +70,7 @@ export interface PlatformStats {
 
 export interface PlatformWorkspaceRow {
   id: string;
+  accountNumber: number;
   name: string;
   createdAt: string;
   owner: { email: string; name: string } | null;
@@ -85,6 +86,7 @@ export interface PlatformWorkspaceRow {
 
 export interface PlatformWorkspaceDetail {
   id: string;
+  accountNumber: number;
   name: string;
   createdAt: string;
   state: PlatformState;
@@ -215,7 +217,7 @@ export interface PlatformInvoice {
   payerKpp: string | null;
   payerAddress: string;
   payerEmail: string;
-  workspace: { id: string; name: string };
+  workspace: { id: string; name: string; accountNumber: number };
 }
 
 export const BILLING_CHANGED = "plano:billing-changed";

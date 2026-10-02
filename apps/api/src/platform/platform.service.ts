@@ -74,6 +74,7 @@ export class PlatformService {
               ...caseVariants(q).map((v) => ({ name: { contains: v, mode: "insensitive" as const } })),
               { users: { some: { email: { contains: q.trim(), mode: "insensitive" as const } } } },
               { id: q.trim() },
+              ...(/^\d{1,9}$/.test(q.trim()) ? [{ accountNumber: Number(q.trim()) }] : []),
             ],
           }
         : {}),

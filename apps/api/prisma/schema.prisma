@@ -40,6 +40,9 @@ enum CardType {
 
 model Workspace {
   id             String   @id @default(cuid())
+  // Public account number (100001, 100002…): shown to customers, quoted in
+  // invoices and support requests. The cuid stays the internal key.
+  accountNumber  Int      @unique @default(autoincrement())
   name           String   @default("Канбан")
   // Card key prefix: TSK → TSK-12.
   cardPrefix     String   @default("TSK")

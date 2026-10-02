@@ -19,8 +19,9 @@ export function cardKey(card: { number: number }) {
 }
 
 export interface SettingsDto {
-  // Workspace (account) ID: quoted in invoices and when contacting support.
   id?: string;
+  // Public numeric account ID: quoted in invoices and when contacting support.
+  accountNumber?: number;
   workspaceName: string;
   cardPrefix: string;
   defaultColumns: string[];

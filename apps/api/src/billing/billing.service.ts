@@ -328,7 +328,7 @@ export class BillingService {
         payerName: dto.payerName.trim(), payerInn: dto.payerInn.trim(), payerKpp: dto.payerKpp?.trim() || null,
         payerAddress: dto.payerAddress.trim(), payerEmail: dto.payerEmail.trim(),
       },
-      include: { workspace: { select: { name: true } } },
+      include: { workspace: { select: { name: true, accountNumber: true } } },
     });
     const amount = (payment.amount / 100).toLocaleString("ru-RU");
     const period = extra ? `доплата за ${extra.days} дн. до конца периода` : interval === "YEAR" ? "год" : "месяц";
@@ -338,7 +338,7 @@ export class BillingService {
 
     const details = [
       `Счёт №${payment.invoiceNumber} на ${amount} ₽`,
-      `Пространство: ${payment.workspace.name}, ID аккаунта ${workspaceId}`,
+      `Пространство: ${payment.workspace.name}, ID аккаунта ${payment.workspace.accountNumber}`,
       `Тариф ${plan.name}, ${extra ? "+" : ""}${seats} польз., ${period}`,
       "",
       `Плательщик: ${payment.payerName}`,
@@ -371,7 +371,7 @@ export class BillingService {
     const until = sub?.currentPeriodEnd?.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" });
     const content = await renderInvoicePdf(seller, {
       number: p.invoiceNumber!,
-      workspaceId: p.workspaceId,
+      accountNumber: (await this.db.workspace.findUniqueOrThrow({ where: { id: p.workspaceId }, select: { accountNumber: true } })).accountNumber,
       date: p.createdAt,
       payer: { name: p.payerName ?? "", inn: p.payerInn ?? "", kpp: p.payerKpp, address: p.payerAddress ?? "" },
       item:
@@ -418,7 +418,7 @@ export class BillingService {
     return this.db.payment.findMany({
       where: { method: "INVOICE", status: "PENDING" },
       orderBy: { createdAt: "asc" },
-      include: { workspace: { select: { id: true, name: true } } },
+      include: { workspace: { select: { id: true, name: true, accountNumber: true } } },
     });
   }
 
