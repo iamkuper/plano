@@ -16,6 +16,7 @@ import { RecurringModule } from "./recurring/recurring.module";
 import { AttachmentsModule } from "./attachments/attachments.module";
 import { BillingModule } from "./billing/billing.module";
 import { MailModule } from "./mail/mail.module";
+import { LabelsModule } from "./labels/labels.controller";
 import { InvitationsModule } from "./invitations/invitations.module";
 
 @Module({
@@ -37,6 +38,7 @@ import { InvitationsModule } from "./invitations/invitations.module";
     AttachmentsModule,
     BillingModule,
     MailModule,
+    LabelsModule,
     InvitationsModule,
   ],
 })

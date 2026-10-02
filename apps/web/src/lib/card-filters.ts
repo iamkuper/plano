@@ -1,4 +1,4 @@
-import type { CardPriority, CardTileDto, CardType } from "@amo-kanban/shared";
+import { cardKey, type CardPriority, type CardTileDto, type CardType } from "@amo-kanban/shared";
 
 export type DateFilter = "all" | "today" | "week" | "overdue";
 export type SortKey = "manual" | "due" | "priority" | "updated";
@@ -8,21 +8,24 @@ export interface CardFilters {
   assigneeIds: string[];
   types: CardType[];
   priorities: CardPriority[];
+  labelIds: string[];
+  // Free text over title, description and key.
+  q: string;
   sort: SortKey;
 }
 
-export const DEFAULT_FILTERS: CardFilters = { date: "all", assigneeIds: [], types: [], priorities: [], sort: "manual" };
+export const DEFAULT_FILTERS: CardFilters = { date: "all", assigneeIds: [], types: [], priorities: [], labelIds: [], q: "", sort: "manual" };
 
 // Filters other than the date chips and the sort (shown as a count on the
 // "Фильтры" button).
 export function activeFilterCount(f: CardFilters) {
-  return f.assigneeIds.length + f.types.length + f.priorities.length;
+  return f.assigneeIds.length + f.types.length + f.priorities.length + f.labelIds.length;
 }
 
 // True when the visible order differs from the stored one, so the board
 // can't map a drop index back to a real position.
 export function isReordered(f: CardFilters) {
-  return f.sort !== "manual" || f.date !== "all" || activeFilterCount(f) > 0;
+  return f.sort !== "manual" || f.date !== "all" || !!f.q.trim() || activeFilterCount(f) > 0;
 }
 
 const PRIORITY_RANK: Record<CardPriority, number> = { HIGH: 0, MEDIUM: 1, LOW: 2 };
@@ -43,10 +46,18 @@ function matchesDate(card: CardTileDto, date: DateFilter) {
   return due < today;
 }
 
+function matchesText(card: CardTileDto, q: string) {
+  const term = q.trim().toLowerCase();
+  if (!term) return true;
+  return `${card.number} ${cardKey(card)} ${card.title} ${card.description ?? ""}`.toLowerCase().includes(term);
+}
+
 export function applyFilters(cards: CardTileDto[], f: CardFilters) {
   const visible = cards.filter(
     (c) =>
       matchesDate(c, f.date) &&
+      matchesText(c, f.q) &&
+      (!f.labelIds.length || c.labels.some((l) => f.labelIds.includes(l.label.id))) &&
       (!f.assigneeIds.length || c.assignees.some((a) => f.assigneeIds.includes(a.user.id))) &&
       (!f.types.length || f.types.includes(c.type)) &&
       (!f.priorities.length || f.priorities.includes(c.priority)),

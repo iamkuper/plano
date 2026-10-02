@@ -6,6 +6,7 @@ import { RealtimeService } from "../realtime/realtime.service";
 // What a card looks like on a board: enough for the tile, not the full modal.
 export const cardTileInclude = {
   assignees: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
+  labels: { select: { label: { select: { id: true, name: true, color: true } } } },
   project: { select: { id: true, title: true } },
   // Tiles show subtasks inline and let you tick them off on the board.
   checklist: { select: { id: true, text: true, done: true }, orderBy: { position: "asc" } },

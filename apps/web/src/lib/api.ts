@@ -8,6 +8,8 @@ import type {
   CardType,
   ChecklistItemDto,
   ColumnDto,
+  LabelColor,
+  LabelDto,
   CommentDto,
   NotificationDto,
   RecurrenceFrequency,
@@ -142,6 +144,7 @@ export interface CardPatch {
   dueDate: string | null;
   estimateHours: number | null;
   assigneeIds: string[];
+  labelIds: string[];
 }
 
 export const api = {
@@ -199,6 +202,10 @@ export const api = {
   acceptInvite: (token: string, name: string, password: string) => post<{ accessToken: string }>("/auth/accept-invite", { token, name, password }),
   forgotPassword: (email: string) => post<void>("/auth/forgot", { email }),
   resetPassword: (token: string, password: string) => post<void>("/auth/reset", { token, password }),
+  labels: () => apiFetch<LabelDto[]>("/labels"),
+  createLabel: (name: string, color: LabelColor) => post<LabelDto>("/labels", { name, color }),
+  updateLabel: (id: string, data: Partial<{ name: string; color: LabelColor }>) => patch<LabelDto>(`/labels/${id}`, data),
+  deleteLabel: (id: string) => del(`/labels/${id}`),
   billing: () => apiFetch<BillingDto>("/billing"),
   checkout: (planId: string, interval: BillingInterval) => post<{ paymentUrl: string }>("/billing/checkout", { planId, interval }),
   cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),

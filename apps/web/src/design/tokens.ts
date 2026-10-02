@@ -72,6 +72,19 @@ export const priorityColor = {
 // Muted categorical hues for people/projects and card types.
 export const series = ["#4A5BDC", "#C2562F", "#1E8F7A", "#9A6B00", "#B04A85", "#3F7F2E"] as const;
 
+// Label colours, keyed like LABEL_COLORS in @amo-kanban/shared.
+export const labelColor = {
+  gray: "#8B8D94",
+  red: "#D23F3F",
+  orange: "#C2562F",
+  amber: "#B26B00",
+  green: "#2FA36B",
+  teal: "#1E8F7A",
+  blue: "#3D8BF2",
+  violet: "#8A6CE8",
+  pink: "#E26AA0",
+} as const;
+
 export const cardTypeColor = {
   SETUP: "#4A5BDC",
   INTEGRATION: "#C2562F",

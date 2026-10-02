@@ -6,7 +6,7 @@
 import { forwardRef, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Loader2, MoreHorizontal, X, type LucideIcon } from "lucide-react";
-import { statusColor as STATUS_COLORS } from "@/design/tokens";
+import { labelColor, statusColor as STATUS_COLORS } from "@/design/tokens";
 
 /* ───────────────────────────── Actions ───────────────────────────── */
 
@@ -99,6 +99,11 @@ export function Tag({ color, children }: { color: string; children: React.ReactN
       {children}
     </span>
   );
+}
+
+// Label: colour dot + name (same quiet style as Tag).
+export function LabelTag({ label }: { label: { name: string; color: keyof typeof labelColor } }) {
+  return <Tag color={labelColor[label.color] ?? labelColor.gray}>{label.name}</Tag>;
 }
 
 export type StatusTone = keyof typeof STATUS_COLORS;

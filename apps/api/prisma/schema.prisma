@@ -59,6 +59,7 @@ model Workspace {
   subscription Subscription?
   payments     Payment[]
   invitations  Invitation[]
+  labels       Label[]
 }
 
 model User {
@@ -168,6 +169,7 @@ model Card {
   notifications Notification[]
   reads         CardRead[]
   attachments   Attachment[]
+  labels        CardLabel[]
 
   @@unique([workspaceId, number])
   @@index([columnId, position])
@@ -496,4 +498,30 @@ model PasswordReset {
   createdAt DateTime  @default(now())
 
   @@index([userId, createdAt])
+}
+
+// ---- Labels ----
+
+// color is a key of LABEL_COLORS (shared); the web maps it to a design token.
+model Label {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  color       String
+  createdAt   DateTime  @default(now())
+
+  cards CardLabel[]
+
+  @@unique([workspaceId, name])
+}
+
+model CardLabel {
+  cardId  String
+  card    Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  labelId String
+  label   Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, labelId])
+  @@index([labelId])
 }

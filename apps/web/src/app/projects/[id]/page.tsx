@@ -2,13 +2,14 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { BarChart3, KanbanSquare, List, Settings, Table2 } from "lucide-react";
+import { BarChart3, CalendarDays, KanbanSquare, List, Settings, Table2 } from "lucide-react";
 import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type UserDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { Board, BoardSkeleton, ProjectFunnel } from "@/components/board";
 import { BulkBar } from "@/components/bulk-bar";
 import { BoardToolbar } from "@/components/board-toolbar";
 import { CardModal } from "@/components/card-modal";
+import { CardsCalendar } from "@/components/cards-calendar";
 import { CardsList, CardsTable } from "@/components/cards-views";
 import { ProjectOverview } from "@/components/project-overview";
 import { PageHeader, Segmented } from "@/components/ui";
@@ -19,7 +20,7 @@ import { useFilters } from "@/lib/use-filters";
 import { useDebounced, useRealtime } from "@/lib/realtime";
 import { applyFilters } from "@/lib/card-filters";
 
-type View = "kanban" | "table" | "list" | "overview";
+type View = "kanban" | "table" | "list" | "calendar" | "overview";
 
 function ProjectPage({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<ProjectListItemDto | null>(null);
@@ -99,6 +100,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
                 { value: "kanban", label: "Доска", icon: KanbanSquare },
                 { value: "table", label: "Таблица", icon: Table2 },
                 { value: "list", label: "Список", icon: List },
+                { value: "calendar", label: "Календарь", icon: CalendarDays },
                 { value: "overview", label: "Обзор", icon: BarChart3 },
               ]}
             />
@@ -148,6 +150,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
         />
       )}
       {board && view === "list" && <CardsList columns={board.columns} filters={filters} onOpenCard={setCardId} />}
+      {board && view === "calendar" && <CardsCalendar columns={board.columns} filters={filters} onOpenCard={setCardId} onChanged={reload} />}
       {board && view === "overview" && project && (
         <div className="py-5">
           <ProjectOverview project={project} columns={board.columns} onChanged={loadProject} />

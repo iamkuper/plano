@@ -30,6 +30,7 @@ export const PERMISSIONS = [
   { key: "projects.delete", label: "Удалять проекты" },
   { key: "cards.delete", label: "Удалять карточки" },
   { key: "templates.manage", label: "Создавать и менять шаблоны" },
+  { key: "labels.manage", label: "Менять и удалять метки", hint: "Создавать и назначать метки может любой сотрудник" },
   { key: "billing.manage", label: "Управлять тарифом и оплатой" },
   { key: "time.viewAll", label: "Видеть время всех сотрудников", hint: "Без этого права в отчёте видно только своё время" },
 ] as const;
@@ -114,6 +115,16 @@ export interface ProjectListItemDto {
   openCards?: number;
 }
 
+// Label colours are stored as keys; the web app maps them to design tokens.
+export const LABEL_COLORS = ["gray", "red", "orange", "amber", "green", "teal", "blue", "violet", "pink"] as const;
+export type LabelColor = (typeof LABEL_COLORS)[number];
+
+export interface LabelDto {
+  id: string;
+  name: string;
+  color: LabelColor;
+}
+
 export interface CardTileDto {
   id: string;
   number: number;
@@ -127,6 +138,7 @@ export interface CardTileDto {
   estimateHours: number | null;
   updatedAt: string;
   assignees: { user: UserRefDto }[];
+  labels: { label: LabelDto }[];
   project: { id: string; title: string };
   checklist: { id: string; text: string; done: boolean }[];
   _count: { comments: number; attachments?: number };
@@ -246,6 +258,7 @@ export const CARD_FIELD_LABELS: Record<string, string> = {
   dueDate: "срок",
   estimateHours: "оценку",
   assigneeIds: "исполнителей",
+  labelIds: "метки",
 };
 
 export type NotificationType = "ASSIGNED" | "MENTIONED" | "COMMENTED";

@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowUpDown, Check, ListFilter, X } from "lucide-react";
+import { ArrowUpDown, Check, ListFilter, Search, X } from "lucide-react";
 import { CARD_PRIORITY_LABELS, CARD_TYPE_LABELS, type CardPriority, type CardType, type UserDto } from "@amo-kanban/shared";
 import { activeFilterCount, type CardFilters, type DateFilter, type SortKey } from "@/lib/card-filters";
 import { Avatar } from "./avatar";
 import { CARD_TYPE_STYLES } from "./card-type-icon";
-import { MenuLabel, Popover, Segmented } from "./ui";
+import { useLabels } from "./label-picker";
+import { LabelTag, MenuLabel, Popover, Segmented, inputClass } from "./ui";
 
 const SORT_LABELS: Record<SortKey, string> = {
   manual: "Вручную",
@@ -60,12 +61,18 @@ export function BoardToolbar({
 }) {
   const set = (patch: Partial<CardFilters>) => onChange({ ...filters, ...patch });
   const count = activeFilterCount(filters);
+  const [labels] = useLabels();
 
   const chips = [
     ...filters.assigneeIds.map((id) => ({
       key: `a-${id}`,
       label: users.find((u) => u.id === id)?.name ?? "Исполнитель",
       remove: () => set({ assigneeIds: filters.assigneeIds.filter((v) => v !== id) }),
+    })),
+    ...filters.labelIds.map((id) => ({
+      key: `l-${id}`,
+      label: labels.find((l) => l.id === id)?.name ?? "Метка",
+      remove: () => set({ labelIds: filters.labelIds.filter((v) => v !== id) }),
     })),
     ...filters.types.map((t) => ({
       key: `t-${t}`,
@@ -94,6 +101,17 @@ export function BoardToolbar({
           ]}
         />
         <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+        <div className="relative">
+          <Search size={14} strokeWidth={1.75} aria-hidden className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-ink-ghost" />
+          <input
+            type="search"
+            value={filters.q}
+            onChange={(e) => set({ q: e.target.value })}
+            placeholder="Найти на доске"
+            aria-label="Найти карточку на доске"
+            className={`${inputClass} h-7 w-44 pl-7`}
+          />
+        </div>
         <Popover
           align="left"
           trigger={(open, t) => (
@@ -111,6 +129,16 @@ export function BoardToolbar({
                   {users.map((u) => (
                     <OptionRow key={u.id} on={filters.assigneeIds.includes(u.id)} onClick={() => set({ assigneeIds: toggle(filters.assigneeIds, u.id) })}>
                       <Avatar user={u} size={18} /> <span className="truncate">{u.name}</span>
+                    </OptionRow>
+                  ))}
+                </>
+              )}
+              {labels.length > 0 && (
+                <>
+                  <MenuLabel>Метка</MenuLabel>
+                  {labels.map((l) => (
+                    <OptionRow key={l.id} on={filters.labelIds.includes(l.id)} onClick={() => set({ labelIds: toggle(filters.labelIds, l.id) })}>
+                      <LabelTag label={l} />
                     </OptionRow>
                   ))}
                 </>
@@ -171,7 +199,7 @@ export function BoardToolbar({
           </span>
         ))}
         {chips.length > 0 && (
-          <button onClick={() => set({ assigneeIds: [], types: [], priorities: [] })} className="text-xs text-ink-ghost hover:text-ink">
+          <button onClick={() => set({ assigneeIds: [], types: [], priorities: [], labelIds: [] })} className="text-xs text-ink-ghost hover:text-ink">
             Сбросить
           </button>
         )}

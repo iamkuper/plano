@@ -22,6 +22,7 @@ import { AttachmentGrid, MessageAttachments } from "./attachments";
 import { RecurringDialog } from "./recurring-dialog";
 import { priorityColor } from "@/design/tokens";
 import { Avatar, AvatarStack, LetterMark } from "./avatar";
+import { LabelPicker } from "./label-picker";
 import { CARD_TYPE_STYLES } from "./card-type-icon";
 import {
   Button,
@@ -384,6 +385,10 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
                   )}
                 </Popover>
               )}
+            </Field>
+
+            <Field label="Метки">
+              {(a) => <LabelPicker field={a} selected={card.labels.map((l) => l.label)} onChange={(ids) => save({ labelIds: ids })} />}
             </Field>
 
             <Field label="Тип">

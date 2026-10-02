@@ -42,6 +42,13 @@ export class CardsService {
     }
   }
 
+  private async assertLabels(ids: string[] | undefined) {
+    const unique = [...new Set(ids ?? [])];
+    if (unique.length && (await this.prisma.label.count({ where: { id: { in: unique } } })) !== unique.length) {
+      throw new BadRequestException("Метка не найдена");
+    }
+  }
+
   private log(cardId: string, userId: string, action: string, payload?: Prisma.InputJsonValue) {
     return this.prisma.activityLog.create({ data: { cardId, userId, action, payload } });
   }
@@ -126,8 +133,9 @@ export class CardsService {
   }
 
   async update(id: string, dto: UpdateCardDto, userId: string) {
-    const { assigneeIds, ...fields } = dto;
+    const { assigneeIds, labelIds, ...fields } = dto;
     await this.assertUsers(assigneeIds);
+    await this.assertLabels(labelIds);
     const before = assigneeIds
       ? (await this.prisma.cardAssignee.findMany({ where: { cardId: id }, select: { userId: true } })).map((a) => a.userId)
       : [];
@@ -138,6 +146,7 @@ export class CardsService {
         assignees: assigneeIds
           ? { deleteMany: {}, create: assigneeIds.map((uid) => ({ userId: uid })) }
           : undefined,
+        labels: labelIds ? { deleteMany: {}, create: labelIds.map((labelId) => ({ labelId })) } : undefined,
       },
       include: cardTileInclude,
     });

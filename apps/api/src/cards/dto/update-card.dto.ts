@@ -34,4 +34,9 @@ export class UpdateCardDto {
   @IsArray()
   @IsString({ each: true })
   assigneeIds?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  labelIds?: string[];
 }

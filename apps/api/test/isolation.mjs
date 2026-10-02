@@ -83,6 +83,17 @@ check("B: assign A's user", denied(await call(b, "POST", "/cards", { columnId: b
 check("B: card into A's column", denied(await call(b, "POST", "/cards", { columnId: column.id, title: "x" })));
 check("B: move own card to A's column", denied(await call(b, "POST", `/cards/${bCard.id}/move`, { columnId: column.id })));
 
+// Labels.
+const label = (await call(a, "POST", "/labels", { name: "Срочное", color: "red" })).body;
+check("A creates a label", !!label.id);
+check("B: labels list empty", (await call(b, "GET", "/labels")).body.length === 0);
+check("B: same name is allowed in another workspace", (await call(b, "POST", "/labels", { name: "Срочное", color: "blue" })).status === 201);
+check("B: patch A's label", denied(await call(b, "PATCH", `/labels/${label.id}`, { name: "x" })));
+check("B: delete A's label", denied(await call(b, "DELETE", `/labels/${label.id}`)));
+check("B: put A's label on own card", denied(await call(b, "PATCH", `/cards/${bCard.id}`, { labelIds: [label.id] })));
+check("A: label on A's card", (await call(a, "PATCH", `/cards/${card.id}`, { labelIds: [label.id] })).body.labels?.[0]?.label.id === label.id);
+check("B: sees no labels on A's card via search", (await call(b, "GET", "/cards/search?q=" + encodeURIComponent("Бриф"))).body.length === 0);
+
 // A is untouched.
 const after = (await call(a, "GET", `/cards/${card.id}`)).body;
 check("A's card intact", after.title === card.title && after.checklist.length === card.checklist.length + 1 && after.comments.length === 1);

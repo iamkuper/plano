@@ -4,6 +4,7 @@ import { CalendarDays, Check, CheckSquare, Flag, MessageSquare, Paperclip, Repea
 import { CARD_TYPE_LABELS, cardKey, type CardTileDto } from "@amo-kanban/shared";
 import { AvatarStack } from "./avatar";
 import { CARD_TYPE_STYLES } from "./card-type-icon";
+import { LabelTag } from "./ui";
 
 export function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
@@ -93,6 +94,14 @@ export function CardTile({
       </div>
 
       <p className="mt-0.5 line-clamp-3 text-base text-ink">{card.title}</p>
+
+      {card.labels.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+          {card.labels.map(({ label }) => (
+            <LabelTag key={label.id} label={label} />
+          ))}
+        </div>
+      )}
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-faint">
         <span className="flex items-center gap-1" title="Тип">
