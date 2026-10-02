@@ -460,6 +460,10 @@ model Subscription {
   // T-Bank token of the saved card, for recurring charges.
   rebillId           String?
   cardMask           String?
+  // Period-end reminders already mailed for `endReminderFor`:
+  // 1 = "ends in a few days", 2 = "ended, workspace locks soon".
+  endReminderFor     DateTime?
+  endReminderStage   Int                @default(0)
   failedAttempts     Int                @default(0)
   nextAttemptAt      DateTime?
   createdAt          DateTime           @default(now())

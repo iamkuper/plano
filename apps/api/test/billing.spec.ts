@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { BadGatewayException, UnauthorizedException } from "@nestjs/common";
 import request from "supertest";
 import { BillingService } from "../src/billing/billing.service";
+import { MailService } from "../src/mail/mail.service";
 import { createProvider } from "../src/billing/billing.module";
 import { MOCK_PASSWORD, MockProvider, mockNotification } from "../src/billing/mock.provider";
 import { allowedWhileLocked, isLocked } from "../src/billing/subscription-state";
@@ -451,5 +452,37 @@ describe("users beyond the paid seats", () => {
     const first = (await t.db.user.findUniqueOrThrow({ where: { email: extra[0] } })).id;
     await api(t, a.token).patch(`/users/${first}`, { isActive: false }).expect(200);
     await request(server).post("/auth/login").send({ email: extra[1], password: "password-123" }).expect(201);
+  });
+});
+
+describe("period-end reminders", () => {
+  it("mails billing managers before and after the end, once each", async () => {
+    const mail = t.app.get(MailService);
+    const sent: { to: string; subject: string }[] = [];
+    const spy = jest.spyOn(mail, "send").mockImplementation(async (to, subject) => {
+      sent.push({ to, subject });
+      return true;
+    });
+    try {
+      const a = await register(t, "remind");
+      const member = `${unique("m")}@iso.test`;
+      await api(t, a.token).post("/users", { email: member, name: "M", password: "password-123" }).expect(201);
+      const co = (await api(t, a.token).post("/billing/checkout", { planId: "PRO", interval: "MONTH", seats: 2 })).body;
+      await api(t, a.token).post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
+      const mine = () => sent.filter((m) => m.to === a.email);
+
+      await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { currentPeriodEnd: new Date(Date.now() + 2 * DAY) } });
+      await billing.runDue();
+      await billing.runDue();
+      expect(mine().map((m) => m.subject)).toEqual([expect.stringContaining("заканчивается")]);
+      expect(sent.some((m) => m.to === member)).toBe(false); // no billing.manage
+
+      await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { currentPeriodEnd: new Date(Date.now() - 3600_000) } });
+      await billing.runDue();
+      await billing.runDue();
+      expect(mine().map((m) => m.subject)).toEqual([expect.stringContaining("заканчивается"), expect.stringContaining("закончился")]);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

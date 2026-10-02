@@ -8,9 +8,13 @@ import { PAYMENT_PROVIDER, type PaymentNotification, type PaymentProvider } from
 import { mockNotification } from "./mock.provider";
 import { GRACE_AFTER_PERIOD_MS, isLocked } from "./subscription-state";
 import { AuditService } from "../audit/audit.service";
+import { appUrl } from "../auth/tokens";
+import { MailService } from "../mail/mail.service";
 
 const DAY = 86_400_000;
 export const TRIAL_DAYS = 14;
+// Days before the end of a trial or paid period when billing managers are reminded.
+export const REMIND_DAYS = 3;
 
 export type Limit = "users" | "projects" | "recurring" | "storage";
 
@@ -33,6 +37,7 @@ export class BillingService {
     private readonly db: SystemPrismaService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   private get ws() {
@@ -350,9 +355,64 @@ export class BillingService {
     await this.audit.record("billing.free", "Выбран бесплатный тариф");
   }
 
+  // Without auto-renewal people forget to pay, so whoever manages billing
+  // gets a letter REMIND_DAYS before the trial or paid period ends and one
+  // more once it has ended (during the grace, before the lock). Each is sent
+  // once per end date. The in-app banner is on the web side.
+  private async remindEnding(now: Date) {
+    const soon = new Date(now.getTime() + REMIND_DAYS * DAY);
+    const subs = await this.db.subscription.findMany({
+      where: {
+        planId: { not: "FREE" },
+        status: { in: ["TRIALING", "ACTIVE", "PAST_DUE"] },
+        OR: [
+          { status: "TRIALING", trialEndsAt: { lte: soon } },
+          { status: { not: "TRIALING" }, currentPeriodEnd: { lte: soon } },
+        ],
+      },
+      include: { plan: true, workspace: { select: { name: true } } },
+    });
+    for (const sub of subs) {
+      const trial = sub.status === "TRIALING";
+      const end = trial ? sub.trialEndsAt : sub.currentPeriodEnd;
+      // An ended trial has no grace: it locks in this same run, right after the letter.
+      if (!end || (!trial && isLocked(sub, now))) continue;
+      const stage = end > now ? 1 : 2;
+      const already = sub.endReminderFor?.getTime() === end.getTime() ? sub.endReminderStage : 0;
+      if (already >= stage) continue;
+      await this.db.subscription.update({ where: { id: sub.id }, data: { endReminderFor: end, endReminderStage: stage } });
+
+      const recipients = await this.db.user.findMany({
+        where: {
+          workspaceId: sub.workspaceId,
+          isActive: true,
+          OR: [{ role: "ADMIN" }, { customRole: { permissions: { has: "billing.manage" } } }],
+        },
+        select: { email: true },
+      });
+      const what = trial ? `Пробный период тарифа ${sub.plan.name}` : `Оплаченный период тарифа ${sub.plan.name}`;
+      const day = end.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
+      const lockDay = new Date(end.getTime() + (trial ? 0 : GRACE_AFTER_PERIOD_MS)).toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" });
+      const subject =
+        stage === 1 ? `Plano: ${trial ? "пробный период" : "тариф"} заканчивается ${day}` : `Plano: ${trial ? "пробный период закончился" : "тариф закончился"}`;
+      const body = [
+        `Пространство «${sub.workspace.name}».`,
+        stage === 1
+          ? `${what} заканчивается ${day}. Автоматических списаний нет — чтобы работа не остановилась, оплатите тариф картой.`
+          : trial
+            ? `${what} закончился ${day}. Пространство доступно только для чтения, пока тариф не оплачен.`
+            : `${what} закончился ${day}. ${lockDay} пространство перейдёт в режим чтения, если тариф не оплатить.`,
+        "",
+        `Оплатить: ${appUrl()}/settings/billing`,
+      ].join("\n");
+      for (const r of recipients) await this.mail.send(r.email, subject, body);
+    }
+  }
+
   // No automatic renewals: a trial or paid period that ran out (paid ones
   // after a short grace) makes the workspace read-only until paid by card.
   async runDue(now = new Date()) {
+    await this.remindEnding(now);
     const trials = await this.db.subscription.findMany({ where: { status: "TRIALING", trialEndsAt: { lte: now } } });
     for (const t of trials) await this.lock(t.workspaceId);
     const ended = await this.db.subscription.findMany({

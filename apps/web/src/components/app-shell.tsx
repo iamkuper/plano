@@ -16,7 +16,7 @@ import {
   UserCog,
   type LucideIcon,
 } from "lucide-react";
-import type { ProjectListItemDto, UserDto } from "@amo-kanban/shared";
+import type { BillingDto, ProjectListItemDto, UserDto } from "@amo-kanban/shared";
 import { BILLING_CHANGED, api, setToken } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { onProjectsChanged } from "@/lib/projects-events";
@@ -135,14 +135,49 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 }
 
-// Shown on every page once the trial or paid period has ended unpaid: the
+const DAY_MS = 86_400_000;
+// Paid periods lock this long after their end (GRACE_AFTER_PERIOD_MS on the API).
+const GRACE_MS = 3 * DAY_MS;
+const REMIND_DAYS = 3;
+const longDate = (d: Date) => d.toLocaleDateString("ru-RU", { day: "numeric", month: "long" });
+const daysWord = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? "день" : [2, 3, 4].includes(n % 10) && ![12, 13, 14].includes(n % 100) ? "дня" : "дней");
+
+// What the billing banner says, or null. No auto-renewal, so it warns
+// REMIND_DAYS before the trial or paid period ends, during the grace after
+// it, and once the workspace is read-only.
+function billingNotice(b: BillingDto, now = Date.now()): { tone: "danger" | "warning"; text: string; action: string } | null {
+  const s = b.subscription;
+  if (b.locked) return { tone: "danger", text: "Тариф закончился: данные доступны только для чтения.", action: "Оплатить тариф" };
+  if (s.planId === "FREE") return null;
+  const trial = s.status === "TRIALING";
+  const endIso = trial ? s.trialEndsAt : s.currentPeriodEnd;
+  if (!endIso) return null;
+  const end = new Date(endIso);
+  const left = end.getTime() - now;
+  if (left > REMIND_DAYS * DAY_MS) return null;
+  if (left <= 0) {
+    return {
+      tone: "danger",
+      text: `Оплаченный период закончился ${longDate(end)}. ${longDate(new Date(end.getTime() + GRACE_MS))} пространство перейдёт в режим чтения.`,
+      action: "Продлить тариф",
+    };
+  }
+  const days = Math.max(1, Math.ceil(left / DAY_MS));
+  return {
+    tone: "warning",
+    text: `${trial ? "Пробный период" : "Оплаченный период"} заканчивается ${longDate(end)} — ${days === 1 ? "остался" : "осталось"} ${days} ${daysWord(days)}. Автоматических списаний нет.`,
+    action: trial ? "Выбрать тариф" : "Продлить тариф",
+  };
+}
+
+// Shown on every page: the period is about to end, has ended, or the
 // workspace is read-only until the plan is paid.
-function LockedBanner() {
+function BillingBanner() {
   const can = useCan();
   const pathname = usePathname();
-  const [locked, setLocked] = useState(false);
+  const [billing, setBilling] = useState<BillingDto | null>(null);
   useEffect(() => {
-    const check = () => api.billing().then((b) => setLocked(b.locked)).catch(() => {});
+    const check = () => api.billing().then(setBilling).catch(() => {});
     check();
     window.addEventListener("focus", check);
     window.addEventListener(BILLING_CHANGED, check);
@@ -151,16 +186,27 @@ function LockedBanner() {
       window.removeEventListener(BILLING_CHANGED, check);
     };
   }, [pathname]);
-  if (!locked) return null;
+  const notice = billing && billingNotice(billing);
+  if (!notice) return null;
+  const manager = can("billing.manage");
   return (
-    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-danger-soft px-6 py-2.5 text-sm text-danger">
+    <div
+      role={notice.tone === "danger" ? "alert" : "status"}
+      className={`flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-2.5 text-sm ${
+        notice.tone === "danger" ? "bg-danger-soft text-danger" : "bg-warning-soft text-ink"
+      }`}
+    >
       <span>
-        Тариф закончился: данные доступны только для чтения.
-        {can("billing.manage") ? " Оплатите тариф, и работа продолжится." : " Попросите администратора оплатить тариф."}
+        {notice.text}
+        {manager
+          ? billing.locked
+            ? " Оплатите тариф, и работа продолжится."
+            : " Оплатите картой, чтобы работа не остановилась."
+          : " Попросите администратора оплатить тариф."}
       </span>
-      {can("billing.manage") && pathname !== "/settings/billing" && (
+      {manager && pathname !== "/settings/billing" && (
         <Link href="/settings/billing" className="font-medium underline">
-          Оплатить тариф
+          {notice.action}
         </Link>
       )}
     </div>
@@ -453,7 +499,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       {/* Work area: white sheet inset from the sidebar */}
       <main className="my-2 mr-2 min-w-0 flex-1 overflow-auto rounded-lg bg-bg">
-        <LockedBanner />
+        <BillingBanner />
         <div className="flex min-h-full flex-col px-6">{children}</div>
       </main>
 
