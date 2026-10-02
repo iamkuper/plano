@@ -5,6 +5,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { appUrl, hashToken, newToken } from "../auth/tokens";
+import { AuditService } from "../audit/audit.service";
 
 export const INVITE_TTL_MS = 7 * 86_400_000;
 
@@ -15,6 +16,7 @@ export class InvitationsService {
     private readonly system: SystemPrismaService,
     private readonly billing: BillingService,
     private readonly mail: MailService,
+    private readonly audit: AuditService,
   ) {}
 
   list() {
@@ -48,6 +50,7 @@ export class InvitationsService {
       `Приглашение в «${workspace.name}»`,
       `${inviter.name} приглашает вас в рабочее пространство «${workspace.name}» в Plano.\n\nПринять приглашение и задать пароль:\n${link}\n\nСсылка действует 7 дней.`,
     );
+    await this.audit.record("invitation.create", `Приглашение для ${email}`, invitation.id);
     return { id: invitation.id, email, link, emailSent: sent };
   }
 

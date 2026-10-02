@@ -10,6 +10,6 @@ export class TenantInterceptor implements NestInterceptor {
   intercept(ctx: ExecutionContext, next: CallHandler): Observable<unknown> {
     const user: AuthenticatedUser | undefined = ctx.switchToHttp().getRequest()?.user;
     if (!user?.workspaceId) return next.handle();
-    return new Observable((subscriber) => runInWorkspace(user.workspaceId, () => next.handle().subscribe(subscriber)));
+    return new Observable((subscriber) => runInWorkspace(user.workspaceId, () => next.handle().subscribe(subscriber), user.userId));
   }
 }

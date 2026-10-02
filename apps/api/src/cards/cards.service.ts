@@ -12,6 +12,7 @@ import { MoveCardDto } from "./dto/move-card.dto";
 import { BulkCardsDto } from "./dto/bulk.dto";
 import { CARD_FIELDS } from "../prisma/tenant";
 import { BillingService } from "../billing/billing.service";
+import { AuditService } from "../audit/audit.service";
 
 @Injectable()
 export class CardsService {
@@ -21,6 +22,7 @@ export class CardsService {
     private readonly notifications: NotificationsService,
     private readonly attachments: AttachmentsService,
     private readonly billing: BillingService,
+    private readonly audit: AuditService,
   ) {}
 
   // Opening a card marks its discussion and its notifications as read.
@@ -203,6 +205,7 @@ export class CardsService {
     const purge = await this.attachments.filesOf({ cardId: id });
     const card = await this.prisma.card.delete({ where: { id } });
     await purge();
+    await this.audit.record("card.delete", `Удалена карточка ${card.title}`, id);
     await this.realtime.cardChanged(id, card.projectId);
   }
 
@@ -265,6 +268,7 @@ export class CardsService {
         const purge = await this.attachments.filesOf({ cardId: { in: ids } });
         await this.prisma.card.deleteMany({ where: { id: { in: ids } } });
         await purge();
+        await this.audit.record("card.delete", `Удалено карточек: ${ids.length}`);
         break;
       }
     }

@@ -7,6 +7,7 @@ import { BillingService } from "../billing/billing.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { RealtimeService } from "../realtime/realtime.service";
+import { AuditService } from "../audit/audit.service";
 
 const MAX_FIELDS = 20;
 const MAX_OPTIONS = 30;
@@ -62,6 +63,7 @@ export class FieldsController {
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
     private readonly realtime: RealtimeService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get("fields")
@@ -79,7 +81,9 @@ export class FieldsController {
     if (dto.type === "SELECT" && options.length < 1) throw new BadRequestException("Добавьте хотя бы один вариант");
     if ((await this.prisma.customField.count()) >= MAX_FIELDS) throw new BadRequestException(`Не больше ${MAX_FIELDS} полей`);
     const last = await this.prisma.customField.findFirst({ orderBy: { position: "desc" } });
-    return this.prisma.customField.create({ data: { ...OWN_FIELDS, name, type: dto.type, options, position: (last?.position ?? 0) + 1 }, select });
+    const field = await this.prisma.customField.create({ data: { ...OWN_FIELDS, name, type: dto.type, options, position: (last?.position ?? 0) + 1 }, select });
+    await this.audit.record("field.create", `Создано поле «${field.name}»`, field.id);
+    return field;
   }
 
   @Patch("fields/:id")
@@ -99,7 +103,9 @@ export class FieldsController {
   @RequirePermission("fields.manage")
   @HttpCode(204)
   async remove(@Param("id") id: string) {
+    const field = await this.prisma.customField.findUnique({ where: { id }, select: { name: true } });
     await this.prisma.customField.delete({ where: { id } });
+    await this.audit.record("field.delete", `Удалено поле «${field?.name ?? id}»`, id);
   }
 
   @Put("cards/:cardId/fields/:fieldId")

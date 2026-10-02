@@ -6,6 +6,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { BillingService } from "../billing/billing.service";
+import { AuditService } from "../audit/audit.service";
 
 const KEYS = PERMISSIONS.map((p) => p.key);
 
@@ -51,6 +52,7 @@ export class RolesController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly billing: BillingService,
+    private readonly audit: AuditService,
   ) {}
 
   @Get()
@@ -65,7 +67,9 @@ export class RolesController {
     const name = dto.name.trim();
     await this.assertFree(name);
     const first = (await this.prisma.role.count()) === 0;
-    return this.prisma.role.create({ data: { ...OWN_FIELDS, name, permissions: dto.permissions ?? [], isDefault: first }, include: withCount });
+    const role = await this.prisma.role.create({ data: { ...OWN_FIELDS, name, permissions: dto.permissions ?? [], isDefault: first }, include: withCount });
+    await this.audit.record("role.create", `Создана роль «${role.name}»`, role.id);
+    return role;
   }
 
   @Patch(":id")
@@ -73,7 +77,7 @@ export class RolesController {
   async update(@Param("id") id: string, @Body() dto: UpdateRoleDto) {
     const name = dto.name?.trim();
     if (name) await this.assertFree(name, id);
-    return this.prisma.$transaction(async (tx) => {
+    const updated = await this.prisma.$transaction(async (tx) => {
       if (dto.isDefault) await tx.role.updateMany({ where: { id: { not: id } }, data: { isDefault: false } });
       return tx.role.update({
         where: { id },
@@ -81,6 +85,8 @@ export class RolesController {
         include: withCount,
       });
     });
+    await this.audit.record("role.update", `Изменена роль «${updated.name}»${dto.permissions ? ": права" : ""}`, id);
+    return updated;
   }
 
   // Staff with the deleted role move to the default role.
@@ -95,6 +101,7 @@ export class RolesController {
       this.prisma.user.updateMany({ where: { roleId: id }, data: { roleId: fallback?.id ?? null } }),
       this.prisma.role.delete({ where: { id } }),
     ]);
+    await this.audit.record("role.delete", `Удалена роль «${role.name}»`, id);
   }
 
   private async assertFree(name: string, exceptId?: string) {

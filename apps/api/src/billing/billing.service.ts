@@ -3,9 +3,10 @@ import { randomBytes } from "crypto";
 import type { Payment, Plan, Subscription } from "@prisma/client";
 import { planAmount, type BillingDto, type BillingInterval, type PlanDto, type PlanFeature } from "@amo-kanban/shared";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
-import { currentWorkspaceId } from "../prisma/tenant";
+import { currentWorkspaceId, runInWorkspace } from "../prisma/tenant";
 import { PAYMENT_PROVIDER, type PaymentNotification, type PaymentProvider } from "./payment-provider";
 import { mockNotification } from "./mock.provider";
+import { AuditService } from "../audit/audit.service";
 
 const DAY = 86_400_000;
 export const TRIAL_DAYS = 14;
@@ -32,6 +33,7 @@ export class BillingService {
   constructor(
     private readonly db: SystemPrismaService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
+    private readonly audit: AuditService,
   ) {}
 
   private get ws() {
@@ -227,6 +229,10 @@ export class BillingService {
         ...(n?.cardMask ? { cardMask: n.cardMask } : {}),
       },
     });
+    // Webhooks and the scheduler have no request, so enter the workspace.
+    await runInWorkspace(payment.workspaceId, () =>
+      this.audit.record("billing.paid", `Оплачен тариф ${payment.planId}: ${(payment.amount / 100).toLocaleString("ru-RU")} ₽${payment.kind === "RENEWAL" ? " (продление)" : ""}`, payment.id),
+    );
   }
 
   // Test provider only: plays the part of the bank's payment page.

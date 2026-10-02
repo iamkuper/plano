@@ -9,6 +9,7 @@ import { tbankToken } from "../src/billing/tbank.provider";
 
 const API = process.env.API_URL ?? "http://localhost:3101";
 const db = new PrismaClient();
+const audit = { record: async () => {} } as any;
 const run = Date.now().toString(36);
 let failed = 0;
 
@@ -94,8 +95,8 @@ async function main() {
   check("token algorithm matches the documented example shape", tbankToken({ TerminalKey: "A", Amount: 100, OrderId: "1" }, "p") === tbankToken({ OrderId: "1", Amount: 100, TerminalKey: "A", Token: "ignored" }, "p"));
 
   // Renewal.
-  const ok = new BillingService(db as any, new MockProvider("http://x", false));
-  const bad = new BillingService(db as any, new MockProvider("http://x", true));
+  const ok = new BillingService(db as any, new MockProvider("http://x", false), audit);
+  const bad = new BillingService(db as any, new MockProvider("http://x", true), audit);
   const endBefore = (await db.subscription.findUniqueOrThrow({ where: { workspaceId: ws } })).currentPeriodEnd!;
   const past = new Date(Date.now() - 3600_000);
   await db.subscription.update({ where: { workspaceId: ws }, data: { currentPeriodEnd: past } });

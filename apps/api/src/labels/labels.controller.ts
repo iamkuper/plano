@@ -5,6 +5,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { OWN_FIELDS } from "../prisma/tenant";
+import { AuditService } from "../audit/audit.service";
 
 class CreateLabelDto {
   @IsString()
@@ -33,7 +34,10 @@ class UpdateLabelDto {
 @Controller("labels")
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class LabelsController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   list() {
@@ -59,7 +63,9 @@ export class LabelsController {
   @RequirePermission("labels.manage")
   @HttpCode(204)
   async remove(@Param("id") id: string) {
+    const label = await this.prisma.label.findUnique({ where: { id }, select: { name: true } });
     await this.prisma.label.delete({ where: { id } });
+    await this.audit.record("label.delete", `Удалена метка «${label?.name ?? id}»`, id);
   }
 
   private async assertFree(name: string, exceptId?: string) {

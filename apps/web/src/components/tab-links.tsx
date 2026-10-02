@@ -49,6 +49,7 @@ export const SettingsTabs = () => (
       { href: "/settings/templates", label: "Шаблоны" },
       { href: "/settings/roles", label: "Права" },
       { href: "/settings/fields", label: "Поля" },
+      { href: "/settings/audit", label: "Журнал" },
       { href: "/settings/billing", label: "Тариф" },
     ]}
   />

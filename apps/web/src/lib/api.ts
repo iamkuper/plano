@@ -37,6 +37,33 @@ export interface InvitationDto {
   createdAt: string;
 }
 
+export interface AuditEntryDto {
+  id: string;
+  action: string;
+  summary: string;
+  entityId: string | null;
+  createdAt: string;
+  user: { id: string; name: string; avatarUrl?: string | null } | null;
+}
+
+// Downloads a project's cards as CSV (Business).
+export async function downloadProjectCsv(projectId: string, fallbackName: string) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/projects/${projectId}/export.csv`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message ?? `Не удалось выгрузить (${res.status})`);
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${fallbackName}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export type BulkAction = "move" | "assign" | "unassign" | "priority" | "due" | "delete";
 
 export interface RecurringInput {
@@ -219,6 +246,8 @@ export const api = {
   deleteField: (id: string) => del(`/fields/${id}`),
   setFieldValue: (cardId: string, fieldId: string, value: CustomFieldValue | null) =>
     apiFetch<void>(`/cards/${cardId}/fields/${fieldId}`, { method: "PUT", body: JSON.stringify({ value }) }),
+  audit: (before?: string, group?: string) =>
+    apiFetch<{ items: AuditEntryDto[]; next: string | null }>(`/audit?${new URLSearchParams({ ...(before ? { before } : {}), ...(group ? { group } : {}) })}`),
   billing: () => apiFetch<BillingDto>("/billing"),
   checkout: (planId: string, interval: BillingInterval) => post<{ paymentUrl: string }>("/billing/checkout", { planId, interval }),
   cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),

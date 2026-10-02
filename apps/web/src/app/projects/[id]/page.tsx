@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { BarChart3, CalendarDays, ChartGantt, KanbanSquare, List, Settings, Table2 } from "lucide-react";
+import { BarChart3, CalendarDays, ChartGantt, Download, KanbanSquare, List, Settings, Table2 } from "lucide-react";
 import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type UserDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { Board, BoardSkeleton, ProjectFunnel } from "@/components/board";
@@ -14,7 +14,8 @@ import { GanttChart } from "@/components/gantt-chart";
 import { CardsList, CardsTable } from "@/components/cards-views";
 import { ProjectOverview } from "@/components/project-overview";
 import { PageHeader, Segmented } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, downloadProjectCsv } from "@/lib/api";
+import { toast } from "@/lib/toast";
 import { useBoard } from "@/lib/use-board";
 import { useCardParam, useQueryParam } from "@/lib/use-card-param";
 import { useFilters } from "@/lib/use-filters";
@@ -90,6 +91,14 @@ function ProjectPage({ projectId }: { projectId: string }) {
           <>
             {board && <ProjectFunnel columns={board.columns} />}
             <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+            <button
+              title="Выгрузить карточки в CSV"
+              aria-label="Выгрузить карточки в CSV"
+              onClick={() => downloadProjectCsv(projectId, project?.title ?? "project").catch((e) => toast((e as Error).message, "error"))}
+              className="grid size-7 place-items-center rounded-md text-ink-ghost transition-colors hover:bg-surface-sunken hover:text-ink"
+            >
+              <Download size={16} strokeWidth={1.75} />
+            </button>
             <Link
               href={`/projects/${projectId}/settings`}
               title="Настройки проекта"

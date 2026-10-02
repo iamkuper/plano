@@ -20,7 +20,6 @@ const FEATURE_LABELS: Record<string, string> = {
   roles: "Свои роли и права",
   audit: "Журнал действий",
   export: "Экспорт данных",
-  api: "API и webhook'и",
   gantt: "Диаграмма Ганта",
   fields: "Дополнительные поля карточек",
 };

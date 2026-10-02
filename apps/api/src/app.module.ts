@@ -19,6 +19,9 @@ import { MailModule } from "./mail/mail.module";
 import { LabelsModule } from "./labels/labels.controller";
 import { DependenciesModule } from "./dependencies/dependencies.controller";
 import { FieldsModule } from "./fields/fields.controller";
+import { AuditModule } from "./audit/audit.service";
+import { ExportModule } from "./export/export.controller";
+import { AuditApiModule } from "./audit/audit.controller";
 import { InvitationsModule } from "./invitations/invitations.module";
 
 @Module({
@@ -43,6 +46,9 @@ import { InvitationsModule } from "./invitations/invitations.module";
     LabelsModule,
     DependenciesModule,
     FieldsModule,
+    AuditModule,
+    ExportModule,
+    AuditApiModule,
     InvitationsModule,
   ],
 })

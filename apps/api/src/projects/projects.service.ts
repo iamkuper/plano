@@ -6,8 +6,9 @@ import { RealtimeService } from "../realtime/realtime.service";
 import { AttachmentsService } from "../attachments/attachments.service";
 import { CreateProjectDto } from "./dto/create-project.dto";
 import { UpdateProjectDto } from "./dto/update-project.dto";
-import { CARD_FIELDS, OWN_FIELDS } from "../prisma/tenant";
+import { CARD_FIELDS, OWN_FIELDS, changedFields } from "../prisma/tenant";
 import { BillingService } from "../billing/billing.service";
+import { AuditService } from "../audit/audit.service";
 
 @Injectable()
 export class ProjectsService {
@@ -17,6 +18,7 @@ export class ProjectsService {
     private readonly realtime: RealtimeService,
     private readonly attachments: AttachmentsService,
     private readonly billing: BillingService,
+    private readonly audit: AuditService,
   ) {}
 
   async list(status?: ProjectStatus) {
@@ -98,11 +100,13 @@ export class ProjectsService {
       await this.prisma.project.delete({ where: { id: project.id } }).catch(() => {});
       throw e;
     }
+    await this.audit.record("project.create", `Создан проект «${project.title}»`, project.id);
     return project;
   }
 
   async update(id: string, dto: UpdateProjectDto) {
     const project = await this.prisma.project.update({ where: { id }, data: dto });
+    await this.audit.record("project.update", `Изменён проект «${project.title}»: ${changedFields(dto)}`, id);
     this.realtime.boardChanged(id);
     return project;
   }
@@ -110,7 +114,9 @@ export class ProjectsService {
   // Board, columns and cards go with it (onDelete: Cascade).
   async remove(id: string) {
     const purge = await this.attachments.filesOf({ card: { projectId: id } });
+    const doomed = await this.prisma.project.findUnique({ where: { id }, select: { title: true } });
     await this.prisma.project.delete({ where: { id } });
+    await this.audit.record("project.delete", `Удалён проект «${doomed?.title ?? id}»`, id);
     await purge();
     this.realtime.boardChanged(id);
   }

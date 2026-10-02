@@ -61,6 +61,7 @@ model Workspace {
   invitations  Invitation[]
   labels       Label[]
   customFields CustomField[]
+  auditLog     AuditLog[]
 }
 
 model User {
@@ -91,6 +92,7 @@ model User {
   cardReads     CardRead[]
   attachments   Attachment[]
   passwordResets PasswordReset[]
+  auditEntries   AuditLog[]
 
   @@index([workspaceId])
 }
@@ -589,4 +591,25 @@ model CardFieldValue {
 
   @@id([cardId, fieldId])
   @@index([fieldId])
+}
+
+// ---- Audit log (Business) ----
+
+// Workspace-level journal: who did what to projects, people, roles and
+// settings. Card history lives in ActivityLog. Always recorded; reading it is
+// a Business feature.
+model AuditLog {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  userId      String?
+  user        User?     @relation(fields: [userId], references: [id], onDelete: SetNull)
+  // e.g. project.create, user.update, role.delete
+  action      String
+  entityId    String?
+  // Human-readable line, e.g. «Проект «Сайт»».
+  summary     String
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, createdAt])
 }

@@ -9,13 +9,15 @@ import { Prisma, PrismaClient } from "@prisma/client";
 
 interface TenantContext {
   workspaceId: string;
+  userId?: string;
 }
 
 const storage = new AsyncLocalStorage<TenantContext>();
 
-export const runInWorkspace = <T>(workspaceId: string, fn: () => T): T => storage.run({ workspaceId }, fn);
+export const runInWorkspace = <T>(workspaceId: string, fn: () => T, userId?: string): T => storage.run({ workspaceId, userId }, fn);
 
 export const currentWorkspaceId = () => storage.getStore()?.workspaceId;
+export const currentUserId = () => storage.getStore()?.userId;
 
 type Where = Record<string, unknown>;
 
@@ -33,6 +35,7 @@ const SCOPE: Record<string, (ws: string) => Where> = {
   CardLabel: (ws) => ({ card: { workspaceId: ws } }),
   CardDependency: (ws) => ({ card: { workspaceId: ws } }),
   CustomField: (ws) => ({ workspaceId: ws }),
+  AuditLog: (ws) => ({ workspaceId: ws }),
   CardFieldValue: (ws) => ({ card: { workspaceId: ws } }),
   Payment: (ws) => ({ workspaceId: ws }),
   Board: (ws) => ({ project: { workspaceId: ws } }),
@@ -51,7 +54,7 @@ const SCOPE: Record<string, (ws: string) => Where> = {
 
 // Models that carry workspaceId themselves: it is set from the context on
 // create, never taken from the caller.
-const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment", "Invitation", "Label", "CustomField"]);
+const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment", "Invitation", "Label", "CustomField", "AuditLog"]);
 
 // Shared catalogue, not tenant data: readable by everyone, never writable here.
 const GLOBAL_READ = new Set(["Plan"]);
@@ -76,6 +79,7 @@ const PARENTS: Record<string, Record<string, string>> = {
   CardLabel: { cardId: "Card", labelId: "Label" },
   CardDependency: { cardId: "Card", dependsOnId: "Card" },
   CardFieldValue: { cardId: "Card", fieldId: "CustomField" },
+  AuditLog: { userId: "User" },
   Attachment: { cardId: "Card", commentId: "Comment", uploaderId: "User" },
 };
 
@@ -150,6 +154,14 @@ export function scopedClient(base: PrismaClient) {
     },
   });
 }
+
+// "title, status" for the fields a DTO actually carries (class-transformer
+// instances list every declared property, set or not).
+export const changedFields = (dto: object) =>
+  Object.entries(dto)
+    .filter(([, v]) => v !== undefined)
+    .map(([k]) => k)
+    .join(", ");
 
 // Create calls must satisfy the generated types, which require these fields,
 // but the scope above always sets them from the request's workspace. Spread

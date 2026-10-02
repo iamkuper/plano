@@ -1,12 +1,16 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
-import { currentWorkspaceId } from "../prisma/tenant";
+import { currentWorkspaceId, changedFields } from "../prisma/tenant";
 import { UpdateSettingsDto } from "./settings.dto";
+import { AuditService } from "../audit/audit.service";
 
 // Settings of the current workspace (name, card prefix, default stages).
 @Injectable()
 export class SettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   private get id() {
     return currentWorkspaceId()!;
@@ -26,6 +30,7 @@ export class SettingsService {
         defaultColumns: dto.defaultColumns?.map((c) => c.trim()).filter(Boolean),
       },
     });
+    await this.audit.record("settings.update", `Изменены настройки: ${changedFields(dto)}`);
     return this.get();
   }
 }

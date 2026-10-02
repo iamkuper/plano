@@ -4,6 +4,7 @@ import { PermissionGuard, RequirePermission } from "../auth/guards/permission.gu
 import { PrismaService } from "../prisma/prisma.service";
 import { FromProjectDto, SaveTemplateDto } from "./templates.dto";
 import { OWN_FIELDS } from "../prisma/tenant";
+import { AuditService } from "../audit/audit.service";
 
 const clean = (dto: SaveTemplateDto) => ({
   name: dto.name.trim(),
@@ -22,7 +23,10 @@ const clean = (dto: SaveTemplateDto) => ({
 @Controller("templates")
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class TemplatesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   @Get()
   list() {
@@ -42,9 +46,11 @@ export class TemplatesController {
 
   @Post()
   @RequirePermission("templates.manage")
-  create(@Body() dto: SaveTemplateDto) {
+  async create(@Body() dto: SaveTemplateDto) {
     const { cards, ...data } = clean(dto);
-    return this.prisma.template.create({ data: { ...OWN_FIELDS, ...data, cards: { create: cards } } });
+    const template = await this.prisma.template.create({ data: { ...OWN_FIELDS, ...data, cards: { create: cards } } });
+    await this.audit.record("template.create", `Создан шаблон «${template.name}»`, template.id);
+    return template;
   }
 
   @Put(":id")
@@ -62,7 +68,9 @@ export class TemplatesController {
   @RequirePermission("templates.manage")
   @HttpCode(204)
   async remove(@Param("id") id: string) {
+    const template = await this.prisma.template.findUnique({ where: { id }, select: { name: true } });
     await this.prisma.template.delete({ where: { id } });
+    await this.audit.record("template.delete", `Удалён шаблон «${template?.name ?? id}»`, id);
   }
 
   // Snapshot a project's stages and cards (titles, types, estimates,

@@ -6,6 +6,7 @@ import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { BillingService } from "../billing/billing.service";
+import { AuditService } from "../audit/audit.service";
 
 const publicFields = {
   id: true,
@@ -46,6 +47,7 @@ export class UsersService {
     // Email is unique across workspaces, so availability is checked globally.
     private readonly system: SystemPrismaService,
     private readonly billing: BillingService,
+    private readonly audit: AuditService,
   ) {}
 
   async list() {
@@ -76,6 +78,7 @@ export class UsersService {
       },
       select: publicFields,
     });
+    await this.audit.record("user.create", `Добавлен сотрудник ${user.name} (${user.email})`, user.id);
     return toDto(user);
   }
 
@@ -98,7 +101,8 @@ export class UsersService {
   }
 
   async resetPassword(userId: string, password: string) {
-    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(password, 10) } });
+    const user = await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(password, 10) }, select: { name: true } });
+    await this.audit.record("user.password", `Администратор сменил пароль сотрудника ${user.name}`, userId);
   }
 
   async setAvatar(userId: string, avatarUrl: string | null) {
@@ -114,6 +118,9 @@ export class UsersService {
     }
     // Picking a custom role makes the user a MEMBER of it.
     const data = dto.roleId ? { ...dto, role: "MEMBER" as const } : dto;
-    return toDto(await this.prisma.user.update({ where: { id }, data, select: publicFields }));
+    const updated = await this.prisma.user.update({ where: { id }, data, select: publicFields });
+    const what = [dto.isActive !== undefined ? (dto.isActive ? "включён" : "отключён") : null, dto.role || dto.roleId ? "изменена роль" : null].filter(Boolean).join(", ");
+    await this.audit.record("user.update", `Сотрудник ${updated.name}: ${what || "изменён"}`, id);
+    return toDto(updated);
   }
 }

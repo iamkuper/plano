@@ -32,6 +32,7 @@ export const PERMISSIONS = [
   { key: "templates.manage", label: "Создавать и менять шаблоны" },
   { key: "labels.manage", label: "Менять и удалять метки", hint: "Создавать и назначать метки может любой сотрудник" },
   { key: "fields.manage", label: "Настраивать дополнительные поля карточек" },
+  { key: "audit.view", label: "Смотреть журнал действий" },
   { key: "billing.manage", label: "Управлять тарифом и оплатой" },
   { key: "time.viewAll", label: "Видеть время всех сотрудников", hint: "Без этого права в отчёте видно только своё время" },
 ] as const;
