@@ -343,6 +343,10 @@ export interface BillingUsage {
 export interface PaymentDto {
   id: string;
   kind: "INITIAL" | "RENEWAL";
+  method: "CARD" | "INVOICE";
+  invoiceNumber: number | null;
+  payerName: string | null;
+  failReason: string | null;
   planId: PlanId;
   interval: BillingInterval;
   seats: number;
@@ -350,6 +354,14 @@ export interface PaymentDto {
   status: PaymentStatus;
   createdAt: string;
   paidAt: string | null;
+}
+
+export interface InvoicePayer {
+  payerName: string;
+  payerInn: string;
+  payerKpp: string | null;
+  payerAddress: string;
+  payerEmail: string;
 }
 
 export interface BillingDto {
@@ -375,6 +387,8 @@ export interface BillingDto {
   // Storage allowed on the current plan, MB (null = unlimited).
   storageLimitMb: number | null;
   payments: PaymentDto[];
+  // Details from the last invoice request, to prefill the next one.
+  lastPayer: InvoicePayer | null;
   // True when payments go to the built-in test provider instead of T-Bank.
   testMode: boolean;
 }

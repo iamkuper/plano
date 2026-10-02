@@ -3,10 +3,10 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, Minus, Plus } from "lucide-react";
-import { formatRub, planAmount, type BillingDto, type BillingInterval, type PlanDto } from "@amo-kanban/shared";
+import { formatRub, planAmount, type BillingDto, type BillingInterval, type InvoicePayer, type PlanDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
-import { Button, Card, PageHeader, Segmented, Skeleton } from "@/components/ui";
+import { Button, Card, Dialog, Field, Input, PageHeader, Segmented, Skeleton, Textarea } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
@@ -80,7 +80,77 @@ function SeatPicker({ value, min, max, onChange }: { value: number; min: number;
   );
 }
 
-function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, busy }: { plan: PlanDto; b: BillingDto; interval: BillingInterval; seats: number; canPay: boolean; onPick: () => void; busy: boolean }) {
+// Company details for a bank-transfer invoice. Prefilled from the last request.
+function InvoiceDialog({ plan, interval, seats, initial, onClose, onDone }: { plan: PlanDto; interval: BillingInterval; seats: number; initial: InvoicePayer | null; onClose: () => void; onDone: () => void }) {
+  const [form, setForm] = useState({
+    payerName: initial?.payerName ?? "",
+    payerInn: initial?.payerInn ?? "",
+    payerKpp: initial?.payerKpp ?? "",
+    payerAddress: initial?.payerAddress ?? "",
+    payerEmail: initial?.payerEmail ?? "",
+  });
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const amount = planAmount(plan, seats, interval);
+  return (
+    <Dialog
+      title="Оплата по счёту"
+      description={`Тариф ${plan.name}, ${seats} польз., ${interval === "YEAR" ? "год" : "месяц"} — ${formatRub(amount)}`}
+      onClose={onClose}
+      width="max-w-lg"
+    >
+      <form
+        className="space-y-4"
+        onSubmit={async (e) => {
+          e.preventDefault();
+          setError(null);
+          setBusy(true);
+          try {
+            const { invoiceNumber } = await api.requestInvoice({ planId: plan.id, interval, seats, ...form, payerKpp: form.payerKpp || null });
+            toast(`Запрос счёта №${invoiceNumber} отправлен. Счёт придёт на ${form.payerEmail}`, "success");
+            onDone();
+            onClose();
+          } catch (err) {
+            setError((err as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Field label="Организация или ИП">
+          {(a) => <Input {...a} autoFocus placeholder="ООО «Ромашка»" value={form.payerName} onChange={set("payerName")} />}
+        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="ИНН">{(a) => <Input {...a} inputMode="numeric" maxLength={12} value={form.payerInn} onChange={set("payerInn")} />}</Field>
+          <Field label="КПП" hint="Для ИП не нужен">
+            {(a) => <Input {...a} inputMode="numeric" maxLength={9} value={form.payerKpp} onChange={set("payerKpp")} />}
+          </Field>
+        </div>
+        <Field label="Юридический адрес">
+          {(a) => <Textarea {...a} className="min-h-[64px]" value={form.payerAddress} onChange={set("payerAddress")} />}
+        </Field>
+        <Field label="Почта для счёта и закрывающих документов">
+          {(a) => <Input {...a} type="email" value={form.payerEmail} onChange={set("payerEmail")} />}
+        </Field>
+        <p className="text-sm text-ink-faint">
+          Пришлём счёт на эту почту. Тариф включится, когда оплата поступит на счёт — обычно 1–3 рабочих дня. Пока ждём оплату, пространство работает как сейчас.
+        </p>
+        {error && <p className="text-sm text-danger">{error}</p>}
+        <div className="flex justify-end gap-2">
+          <Button type="button" onClick={onClose}>
+            Отмена
+          </Button>
+          <Button variant="primary" loading={busy}>
+            Запросить счёт
+          </Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
+function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, onInvoice, busy }: { plan: PlanDto; b: BillingDto; interval: BillingInterval; seats: number; canPay: boolean; onPick: () => void; onInvoice: () => void; busy: boolean }) {
   const current = !b.locked && b.plan.id === plan.id && b.subscription.status !== "TRIALING";
   const seats = plan.maxUsers === null ? wanted : Math.min(wanted, plan.maxUsers);
   const tooSmall = plan.maxUsers !== null && b.usage.users > plan.maxUsers;
@@ -117,9 +187,14 @@ function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, busy }: { 
         {plan.priceKopecks === 0 ? (
           <Button disabled className="w-full">{current ? "Текущий тариф" : "Бесплатный"}</Button>
         ) : (
-          <Button variant="primary" className="w-full" disabled={!canPay || tooSmall} loading={busy} onClick={onPick}>
-            {same ? "Продлить" : current ? "Изменить и оплатить" : "Выбрать"}
-          </Button>
+          <div className="space-y-1.5">
+            <Button variant="primary" className="w-full" disabled={!canPay || tooSmall} loading={busy} onClick={onPick}>
+              {same ? "Продлить картой" : current ? "Изменить и оплатить картой" : "Оплатить картой"}
+            </Button>
+            <Button variant="ghost" className="w-full" disabled={!canPay || tooSmall} onClick={onInvoice}>
+              Оплатить по счёту
+            </Button>
+          </div>
         )}
       </div>
     </div>
@@ -133,6 +208,7 @@ function BillingView() {
   const [interval, setInterval_] = useState<BillingInterval>("MONTH");
   const [busy, setBusy] = useState<string | null>(null);
   const canPay = can("billing.manage");
+  const [invoiceFor, setInvoiceFor] = useState<PlanDto | null>(null);
   const [seats, setSeats] = useState<number | null>(null);
 
   const load = useCallback(
@@ -231,10 +307,10 @@ function BillingView() {
         {!canPay && <p className="mb-3 text-sm text-ink-faint">Менять тариф может администратор или сотрудник с правом «Управлять тарифом и оплатой».</p>}
         <div className="grid gap-4 md:grid-cols-3">
           {b.plans.map((p) => (
-            <PlanCard key={p.id} plan={p} b={b} interval={interval} seats={seatCount} canPay={canPay} busy={busy === p.id} onPick={() => pick(p)} />
+            <PlanCard key={p.id} plan={p} b={b} interval={interval} seats={seatCount} canPay={canPay} busy={busy === p.id} onPick={() => pick(p)} onInvoice={() => setInvoiceFor(p)} />
           ))}
         </div>
-        <p className="mt-4 text-sm text-ink-faint">Оплата разовая, картой. Продление с тем же тарифом, периодом и числом мест добавляет период к текущему; любое изменение начинает новый период с сегодняшнего дня. После окончания периода есть 3 дня, затем пространство переходит в режим чтения до оплаты. При превышении лимитов существующие данные остаются, новые записи создать нельзя.</p>
+        <p className="mt-4 text-sm text-ink-faint">Оплата разовая: картой сразу или по счёту для юрлиц и ИП. Продление с тем же тарифом, периодом и числом мест добавляет период к текущему; любое изменение начинает новый период с сегодняшнего дня. После окончания периода есть 3 дня, затем пространство переходит в режим чтения до оплаты. При превышении лимитов существующие данные остаются, новые записи создать нельзя.</p>
       </Card>
 
       <Card title="Платежи" bodyClassName="p-0">
@@ -257,9 +333,36 @@ function BillingView() {
                   <td className="px-4 py-2">
                     {b.plans.find((x) => x.id === p.planId)?.name}, {p.seats} польз., {p.interval === "YEAR" ? "год" : "месяц"}
                     {p.kind === "RENEWAL" ? ", продление" : ""}
+                    <div className="text-xs text-ink-faint">{p.method === "INVOICE" ? `Счёт №${p.invoiceNumber}${p.payerName ? `, ${p.payerName}` : ""}` : "Картой"}</div>
                   </td>
                   <td className="px-4 py-2">{formatRub(p.amount)}</td>
-                  <td className="px-4 py-2">{p.status === "PAID" ? "Оплачен" : p.status === "FAILED" ? "Не прошёл" : "Ожидает оплаты"}</td>
+                  <td className="px-4 py-2">
+                    {p.status === "PAID"
+                      ? "Оплачен"
+                      : p.status === "FAILED"
+                        ? p.method === "INVOICE"
+                          ? p.failReason ?? "Отменён"
+                          : "Не прошёл"
+                        : p.method === "INVOICE"
+                          ? "Ждём оплату по счёту"
+                          : "Ожидает оплаты"}
+                    {p.method === "INVOICE" && p.status === "PENDING" && canPay && (
+                      <button
+                        className="ml-2 text-xs text-ink-faint underline hover:text-ink"
+                        onClick={async () => {
+                          try {
+                            await api.cancelInvoice(p.id);
+                            toast("Запрос счёта отменён", "success");
+                            load();
+                          } catch (e) {
+                            toast((e as Error).message, "error");
+                          }
+                        }}
+                      >
+                        Отменить
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -267,6 +370,16 @@ function BillingView() {
         )}
       </Card>
 
+      {invoiceFor && (
+        <InvoiceDialog
+          plan={invoiceFor}
+          interval={interval}
+          seats={invoiceFor.maxUsers === null ? seatCount : Math.min(seatCount, invoiceFor.maxUsers)}
+          initial={b.lastPayer}
+          onClose={() => setInvoiceFor(null)}
+          onDone={load}
+        />
+      )}
     </>
   );
 }

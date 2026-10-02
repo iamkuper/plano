@@ -1,5 +1,5 @@
 import { Body, Controller, Get, HttpCode, Param, Post, UseGuards } from "@nestjs/common";
-import { IsBoolean, IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
+import { IsBoolean, IsEmail, IsIn, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength } from "class-validator";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
@@ -20,6 +20,28 @@ class CheckoutDto {
   seats?: number;
 }
 
+
+class InvoiceDto extends CheckoutDto {
+  @IsString()
+  @MinLength(2, { message: "Укажите название организации" })
+  @MaxLength(300)
+  payerName!: string;
+
+  @Matches(/^(\d{10}|\d{12})$/, { message: "ИНН — 10 цифр для организации или 12 для ИП" })
+  payerInn!: string;
+
+  @IsOptional()
+  @Matches(/^(\d{9})?$/, { message: "КПП — 9 цифр" })
+  payerKpp?: string;
+
+  @IsString()
+  @MinLength(5, { message: "Укажите юридический адрес" })
+  @MaxLength(500)
+  payerAddress!: string;
+
+  @IsEmail({}, { message: "Укажите почту, куда прислать счёт" })
+  payerEmail!: string;
+}
 
 class DevPayDto {
   @IsBoolean()
@@ -44,6 +66,22 @@ export class BillingController {
     return this.billing.checkout(dto.planId, dto.interval, dto.seats, user.email);
   }
 
+
+  // Bank transfer: request an invoice (the platform owner issues it).
+  @Post("invoice")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("billing.manage")
+  invoice(@CurrentUser() user: AuthenticatedUser, @Body() dto: InvoiceDto) {
+    return this.billing.requestInvoice(dto, user);
+  }
+
+  @Post("invoice/:id/cancel")
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("billing.manage")
+  cancelInvoice(@Param("id") id: string) {
+    return this.billing.cancelInvoice(id);
+  }
 
   // Leave the trial or a locked workspace for the free plan.
   @Post("free")

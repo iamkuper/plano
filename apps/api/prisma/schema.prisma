@@ -418,6 +418,11 @@ enum PaymentStatus {
   FAILED
 }
 
+enum PaymentMethod {
+  CARD // paid on the bank's page
+  INVOICE // bank transfer by an invoice; marked paid by the platform owner
+}
+
 enum PaymentKind {
   INITIAL // first payment, the customer pays on the bank's page
   RENEWAL // recurring charge by the saved card
@@ -483,6 +488,14 @@ model Payment {
   plan          Plan            @relation(fields: [planId], references: [id])
   interval      BillingInterval
   seats         Int
+  method        PaymentMethod   @default(CARD)
+  // Invoice only: sequential number and the payer's details.
+  invoiceNumber Int?            @unique
+  payerName     String?
+  payerInn      String?
+  payerKpp      String?
+  payerAddress  String?
+  payerEmail    String?
   // Kopecks.
   amount        Int
   status        PaymentStatus   @default(PENDING)

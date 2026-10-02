@@ -10,6 +10,7 @@ import { GRACE_AFTER_PERIOD_MS, isLocked } from "./subscription-state";
 import { AuditService } from "../audit/audit.service";
 import { appUrl } from "../auth/tokens";
 import { MailService } from "../mail/mail.service";
+import { platformAdminEmails } from "../platform/platform-admin.guard";
 
 const DAY = 86_400_000;
 export const TRIAL_DAYS = 14;
@@ -199,9 +200,11 @@ export class BillingService {
       usage,
       storageLimitMb: this.storageLimitMb(plan, sub, usage.users),
       payments: payments.map((p) => ({
-        id: p.id, kind: p.kind, planId: p.planId as PlanDto["id"], interval: p.interval, seats: p.seats,
+        id: p.id, kind: p.kind, method: p.method, invoiceNumber: p.invoiceNumber, payerName: p.payerName, failReason: p.failReason,
+        planId: p.planId as PlanDto["id"], interval: p.interval, seats: p.seats,
         amount: p.amount, status: p.status, createdAt: p.createdAt.toISOString(), paidAt: p.paidAt?.toISOString() ?? null,
       })),
+      lastPayer: await this.lastPayer(workspaceId),
       testMode: this.provider.test,
     };
   }
@@ -214,14 +217,21 @@ export class BillingService {
 
   // Starts a payment of a paid plan: returns the bank's payment page URL.
   // The price covers the active users now; the period starts when paid.
-  async checkout(planId: string, interval: BillingInterval, seatsWanted: number | undefined, email: string) {
-    const workspaceId = this.ws;
+  // Validates a purchase: a paid plan, seats not below the active users and
+  // not above the plan's cap.
+  private async purchase(workspaceId: string, planId: string, seatsWanted?: number) {
     const plan = await this.db.plan.findUnique({ where: { id: planId } });
     if (!plan || plan.priceKopecks <= 0) throw new BadRequestException("Выберите платный тариф");
     const active = await this.db.user.count({ where: { workspaceId, isActive: true } });
     const seats = seatsWanted ?? Math.max(active, 1);
     if (seats < Math.max(active, 1)) throw new BadRequestException(`Мест должно быть не меньше, чем активных пользователей: ${active}. Лишних сотрудников можно отключить`);
     if (plan.maxUsers !== null && seats > plan.maxUsers) throw new BadRequestException(`На тарифе ${plan.name} — не больше ${plan.maxUsers} пользователей`);
+    return { plan, seats };
+  }
+
+  async checkout(planId: string, interval: BillingInterval, seatsWanted: number | undefined, email: string) {
+    const workspaceId = this.ws;
+    const { plan, seats } = await this.purchase(workspaceId, planId, seatsWanted);
     const payment = await this.db.payment.create({
       data: {
         workspaceId, kind: "INITIAL", planId: plan.id, interval, seats,
@@ -245,6 +255,93 @@ export class BillingService {
     }
   }
 
+
+  // ---- bank transfer by invoice ----
+
+  private async lastPayer(workspaceId: string) {
+    const p = await this.db.payment.findFirst({ where: { workspaceId, method: "INVOICE" }, orderBy: { createdAt: "desc" } });
+    if (!p?.payerName) return null;
+    return { payerName: p.payerName, payerInn: p.payerInn ?? "", payerKpp: p.payerKpp, payerAddress: p.payerAddress ?? "", payerEmail: p.payerEmail ?? "" };
+  }
+
+  // A company asks for an invoice instead of paying by card. The request is
+  // a PENDING payment; the platform owner issues the invoice from the
+  // details, and marks it paid when the money arrives (markInvoicePaid).
+  // A newer request replaces an unpaid older one.
+  async requestInvoice(
+    dto: { planId: string; interval: BillingInterval; seats?: number; payerName: string; payerInn: string; payerKpp?: string; payerAddress: string; payerEmail: string },
+    requester: { email: string },
+  ) {
+    const workspaceId = this.ws;
+    const { plan, seats } = await this.purchase(workspaceId, dto.planId, dto.seats);
+    await this.db.payment.updateMany({
+      where: { workspaceId, method: "INVOICE", status: "PENDING" },
+      data: { status: "FAILED", failReason: "Заменён новым счётом" },
+    });
+    const last = await this.db.payment.aggregate({ _max: { invoiceNumber: true } });
+    const payment = await this.db.payment.create({
+      data: {
+        workspaceId, kind: "INITIAL", method: "INVOICE", planId: plan.id, interval: dto.interval, seats,
+        amount: planAmount(plan, seats, dto.interval), orderId: this.newOrderId(),
+        invoiceNumber: (last._max.invoiceNumber ?? 0) + 1,
+        payerName: dto.payerName.trim(), payerInn: dto.payerInn.trim(), payerKpp: dto.payerKpp?.trim() || null,
+        payerAddress: dto.payerAddress.trim(), payerEmail: dto.payerEmail.trim(),
+      },
+      include: { workspace: { select: { name: true } } },
+    });
+    const amount = (payment.amount / 100).toLocaleString("ru-RU");
+    const period = dto.interval === "YEAR" ? "год" : "месяц";
+    await this.audit.record("billing.invoice", `Запрошен счёт №${payment.invoiceNumber}: тариф ${plan.name}, ${seats} польз., ${period}, ${amount} ₽`, payment.id);
+
+    const details = [
+      `Счёт №${payment.invoiceNumber} на ${amount} ₽`,
+      `Пространство: ${payment.workspace.name} (${workspaceId})`,
+      `Тариф ${plan.name}, ${seats} польз., ${period}`,
+      "",
+      `Плательщик: ${payment.payerName}`,
+      `ИНН ${payment.payerInn}${payment.payerKpp ? `, КПП ${payment.payerKpp}` : ""}`,
+      `Адрес: ${payment.payerAddress}`,
+      `Почта для счёта: ${payment.payerEmail}`,
+      `Запросил: ${requester.email}`,
+    ].join("\n");
+    for (const to of platformAdminEmails()) {
+      await this.mail.send(to, `Plano: запрос счёта №${payment.invoiceNumber} — ${payment.payerName}`, `${details}\n\nКогда оплата поступит, отметьте счёт оплаченным: ${appUrl()}/platform`);
+    }
+    await this.mail.send(
+      payment.payerEmail!,
+      `Plano: запрос счёта №${payment.invoiceNumber} принят`,
+      `${details}\n\nСчёт пришлём на эту почту. Тариф включится, как только оплата поступит на счёт.`,
+    );
+    return { id: payment.id, invoiceNumber: payment.invoiceNumber };
+  }
+
+  async cancelInvoice(id: string) {
+    const done = await this.db.payment.updateMany({
+      where: { id, workspaceId: this.ws, method: "INVOICE", status: "PENDING" },
+      data: { status: "FAILED", failReason: "Отменён" },
+    });
+    if (!done.count) throw new NotFoundException("Счёт не найден или уже закрыт");
+    await this.audit.record("billing.invoice.cancel", "Запрос счёта отменён", id);
+  }
+
+  // Platform owner: the transfer arrived. Activates the plan like a card
+  // payment (same prolong-or-start rules). Idempotent.
+  async markInvoicePaid(id: string) {
+    const payment = await this.db.payment.findUnique({ where: { id } });
+    if (!payment || payment.method !== "INVOICE") throw new NotFoundException("Счёт не найден");
+    if (payment.status === "PAID") return;
+    if (payment.status !== "PENDING") throw new BadRequestException("Счёт отменён");
+    const settled = await this.db.payment.updateMany({ where: { id, status: "PENDING" }, data: { status: "PAID", paidAt: new Date() } });
+    if (settled.count) await this.activate(payment);
+  }
+
+  pendingInvoices() {
+    return this.db.payment.findMany({
+      where: { method: "INVOICE", status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+      include: { workspace: { select: { id: true, name: true } } },
+    });
+  }
 
   // ---- bank notifications ----
 

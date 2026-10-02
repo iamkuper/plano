@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Module, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Module, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PlatformAdminGuard } from "./platform-admin.guard";
 import { PlatformService } from "./platform.service";
+import { BillingService } from "../billing/billing.service";
 
 class SubscriptionActionDto {
   @IsIn(["grant", "extend-trial", "lock", "free"])
@@ -24,7 +25,10 @@ class SubscriptionActionDto {
 @Controller("platform")
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
 export class PlatformController {
-  constructor(private readonly platform: PlatformService) {}
+  constructor(
+    private readonly platform: PlatformService,
+    private readonly billing: BillingService,
+  ) {}
 
   @Get("stats")
   stats() {
@@ -40,6 +44,18 @@ export class PlatformController {
   @Get("workspaces/:id")
   workspace(@Param("id") id: string) {
     return this.platform.workspace(id);
+  }
+
+  // Invoice requests waiting for a bank transfer.
+  @Get("invoices")
+  invoices() {
+    return this.billing.pendingInvoices();
+  }
+
+  @Post("invoices/:id/paid")
+  @HttpCode(204)
+  invoicePaid(@Param("id") id: string) {
+    return this.billing.markInvoicePaid(id);
   }
 
   @Post("workspaces/:id/subscription")

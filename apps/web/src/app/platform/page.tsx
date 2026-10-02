@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { formatRub } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { Button, Dialog, Field, Input, Kpi, PageHeader, Panel, Select, Segmented, td, th, tr, TableSkeleton } from "@/components/ui";
-import { api, type PlatformState, type PlatformStats, type PlatformWorkspaceDetail, type PlatformWorkspaceRow } from "@/lib/api";
+import { api, type PlatformInvoice, type PlatformState, type PlatformStats, type PlatformWorkspaceDetail, type PlatformWorkspaceRow } from "@/lib/api";
 import { toast } from "@/lib/toast";
 
 const STATE_LABELS: Record<PlatformState, string> = { trial: "Пробный", paid: "Оплачен", free: "Free", locked: "Заблокирован", past_due: "Долг" };
@@ -107,7 +107,7 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
                 {w.payments.map((p) => (
                   <li key={p.id} className="flex justify-between py-1.5">
                     <span>
-                      {day(p.paidAt ?? p.createdAt)}, {p.planId}, {p.seats} польз.{p.kind === "RENEWAL" ? ", продление" : ""}
+                      {day(p.paidAt ?? p.createdAt)}, {p.planId}, {p.seats} польз.{p.kind === "RENEWAL" ? ", продление" : ""}{p.method === "INVOICE" ? `, счёт №${p.invoiceNumber}` : ""}
                     </span>
                     <span>
                       {formatRub(p.amount)} <span className="text-ink-faint">{p.status === "PAID" ? "оплачен" : p.status === "FAILED" ? "не прошёл" : "ожидает"}</span>
@@ -132,6 +132,64 @@ function WorkspaceDialog({ id, onClose, onChanged }: { id: string; onClose: () =
         </div>
       )}
     </Dialog>
+  );
+}
+
+// Bank-transfer requests: issue the invoice from these details, then mark it
+// paid when the money arrives — that turns the plan on.
+function Invoices() {
+  const [items, setItems] = useState<PlatformInvoice[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const load = useCallback(() => api.platformInvoices().then(setItems).catch(() => setItems([])), []);
+  useEffect(() => {
+    load();
+  }, [load]);
+  if (!items?.length) return null;
+  return (
+    <Panel className="overflow-hidden">
+      <div className="border-b border-border px-4 py-2.5 text-sm font-medium">Счета ждут оплаты ({items.length})</div>
+      <ul className="divide-y divide-border text-sm">
+        {items.map((i) => (
+          <li key={i.id} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+            <div className="min-w-0 space-y-0.5">
+              <div className="font-medium">
+                Счёт №{i.invoiceNumber} — {formatRub(i.amount)}
+                <span className="ml-2 font-normal text-ink-faint">
+                  {i.workspace.name}, {i.planId}, {i.seats} польз., {i.interval === "YEAR" ? "год" : "месяц"}, запрошен {day(i.createdAt)}
+                </span>
+              </div>
+              <div>
+                {i.payerName}, ИНН {i.payerInn}
+                {i.payerKpp ? `, КПП ${i.payerKpp}` : ""}
+              </div>
+              <div className="text-ink-faint">
+                {i.payerAddress} · {i.payerEmail}
+              </div>
+            </div>
+            <Button
+              size="sm"
+              variant="primary"
+              loading={busy === i.id}
+              onClick={async () => {
+                if (!confirm(`Оплата по счёту №${i.invoiceNumber} на ${formatRub(i.amount)} поступила? Тариф включится сразу.`)) return;
+                setBusy(i.id);
+                try {
+                  await api.platformInvoicePaid(i.id);
+                  toast(`Счёт №${i.invoiceNumber} оплачен, тариф включён`, "success");
+                  load();
+                } catch (e) {
+                  toast((e as Error).message, "error");
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            >
+              Оплата поступила
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Panel>
   );
 }
 
@@ -180,6 +238,8 @@ export default function PlatformPage() {
           <Kpi label="MRR" value={formatRub(stats.mrrKopecks)} hint={`за 30 дней получено ${formatRub(stats.paid30dKopecks)}`} />
           <Kpi label="Неудачных платежей" value={stats.failedPayments7d} hint="за неделю" tone={stats.failedPayments7d ? "danger" : undefined} />
         </div>
+
+        <Invoices />
 
         <div className="flex flex-wrap items-center gap-3">
           <Input className="w-64" placeholder="Название или почта" aria-label="Поиск" value={q} onChange={(e) => setQ(e.target.value)} />

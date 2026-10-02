@@ -486,3 +486,55 @@ describe("period-end reminders", () => {
     }
   });
 });
+
+describe("bank transfer by invoice", () => {
+  const payer = { payerName: "ООО «Ромашка»", payerInn: "7701234567", payerKpp: "770101001", payerAddress: "Москва, ул. Пример, 1", payerEmail: "buh@romashka.test" };
+
+  it("records the request, mails the platform owner, and activates when marked paid", async () => {
+    const mail = t.app.get(MailService);
+    const sent: string[] = [];
+    const spy = jest.spyOn(mail, "send").mockImplementation(async (to) => {
+      sent.push(to);
+      return true;
+    });
+    const before = process.env.PLATFORM_ADMIN_EMAILS;
+    process.env.PLATFORM_ADMIN_EMAILS = "owner@plano.test";
+    try {
+      const a = await register(t, "invoice");
+      const A = api(t, a.token);
+      await A.post("/billing/invoice", { ...payer, payerInn: "123", planId: "PRO", interval: "MONTH", seats: 2 }).expect(400);
+      const first = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH", seats: 2 }).expect(201)).body;
+      const inv = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "YEAR", seats: 2 }).expect(201)).body;
+      expect(inv.invoiceNumber).toBeGreaterThan(first.invoiceNumber);
+      expect(sent).toEqual(expect.arrayContaining(["owner@plano.test", payer.payerEmail]));
+
+      const o = (await A.get("/billing").expect(200)).body;
+      expect(o.subscription.status).toBe("TRIALING"); // nothing changes until paid
+      expect(o.lastPayer).toMatchObject({ payerInn: payer.payerInn });
+      const states = Object.fromEntries(o.payments.map((p: { id: string; status: string }) => [p.id, p.status]));
+      expect([states[first.id], states[inv.id]]).toEqual(["FAILED", "PENDING"]); // replaced by the newer one
+
+      // only the platform owner can mark it paid
+      await A.post(`/platform/invoices/${inv.id}/paid`).expect(404);
+      const owner = await register(t, "owner");
+      await t.db.user.update({ where: { id: owner.userId }, data: { email: "owner@plano.test" } });
+      const O = api(t, (await request(t.app.getHttpServer()).post("/auth/login").send({ email: "owner@plano.test", password: owner.password })).body.accessToken);
+      expect((await O.get("/platform/invoices").expect(200)).body.map((p: { id: string }) => p.id)).toContain(inv.id);
+      await O.post(`/platform/invoices/${inv.id}/paid`).expect(204);
+      await O.post(`/platform/invoices/${inv.id}/paid`).expect(204); // idempotent
+      const s = await sub(a.workspaceId);
+      expect([s.status, s.planId, s.interval, s.seats]).toEqual(["ACTIVE", "PRO", "YEAR", 2]);
+      await O.post(`/platform/invoices/${first.id}/paid`).expect(400); // replaced invoice
+    } finally {
+      process.env.PLATFORM_ADMIN_EMAILS = before;
+      spy.mockRestore();
+    }
+  });
+
+  it("a pending invoice can be cancelled by the workspace", async () => {
+    const a = await register(t, "invcancel");
+    const inv = (await api(t, a.token).post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH" }).expect(201)).body;
+    await api(t, a.token).post(`/billing/invoice/${inv.id}/cancel`).expect(204);
+    await api(t, a.token).post(`/billing/invoice/${inv.id}/cancel`).expect(404);
+  });
+});
