@@ -1,7 +1,7 @@
 import { Global, Module, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { BillingController } from "./billing.controller";
 import { BillingService } from "./billing.service";
-import { MockProvider } from "./mock.provider";
+import { DisabledProvider, MockProvider } from "./mock.provider";
 import { PAYMENT_PROVIDER, type PaymentProvider } from "./payment-provider";
 import { TbankProvider } from "./tbank.provider";
 
@@ -23,6 +23,8 @@ export function createProvider(env = process.env): PaymentProvider {
       tax: env.TBANK_TAX ?? "none",
     });
   }
+  // Never fake payments in production unless explicitly allowed.
+  if (env.NODE_ENV === "production" && env.ALLOW_MOCK_PAYMENTS !== "1") return new DisabledProvider();
   return new MockProvider(appUrl, env.MOCK_CHARGE_FAIL === "1");
 }
 

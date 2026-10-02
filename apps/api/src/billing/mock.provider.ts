@@ -1,5 +1,5 @@
 import { randomBytes } from "crypto";
-import { UnauthorizedException } from "@nestjs/common";
+import { ServiceUnavailableException, UnauthorizedException } from "@nestjs/common";
 import type { ChargeResult, InitParams, InitResult, PaymentNotification, PaymentProvider } from "./payment-provider";
 import { tbankToken } from "./tbank.provider";
 
@@ -45,5 +45,23 @@ export class MockProvider implements PaymentProvider {
       cardMask: ok ? "430000******0777" : undefined,
       reason: ok ? undefined : "Платёж отклонён (тест)",
     };
+  }
+}
+
+// Production without a T-Bank terminal: card payments are refused (the test
+// provider would let anyone "pay" for free). Paying by invoice still works.
+export class DisabledProvider implements PaymentProvider {
+  readonly test = false;
+
+  async init(): Promise<InitResult> {
+    throw new ServiceUnavailableException("Оплата картой пока подключается. Оплатите по счёту — кнопка «Оплатить по счёту» в карточке тарифа");
+  }
+
+  async charge(): Promise<ChargeResult> {
+    return { confirmed: false, reason: "Оплата картой не подключена" };
+  }
+
+  parseNotification(): PaymentNotification {
+    throw new UnauthorizedException();
   }
 }

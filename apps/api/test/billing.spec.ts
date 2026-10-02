@@ -599,3 +599,11 @@ describe("buying extra seats mid-period", () => {
     expect((await sub(a.workspaceId)).seats).toBe(6);
   });
 });
+
+describe("payment provider selection", () => {
+  it("never uses the test provider in production without a terminal", () => {
+    expect(createProvider({ NODE_ENV: "production" } as NodeJS.ProcessEnv).test).toBe(false);
+    expect(createProvider({ NODE_ENV: "production", ALLOW_MOCK_PAYMENTS: "1" } as NodeJS.ProcessEnv).test).toBe(true);
+    expect(createProvider({} as NodeJS.ProcessEnv).test).toBe(true);
+  });
+});
