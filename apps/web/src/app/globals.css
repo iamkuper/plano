@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Golos Text, self-hosted from @fontsource (Cyrillic + Latin subsets). */
+:root { --font-main: "Golos Text"; }
+
 body {
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;

@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Golos_Text } from "next/font/google";
+import "@fontsource/golos-text/400.css";
+import "@fontsource/golos-text/500.css";
+import "@fontsource/golos-text/600.css";
 import { CookieBanner } from "@/components/cookie-banner";
 import { Metrika } from "@/components/metrika";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
 import "./globals.css";
 
-// Golos Text: a Cyrillic-first UI typeface — crisp at 12–14px.
-const golos = Golos_Text({ variable: "--font-main", subsets: ["latin", "cyrillic"], weight: ["400", "500", "600"] });
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -30,7 +30,7 @@ export const viewport: Viewport = { themeColor: "#2B2F33" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="ru" className={`${golos.variable} h-full antialiased`}>
+    <html lang="ru" className="h-full antialiased">
       <body className="min-h-full bg-bg font-sans text-base text-ink">
         {children}
         <Metrika />

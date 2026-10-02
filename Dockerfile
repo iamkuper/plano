@@ -1,6 +1,6 @@
 # Production images for the API and the web app (one monorepo build, two
 # targets). Build with deploy/docker-compose.yml.
-FROM node:20-bookworm-slim AS build
+FROM node:22-bookworm-slim AS build
 RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 make g++ ca-certificates \
   && rm -rf /var/lib/apt/lists/* && corepack enable
 WORKDIR /app
