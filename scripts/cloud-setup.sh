@@ -20,6 +20,7 @@ if ! (exec 3<>/dev/tcp/127.0.0.1/5433) 2>/dev/null; then
   done
 fi
 
+pnpm --filter @amo-kanban/api exec prisma generate
 pnpm --filter @amo-kanban/api exec prisma migrate deploy
 pnpm db:seed
 
