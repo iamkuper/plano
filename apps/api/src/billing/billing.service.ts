@@ -6,6 +6,7 @@ import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { currentWorkspaceId, runInWorkspace } from "../prisma/tenant";
 import { PAYMENT_PROVIDER, type PaymentNotification, type PaymentProvider } from "./payment-provider";
 import { mockNotification } from "./mock.provider";
+import { isLocked } from "./subscription-state";
 import { AuditService } from "../audit/audit.service";
 
 const DAY = 86_400_000;
@@ -44,12 +45,11 @@ export class BillingService {
 
   // ---- what the workspace may do ----
 
-  // The plan that applies now: an expired trial counts as FREE.
+  // The plan whose limits and features apply. A locked workspace keeps its
+  // last plan (so everything stays readable); writes are refused separately.
   async effectivePlan(workspaceId: string, sub?: Subscription | null): Promise<Plan> {
     sub ??= await this.db.subscription.findUnique({ where: { workspaceId } });
-    const trialOver = sub?.status === "TRIALING" && (!sub.trialEndsAt || sub.trialEndsAt <= new Date());
-    const planId = !sub || trialOver ? "FREE" : sub.planId;
-    return this.db.plan.findUniqueOrThrow({ where: { id: planId } });
+    return this.db.plan.findUniqueOrThrow({ where: { id: sub?.planId ?? "FREE" } });
   }
 
   private async usage(workspaceId: string) {
@@ -116,6 +116,7 @@ export class BillingService {
     return {
       plan: toDto(plan),
       plans: plans.map(toDto),
+      locked: isLocked(sub),
       subscription: {
         planId: sub.planId as PlanDto["id"],
         status: sub.status,
@@ -175,6 +176,7 @@ export class BillingService {
     const workspaceId = this.ws;
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId } });
     if (sub.planId === "FREE") throw new BadRequestException("Платной подписки нет");
+    if (isLocked(sub)) throw new BadRequestException("Тариф уже закончился");
     if (sub.status === "TRIALING") throw new BadRequestException("Пробный период закончится сам, списаний не будет");
     await this.db.subscription.update({ where: { workspaceId }, data: { cancelAtPeriodEnd: cancel } });
   }
@@ -253,7 +255,22 @@ export class BillingService {
 
   // ---- scheduler ----
 
-  private async downgrade(workspaceId: string) {
+  // Trial or paid period over and not renewed: read-only until paid.
+  private async lock(workspaceId: string) {
+    await this.db.subscription.update({
+      where: { workspaceId },
+      data: { status: "LOCKED", cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null },
+    });
+    await runInWorkspace(workspaceId, () => this.audit.record("billing.locked", "Тариф закончился, пространство переведено в режим чтения"));
+  }
+
+  // Choosing the free plan explicitly (from a trial or a locked workspace).
+  // Existing data stays; only creating beyond the Free limits is refused.
+  async switchToFree() {
+    const workspaceId = this.ws;
+    const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId } });
+    const paidActive = sub.planId !== "FREE" && sub.status !== "TRIALING" && sub.status !== "LOCKED" && !isLocked(sub);
+    if (paidActive) throw new BadRequestException("Оплаченный тариф действует до конца периода. Отключите продление, и после него начнётся бесплатный");
     await this.db.subscription.update({
       where: { workspaceId },
       data: {
@@ -261,13 +278,14 @@ export class BillingService {
         cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null,
       },
     });
+    await this.audit.record("billing.free", "Выбран бесплатный тариф");
   }
 
-  // Renews paid periods that ended, downgrades cancelled and unpaid ones.
+  // Renews paid periods that ended, locks cancelled and unpaid ones.
   async runDue(now = new Date()) {
     // Trials that ran out without a payment.
     const trials = await this.db.subscription.findMany({ where: { status: "TRIALING", trialEndsAt: { lte: now } } });
-    for (const t of trials) await this.downgrade(t.workspaceId);
+    for (const t of trials) await this.lock(t.workspaceId);
 
     const due = await this.db.subscription.findMany({
       where: {
@@ -289,7 +307,7 @@ export class BillingService {
   }
 
   private async renew(sub: Subscription & { plan: Plan }, now: Date) {
-    if (sub.cancelAtPeriodEnd || !sub.rebillId) return this.downgrade(sub.workspaceId);
+    if (sub.cancelAtPeriodEnd || !sub.rebillId) return this.lock(sub.workspaceId);
 
     const seats = await this.db.user.count({ where: { workspaceId: sub.workspaceId, isActive: true } });
     const payment = await this.db.payment.create({
@@ -318,7 +336,7 @@ export class BillingService {
 
     await this.db.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED", failReason: failure } });
     const attempts = sub.failedAttempts + 1;
-    if (attempts >= MAX_RENEWAL_ATTEMPTS) return this.downgrade(sub.workspaceId);
+    if (attempts >= MAX_RENEWAL_ATTEMPTS) return this.lock(sub.workspaceId);
     await this.db.subscription.update({
       where: { workspaceId: sub.workspaceId },
       data: { status: "PAST_DUE", failedAttempts: attempts, nextAttemptAt: new Date(now.getTime() + RETRY_AFTER_MS) },

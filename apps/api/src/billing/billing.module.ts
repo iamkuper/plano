@@ -39,6 +39,8 @@ export class BillingModule implements OnModuleInit, OnModuleDestroy {
 
   // Renewals and trial expiry: check every 10 minutes, and once after start.
   onModuleInit() {
+    // Tests drive the scheduler by hand (DISABLE_SCHEDULERS=1).
+    if (process.env.DISABLE_SCHEDULERS === "1") return;
     const run = () => this.billing.runDue().catch(() => {});
     this.timer = setInterval(run, 10 * 60_000);
     setTimeout(run, 10_000);

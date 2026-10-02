@@ -79,6 +79,9 @@ model User {
   isActive     Boolean  @default(true)
   // Mail copies of notifications (assignments, mentions, due dates).
   emailNotifications Boolean @default(true)
+  // Onboarding: the welcome dialog was shown / the checklist was closed.
+  welcomeSeenAt      DateTime?
+  onboardingClosedAt DateTime?
   // Small square photo as a data: URL (resized client-side to 256px).
   avatarUrl    String?
   createdAt    DateTime @default(now())
@@ -399,6 +402,7 @@ enum SubscriptionStatus {
   TRIALING // paid plan on trial, no card yet
   ACTIVE // FREE, or a paid plan within a paid period
   PAST_DUE // renewal charge failed; still has the plan while we retry
+  LOCKED // trial or paid period ended unpaid: read-only until paid or moved to FREE
 }
 
 enum BillingInterval {

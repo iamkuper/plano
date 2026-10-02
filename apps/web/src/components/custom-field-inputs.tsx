@@ -2,16 +2,13 @@
 
 import { useEffect, useState } from "react";
 import type { CardDetailDto, CustomFieldDto, CustomFieldValue } from "@amo-kanban/shared";
-import { api } from "@/lib/api";
+import { api, onSessionChange } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { Checkbox, Field, Input, Select } from "./ui";
 
 let cache: Promise<CustomFieldDto[]> | null = null;
+onSessionChange(() => (cache = null));
 const loadFields = () => (cache ??= api.fields().catch((e) => ((cache = null), Promise.reject(e))));
-
-export function resetFieldsCache() {
-  cache = null;
-}
 
 // Custom fields of the workspace in a card. Values can be set on the
 // Business plan; on other plans they show read-only.

@@ -2,12 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { setCardKeyPrefix, type SettingsDto } from "@amo-kanban/shared";
-import { api } from "./api";
+import { api, onSessionChange } from "./api";
 
 // Workspace settings, fetched once per page load and shared by all callers.
 const EVENT = "amo-kanban:settings-changed";
 let cached: SettingsDto | null = null;
 let inflight: Promise<SettingsDto> | null = null;
+onSessionChange(() => {
+  cached = null;
+  inflight = null;
+});
 
 function apply(s: SettingsDto) {
   cached = s;

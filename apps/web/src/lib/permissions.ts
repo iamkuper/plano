@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { can, type Permission, type UserDto } from "@amo-kanban/shared";
-import { api } from "./api";
+import { api, onSessionChange } from "./api";
 
 let mePromise: Promise<UserDto> | null = null;
+onSessionChange(() => (mePromise = null));
 
 // `can(perm)` for the current user. Until the user loads it
 // answers false, so restricted buttons appear rather than flash and vanish.

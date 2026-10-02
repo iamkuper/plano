@@ -11,6 +11,7 @@ import { UpdateCardDto } from "./dto/update-card.dto";
 import { MoveCardDto } from "./dto/move-card.dto";
 import { BulkCardsDto } from "./dto/bulk.dto";
 import { CARD_FIELDS } from "../prisma/tenant";
+import { caseVariants } from "../prisma/case-variants";
 import { BillingService } from "../billing/billing.service";
 import { AuditService } from "../audit/audit.service";
 
@@ -63,8 +64,10 @@ export class CardsService {
     return this.prisma.card.findMany({
       where: {
         OR: [
-          { title: { contains: term, mode: "insensitive" } },
-          { description: { contains: term, mode: "insensitive" } },
+          ...caseVariants(term).flatMap((v) => [
+            { title: { contains: v, mode: "insensitive" as const } },
+            { description: { contains: v, mode: "insensitive" as const } },
+          ]),
           ...(key ? [{ number: Number(key[1]) }] : []),
         ],
       },

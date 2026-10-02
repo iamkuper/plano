@@ -7,6 +7,7 @@ import { cardKey, type CardTileDto, type TeamBoardColumnDto, type UserDto, type 
 import { AppShell } from "@/components/app-shell";
 import { Avatar, LetterMark } from "@/components/avatar";
 import { CardModal } from "@/components/card-modal";
+import { Onboarding } from "@/components/onboarding";
 import { HomeTabs } from "@/components/tab-links";
 import { Card, EmptyState, Kpi, PageHeader, ShareBar, Skeleton } from "@/components/ui";
 import { stageColor } from "@/design/tokens";
@@ -148,6 +149,7 @@ function Dashboard() {
     <>
       <PageHeader title="Главная" meta={<HomeTabs />} subtitle={me ? `Здравствуйте, ${me.name.split(" ")[0]}` : undefined} />
       <div className="space-y-4 py-5">
+        <Onboarding />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
           <Kpi label="Мои открытые" value={loading ? "…" : tasks.length} />
           <Kpi label="Просрочено" value={loading ? "…" : overdue} tone={overdue ? "danger" : undefined} />

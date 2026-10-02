@@ -203,6 +203,9 @@ export default function UsersPage() {
   const [me, setMe] = useState<UserDto | null>(null);
   const [creating, setCreating] = useState(false);
   const [inviting, setInviting] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("invite") === "1") setInviting(true);
+  }, []);
   const [invitations, setInvitations] = useState<InvitationDto[]>([]);
   const [resetting, setResetting] = useState<UserDto | null>(null);
   const [error, setError] = useState<string | null>(null);

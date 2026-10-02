@@ -198,6 +198,22 @@ function PasswordSection() {
   );
 }
 
+function OnboardingSection() {
+  return (
+    <Card title="Начало работы" description="Подсказки на главной странице: шаги для первого запуска.">
+      <Button
+        variant="outline"
+        onClick={async () => {
+          await api.onboardingReopen().catch(() => {});
+          toast("Подсказки вернулись на главную", "success");
+        }}
+      >
+        Показать начало работы
+      </Button>
+    </Card>
+  );
+}
+
 export default function ProfilePage() {
   const [me, setMe] = useState<UserDto | null>(null);
 
@@ -219,6 +235,7 @@ export default function ProfilePage() {
             <PhotoSection me={me} onSaved={saved} />
             <DetailsSection key={`${me.name}|${me.email}`} me={me} onSaved={saved} />
             <PasswordSection />
+            <OnboardingSection />
           </>
         ) : (
           <div className="space-y-4" aria-busy="true">

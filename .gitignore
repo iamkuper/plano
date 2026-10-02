@@ -9,3 +9,5 @@ dist/
 apps/api/.pgdata/
 coverage/
 apps/api/uploads/
+test-results/
+playwright-report/

@@ -21,6 +21,8 @@ import { DependenciesModule } from "./dependencies/dependencies.controller";
 import { FieldsModule } from "./fields/fields.controller";
 import { AuditModule } from "./audit/audit.service";
 import { ExportModule } from "./export/export.controller";
+import { PlatformModule } from "./platform/platform.controller";
+import { OnboardingModule } from "./onboarding/onboarding.controller";
 import { AuditApiModule } from "./audit/audit.controller";
 import { InvitationsModule } from "./invitations/invitations.module";
 
@@ -48,6 +50,8 @@ import { InvitationsModule } from "./invitations/invitations.module";
     FieldsModule,
     AuditModule,
     ExportModule,
+    PlatformModule,
+    OnboardingModule,
     AuditApiModule,
     InvitationsModule,
   ],

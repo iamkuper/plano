@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } 
 import type { RecurringRule } from "@prisma/client";
 import { NotificationsService } from "../notifications/notifications.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { isLocked } from "../billing/subscription-state";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { CARD_FIELDS, runInWorkspace } from "../prisma/tenant";
 import { RealtimeService } from "../realtime/realtime.service";
@@ -25,6 +26,7 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    if (process.env.DISABLE_SCHEDULERS === "1") return;
     // Check once a minute; also right after start to catch up after downtime.
     this.timer = setInterval(() => this.runDue(), 60_000);
     setTimeout(() => this.runDue(), 5_000);
@@ -121,9 +123,11 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
       const now = new Date();
       const due = await this.system.recurringRule.findMany({
         where: { active: true, nextRunAt: { lte: now }, project: { status: { in: ["ACTIVE", "ON_HOLD"] } } },
-        include: { project: { select: { workspaceId: true } } },
+        include: { project: { select: { workspaceId: true, workspace: { select: { subscription: true } } } } },
       });
       for (const { project, ...rule } of due) {
+        // A locked workspace is read-only: nothing is created in it.
+        if (isLocked(project.workspace.subscription)) continue;
         await runInWorkspace(project.workspaceId, async () => {
           await this.createCard(rule, rule.nextRunAt);
           let next = nextRun(rule, rule.nextRunAt);

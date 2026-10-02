@@ -14,6 +14,8 @@ interface TenantContext {
 
 const storage = new AsyncLocalStorage<TenantContext>();
 
+// Note for callers: Prisma queries are lazy (they start when awaited), so write
+// `runInWorkspace(ws, async () => await prisma.x.find())`, not a bare query.
 export const runInWorkspace = <T>(workspaceId: string, fn: () => T, userId?: string): T => storage.run({ workspaceId, userId }, fn);
 
 export const currentWorkspaceId = () => storage.getStore()?.workspaceId;

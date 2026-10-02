@@ -1,5 +1,6 @@
 import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
+import { isLocked } from "../billing/subscription-state";
 import { RealtimeService } from "../realtime/realtime.service";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { MailableNotification, NotificationMailer } from "./notification-mailer";
@@ -25,6 +26,7 @@ export class DueRemindersService implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    if (process.env.DISABLE_SCHEDULERS === "1") return;
     this.timer = setInterval(() => this.run(), 60 * 60_000);
     setTimeout(() => this.run(), 15_000);
   }
@@ -47,6 +49,7 @@ export class DueRemindersService implements OnModuleInit, OnModuleDestroy {
         select: {
           id: true,
           dueDate: true,
+          workspace: { select: { subscription: true } },
           column: { select: { position: true, boardId: true } },
           assignees: { where: { user: { isActive: true } }, select: { userId: true } },
         },
@@ -60,6 +63,7 @@ export class DueRemindersService implements OnModuleInit, OnModuleDestroy {
       const created: MailableNotification[] = [];
       for (const card of cards) {
         if (card.column.position === lastOf.get(card.column.boardId)) continue;
+        if (isLocked(card.workspace.subscription, now)) continue;
         const due = startOfUtcDay(card.dueDate!);
         const type = due < today ? "OVERDUE" : "DUE_SOON";
         for (const { userId } of card.assignees) {

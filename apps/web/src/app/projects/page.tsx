@@ -31,6 +31,10 @@ export default function ProjectsPage() {
   const [filter, setFilter] = useState<Filter>("ACTIVE");
   const allowed = useCan();
   const [creating, setCreating] = useState(false);
+  // /projects?new=1 (from the onboarding) opens the dialog straight away.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("new") === "1") setCreating(true);
+  }, []);
 
   useEffect(() => {
     setProjects(null);

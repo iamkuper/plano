@@ -49,6 +49,15 @@ export class BillingController {
     return this.billing.setCancel(dto.cancel);
   }
 
+  // Leave the trial or a locked workspace for the free plan.
+  @Post("free")
+  @HttpCode(204)
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("billing.manage")
+  free() {
+    return this.billing.switchToFree();
+  }
+
   // The bank posts here; authenticity is the Token inside the body.
   // T-Bank expects the plain text "OK" with HTTP 200.
   @Post("webhooks/tbank")

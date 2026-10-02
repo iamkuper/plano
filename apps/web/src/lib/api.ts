@@ -37,6 +37,64 @@ export interface InvitationDto {
   createdAt: string;
 }
 
+export interface OnboardingStepDto {
+  id: string;
+  title: string;
+  description: string;
+  done: boolean;
+  action: { label: string; href: string };
+}
+
+export interface OnboardingDto {
+  kind: "owner" | "member";
+  welcomeSeen: boolean;
+  closed: boolean;
+  steps: OnboardingStepDto[];
+  completed: number;
+}
+
+export type PlatformState = "trial" | "paid" | "free" | "locked" | "past_due";
+
+export interface PlatformStats {
+  workspaces: number;
+  users: number;
+  newWorkspaces7d: number;
+  newWorkspaces30d: number;
+  states: Record<PlatformState, number>;
+  mrrKopecks: number;
+  paid30dKopecks: number;
+  paidCount30d: number;
+  failedPayments7d: number;
+}
+
+export interface PlatformWorkspaceRow {
+  id: string;
+  name: string;
+  createdAt: string;
+  owner: { email: string; name: string } | null;
+  users: number;
+  projects: number;
+  cards: number;
+  planId: string;
+  state: PlatformState;
+  trialEndsAt: string | null;
+  currentPeriodEnd: string | null;
+  lastPayment: { paidAt: string | null; amount: number } | null;
+}
+
+export interface PlatformWorkspaceDetail {
+  id: string;
+  name: string;
+  createdAt: string;
+  state: PlatformState;
+  storageBytes: number;
+  subscription: { planId: string; status: string; interval: string; trialEndsAt: string | null; currentPeriodEnd: string | null; cardMask: string | null; cancelAtPeriodEnd: boolean } | null;
+  users: { id: string; name: string; email: string; role: string; isActive: boolean; createdAt: string }[];
+  payments: { id: string; kind: string; planId: string; seats: number; amount: number; status: string; createdAt: string; paidAt: string | null }[];
+  auditLog: { id: string; action: string; summary: string; createdAt: string }[];
+  _count: { projects: number; cards: number };
+}
+
 export interface AuditEntryDto {
   id: string;
   action: string;
@@ -125,15 +183,23 @@ export interface TemplateInput {
 export type TemplateDetailDto = TemplateInput & { id: string; cards: (TemplateCardInput & { id: string; position: number })[] };
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
+export const BILLING_CHANGED = "plano:billing-changed";
 const TOKEN_KEY = "amo-kanban.token";
 
 export function getToken() {
   return typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY);
 }
 
+// Modules that cache per-account data (the profile, workspace settings,
+// labels...) register a reset here, so signing in as someone else never shows
+// the previous account's data.
+const sessionResets: (() => void)[] = [];
+export const onSessionChange = (reset: () => void) => void sessionResets.push(reset);
+
 export function setToken(token: string | null) {
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else localStorage.removeItem(TOKEN_KEY);
+  sessionResets.forEach((reset) => reset());
 }
 
 export class UnauthorizedError extends Error {}
@@ -151,7 +217,9 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (res.status === 401) {
     setToken(null);
-    throw new UnauthorizedError("Требуется вход");
+    // Without a token this is a failed sign-in: show the server's reason.
+    const body = token ? {} : await res.json().catch(() => ({}));
+    throw new UnauthorizedError(body.message ?? "Требуется вход");
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -248,6 +316,22 @@ export const api = {
     apiFetch<void>(`/cards/${cardId}/fields/${fieldId}`, { method: "PUT", body: JSON.stringify({ value }) }),
   audit: (before?: string, group?: string) =>
     apiFetch<{ items: AuditEntryDto[]; next: string | null }>(`/audit?${new URLSearchParams({ ...(before ? { before } : {}), ...(group ? { group } : {}) })}`),
+  onboarding: () => apiFetch<OnboardingDto>("/onboarding"),
+  onboardingWelcomeSeen: () => post<void>("/onboarding/welcome-seen", {}),
+  onboardingClose: () => post<void>("/onboarding/close", {}),
+  onboardingReopen: () => post<void>("/onboarding/reopen", {}),
+  createSampleProject: () => post<{ id: string }>("/onboarding/sample-project", {}),
+  switchToFree: () =>
+    post<void>("/billing/free", {}).then(() => {
+      // The read-only banner in the shell re-checks the subscription.
+      if (typeof window !== "undefined") window.dispatchEvent(new Event(BILLING_CHANGED));
+    }),
+  platformStats: () => apiFetch<PlatformStats>("/platform/stats"),
+  platformWorkspaces: (params: { q?: string; state?: string; cursor?: string }) =>
+    apiFetch<{ items: PlatformWorkspaceRow[]; next: string | null }>(`/platform/workspaces?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`),
+  platformWorkspace: (id: string) => apiFetch<PlatformWorkspaceDetail>(`/platform/workspaces/${id}`),
+  platformChangeSubscription: (id: string, body: { action: "grant" | "extend-trial" | "lock" | "free"; planId?: string; days?: number }) =>
+    post<PlatformWorkspaceDetail>(`/platform/workspaces/${id}/subscription`, body),
   billing: () => apiFetch<BillingDto>("/billing"),
   checkout: (planId: string, interval: BillingInterval) => post<{ paymentUrl: string }>("/billing/checkout", { planId, interval }),
   cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),

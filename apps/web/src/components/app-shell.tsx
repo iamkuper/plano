@@ -17,7 +17,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import type { ProjectListItemDto, UserDto } from "@amo-kanban/shared";
-import { api, setToken } from "@/lib/api";
+import { BILLING_CHANGED, api, setToken } from "@/lib/api";
+import { useCan } from "@/lib/permissions";
 import { onProjectsChanged } from "@/lib/projects-events";
 import { useSettings } from "@/lib/settings";
 import { useAuth } from "@/lib/use-auth";
@@ -131,6 +132,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <Suspense>
       <Shell>{children}</Shell>
     </Suspense>
+  );
+}
+
+// Shown on every page once the trial or paid period has ended unpaid: the
+// workspace is read-only until the plan is paid.
+function LockedBanner() {
+  const can = useCan();
+  const pathname = usePathname();
+  const [locked, setLocked] = useState(false);
+  useEffect(() => {
+    const check = () => api.billing().then((b) => setLocked(b.locked)).catch(() => {});
+    check();
+    window.addEventListener("focus", check);
+    window.addEventListener(BILLING_CHANGED, check);
+    return () => {
+      window.removeEventListener("focus", check);
+      window.removeEventListener(BILLING_CHANGED, check);
+    };
+  }, [pathname]);
+  if (!locked) return null;
+  return (
+    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-danger-soft px-6 py-2.5 text-sm text-danger">
+      <span>
+        Тариф закончился: данные доступны только для чтения.
+        {can("billing.manage") ? " Оплатите тариф, и работа продолжится." : " Попросите администратора оплатить тариф."}
+      </span>
+      {can("billing.manage") && pathname !== "/settings/billing" && (
+        <Link href="/settings/billing" className="font-medium underline">
+          Оплатить тариф
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -420,6 +453,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       {/* Work area: white sheet inset from the sidebar */}
       <main className="my-2 mr-2 min-w-0 flex-1 overflow-auto rounded-lg bg-bg">
+        <LockedBanner />
         <div className="flex min-h-full flex-col px-6">{children}</div>
       </main>
 

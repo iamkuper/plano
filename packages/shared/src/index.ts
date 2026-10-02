@@ -306,7 +306,7 @@ export interface NotificationDto {
 export type PlanId = "FREE" | "PRO" | "BUSINESS";
 export type PlanFeature = "time" | "roles" | "audit" | "export" | "api" | "gantt" | "fields";
 export type BillingInterval = "MONTH" | "YEAR";
-export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE";
+export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "LOCKED";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED";
 
 // A year costs 10 months.
@@ -349,6 +349,8 @@ export interface BillingDto {
   // Plan that applies right now (FREE after an expired trial).
   plan: PlanDto;
   plans: PlanDto[];
+  // Read-only: the trial or paid period ended unpaid.
+  locked: boolean;
   subscription: {
     planId: PlanId;
     status: SubscriptionStatus;

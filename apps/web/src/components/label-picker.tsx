@@ -4,12 +4,13 @@ import { useEffect, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
 import { LABEL_COLORS, type LabelColor, type LabelDto } from "@amo-kanban/shared";
 import { labelColor } from "@/design/tokens";
-import { api } from "@/lib/api";
+import { api, onSessionChange } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { inputClass, LabelTag, MenuItem, Popover } from "./ui";
 
 // Labels of the workspace, loaded once per page.
 let cache: Promise<LabelDto[]> | null = null;
+onSessionChange(() => (cache = null));
 export function loadLabels(force = false) {
   if (!cache || force) cache = api.labels().catch((e) => ((cache = null), Promise.reject(e)));
   return cache;

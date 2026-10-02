@@ -56,8 +56,10 @@ export class RealtimeGateway implements OnGatewayConnection {
     if (typeof room !== "string" || !ROOM_RE.test(room)) return;
     // Only rooms of the user's own workspace.
     const [kind, id] = room.split(":");
-    const exists = await runInWorkspace(client.data.workspaceId, () =>
-      kind === "project" ? this.prisma.project.count({ where: { id } }) : this.prisma.card.count({ where: { id } }),
+    // `await` inside the callback: a Prisma query only starts when awaited, and
+    // it must start inside the workspace context.
+    const exists = await runInWorkspace(client.data.workspaceId, async () =>
+      kind === "project" ? await this.prisma.project.count({ where: { id } }) : await this.prisma.card.count({ where: { id } }),
     );
     if (exists) await client.join(room);
   }

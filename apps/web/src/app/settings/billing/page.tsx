@@ -26,6 +26,10 @@ const FEATURE_LABELS: Record<string, string> = {
 
 function status(b: BillingDto) {
   const s = b.subscription;
+  if (b.locked) {
+    const ended = date(s.status === "TRIALING" ? s.trialEndsAt : s.currentPeriodEnd);
+    return `Тариф ${b.plan.name} закончился${ended ? ` ${ended}` : ""}. Данные доступны только для чтения, оплата открыта`;
+  }
   if (s.status === "TRIALING" && b.plan.id !== "FREE") return `Пробный период до ${date(s.trialEndsAt)}`;
   if (b.plan.id === "FREE") return s.status === "TRIALING" ? "Пробный период закончился, действует бесплатный тариф" : "Бесплатный тариф";
   if (s.status === "PAST_DUE") return "Не удалось списать оплату. Попробуем ещё раз, проверьте карту";
@@ -50,7 +54,7 @@ function Usage({ label, used, max, unit }: { label: string; used: number; max: n
 }
 
 function PlanCard({ plan, b, interval, canPay, onPick, busy }: { plan: PlanDto; b: BillingDto; interval: BillingInterval; canPay: boolean; onPick: () => void; busy: boolean }) {
-  const current = b.plan.id === plan.id && b.subscription.status !== "TRIALING";
+  const current = !b.locked && b.plan.id === plan.id && b.subscription.status !== "TRIALING";
   const seats = Math.max(b.usage.users, 1);
   const monthly = interval === "YEAR" ? (plan.priceKopecks * 10) / 12 : plan.priceKopecks;
   const features = [
@@ -138,11 +142,27 @@ function BillingView() {
   }
 
   if (!b) return <Skeleton className="h-64" />;
-  const paidPlan = b.subscription.planId !== "FREE" && b.subscription.status !== "TRIALING";
+  const paidPlan = b.subscription.planId !== "FREE" && b.subscription.status !== "TRIALING" && !b.locked;
+  const canLeaveForFree = canPay && (b.locked || b.subscription.status === "TRIALING");
   return (
     <>
-      <Card title={`Тариф ${b.plan.name}`} description={status(b)} action={
-        paidPlan && canPay ? (
+      <Card title={b.locked ? `Тариф ${b.plan.name} закончился` : `Тариф ${b.plan.name}`} description={status(b)} action={
+        canLeaveForFree ? (
+          <Button
+            variant="ghost"
+            onClick={async () => {
+              try {
+                await api.switchToFree();
+                toast("Включён бесплатный тариф", "success");
+                load();
+              } catch (e) {
+                toast((e as Error).message, "error");
+              }
+            }}
+          >
+            Перейти на бесплатный
+          </Button>
+        ) : paidPlan && canPay ? (
           b.subscription.cancelAtPeriodEnd ? (
             <Button onClick={() => setCancel(false)}>Включить продление</Button>
           ) : (

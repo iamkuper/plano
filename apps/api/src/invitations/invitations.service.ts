@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import { isLocked } from "../billing/subscription-state";
 import { BillingService } from "../billing/billing.service";
 import { MailService } from "../mail/mail.service";
 import { PrismaService } from "../prisma/prisma.service";
@@ -96,6 +97,8 @@ export class InvitationsService {
 
   // Seats may have run out since the invitation was sent.
   private async assertRoom(workspaceId: string) {
+    const sub = await this.system.subscription.findUnique({ where: { workspaceId } });
+    if (isLocked(sub)) throw new BadRequestException("Рабочее пространство сейчас в режиме чтения. Попросите администратора оплатить тариф");
     const plan = await this.billing.effectivePlan(workspaceId);
     if (plan.maxUsers === null) return;
     const users = await this.system.user.count({ where: { workspaceId, isActive: true } });
