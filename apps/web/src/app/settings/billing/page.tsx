@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, Minus, Plus } from "lucide-react";
+import { Check, Download, Minus, Plus } from "lucide-react";
 import { daysLeft, formatRub, planAmount, prorateSeats, type BillingDto, type BillingInterval, type InvoicePayer, type PlanDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
@@ -359,7 +359,17 @@ function BillingView() {
                   <td className="px-4 py-2">
                     {b.plans.find((x) => x.id === p.planId)?.name}, {p.seats} польз., {p.interval === "YEAR" ? "год" : "месяц"}
                     {p.kind === "RENEWAL" ? ", продление" : p.kind === "SEATS" ? ", докупка мест" : ""}
-                    <div className="text-xs text-ink-faint">{p.method === "INVOICE" ? `Счёт №${p.invoiceNumber}${p.payerName ? `, ${p.payerName}` : ""}` : "Картой"}</div>
+                    <div className="flex flex-wrap items-center gap-x-2 text-xs text-ink-faint">
+                      {p.method === "INVOICE" ? `Счёт №${p.invoiceNumber}${p.payerName ? `, ${p.payerName}` : ""}` : "Картой"}
+                      {p.method === "INVOICE" && canPay && (
+                        <button
+                          className="inline-flex items-center gap-1 font-medium text-ink underline-offset-2 hover:underline"
+                          onClick={() => downloadInvoicePdf(p.id, p.invoiceNumber!).catch((e) => toast((e as Error).message, "error"))}
+                        >
+                          <Download size={12} /> Скачать счёт
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-2">{formatRub(p.amount)}</td>
                   <td className="px-4 py-2">
@@ -372,14 +382,6 @@ function BillingView() {
                         : p.method === "INVOICE"
                           ? "Ждём оплату по счёту"
                           : "Ожидает оплаты"}
-                    {p.method === "INVOICE" && p.status !== "FAILED" && b.invoicePdf && canPay && (
-                      <button
-                        className="ml-2 text-xs text-ink-faint underline hover:text-ink"
-                        onClick={() => downloadInvoicePdf(p.id, p.invoiceNumber!).catch((e) => toast((e as Error).message, "error"))}
-                      >
-                        PDF
-                      </button>
-                    )}
                     {p.method === "INVOICE" && p.status === "PENDING" && canPay && (
                       <button
                         className="ml-2 text-xs text-ink-faint underline hover:text-ink"
