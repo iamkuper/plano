@@ -30,7 +30,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthCard title="Новое рабочее пространство" subtitle="Вы станете администратором, сотрудников добавите после входа" onSubmit={submit}>
+    <AuthCard title="Создайте пространство" subtitle="14 дней Pro бесплатно, без карты. Сотрудников пригласите после входа" onSubmit={submit}>
       <Field label="Название компании">
         {(a) => (
           <Input {...a} value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} autoFocus />
@@ -58,7 +58,7 @@ export default function RegisterPage() {
         )}
       </Field>
       {error && <p className="text-base text-danger">{error}</p>}
-      <Button variant="primary" className="w-full py-2.5">Создать</Button>
+      <Button variant="primary" className="h-10 w-full text-sm">Создать</Button>
       <p className="text-center text-xs leading-relaxed text-ink-ghost">
         Нажимая «Создать», вы принимаете{" "}
         <Link href="/legal/terms" target="_blank" className="underline hover:text-ink">
@@ -69,6 +69,12 @@ export default function RegisterPage() {
           согласие на обработку персональных данных
         </Link>
         .
+      </p>
+      <p className="text-center text-xs text-ink-faint">
+        Уже есть аккаунт?{" "}
+        <Link href="/login" className="font-medium text-accent hover:underline">
+          Войти
+        </Link>
       </p>
     </AuthCard>
   );

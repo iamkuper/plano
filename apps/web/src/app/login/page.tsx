@@ -26,7 +26,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard title="Вход" subtitle="Канбан-доски для команды" onSubmit={submit}>
+    <AuthCard title="С возвращением" subtitle="Войдите в своё пространство Plano" onSubmit={submit}>
       <Field label="Почта">
         {(a) => (
           <Input {...a} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
@@ -38,7 +38,7 @@ export default function LoginPage() {
         )}
       </Field>
       {error && <p className="text-base text-danger">{error}</p>}
-      <Button variant="primary" className="w-full py-2.5">Войти</Button>
+      <Button variant="primary" className="h-10 w-full text-sm">Войти</Button>
       <p className="text-center text-xs text-ink-faint">
         <Link href="/forgot" className="font-medium text-accent hover:underline">
           Забыли пароль?

@@ -39,7 +39,7 @@ export default function ResetPage() {
           </Link>
         </p>
       )}
-      <Button variant="primary" className="w-full py-2.5">Сохранить пароль</Button>
+      <Button variant="primary" className="h-10 w-full text-sm">Сохранить пароль</Button>
     </AuthCard>
   );
 }
