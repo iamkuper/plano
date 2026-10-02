@@ -175,7 +175,6 @@ describe("platform back-office", () => {
     const w = (await api(t, owner.token).get(`/platform/workspaces/${a.workspaceId}`).expect(200)).body;
     expect(w).toMatchObject({ id: a.workspaceId, state: "trial", _count: { projects: 1, cards: 1 }, storageBytes: 0 });
     expect(w.users).toHaveLength(1);
-    expect(w.auditLog.length).toBeGreaterThan(0);
     await api(t, owner.token).get("/platform/workspaces/missing").expect(404);
   });
 
@@ -189,6 +188,13 @@ describe("platform back-office", () => {
     expect(new Date(w.subscription.currentPeriodEnd).getTime()).toBeGreaterThan(Date.now() + 9 * 86_400_000);
     await api(t, a.token).get("/fields").expect(200);
     await api(t, a.token).post("/fields", { name: "Доступно", type: "TEXT" }).expect(201); // Business feature works
+
+    expect(w.subscription.seats).toBe(1); // defaults to the active users
+    w = (await act({ action: "seats", seats: 4 }).expect(201)).body;
+    expect(w.subscription).toMatchObject({ planId: "BUSINESS", seats: 4 });
+    await act({ action: "seats", seats: 0 }).expect(400);
+    w = (await act({ action: "grant", planId: "PRO", days: 10, seats: 2 }).expect(201)).body;
+    expect(w.subscription).toMatchObject({ planId: "PRO", seats: 2 });
 
     w = (await act({ action: "lock" }).expect(201)).body;
     expect(w.state).toBe("locked");
@@ -211,7 +217,7 @@ describe("platform back-office", () => {
     await O.post("/platform/workspaces/missing/subscription", { action: "lock" }).expect(404);
 
     const log = await t.db.auditLog.findMany({ where: { workspaceId: a.workspaceId, action: { startsWith: "platform." } }, orderBy: { createdAt: "asc" } });
-    expect(log.map((l) => l.action)).toEqual(["platform.grant", "platform.lock", "platform.extend-trial", "platform.extend-trial", "platform.free"]);
+    expect(log.map((l) => l.action)).toEqual(["platform.grant", "platform.seats", "platform.grant", "platform.lock", "platform.extend-trial", "platform.extend-trial", "platform.free"]);
     expect(log.every((l) => l.summary.startsWith("Поддержка Plano:") && l.userId === null)).toBe(true);
   });
 

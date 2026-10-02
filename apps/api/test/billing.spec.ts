@@ -544,6 +544,9 @@ describe("invoice PDF", () => {
   const seller = { SELLER_NAME: "ИП Тест", SELLER_INN: "771234567890", SELLER_BIK: "044525974", SELLER_ACCOUNT: "40802810000000000001" };
 
   it("is unavailable until the seller's details are set, then downloads as PDF", async () => {
+    // Start from "no seller details", whatever the local .env says.
+    const saved = Object.fromEntries(Object.keys(process.env).filter((k) => k.startsWith("SELLER_")).map((k) => [k, process.env[k]]));
+    for (const k of Object.keys(saved)) delete process.env[k];
     const a = await register(t, "pdf");
     const A = api(t, a.token);
     const plain = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH" }).expect(201)).body;
@@ -566,6 +569,7 @@ describe("invoice PDF", () => {
       await api(t, b.token).get(`/billing/invoice/${inv.id}/pdf`).expect(404);
     } finally {
       for (const k of Object.keys(seller)) delete process.env[k];
+      Object.assign(process.env, saved);
     }
   });
 });

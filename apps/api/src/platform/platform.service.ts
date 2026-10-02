@@ -1,3 +1,4 @@
+import { BillingService } from "../billing/billing.service";
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
 import { YEAR_MONTHS_CHARGED } from "@amo-kanban/shared";
@@ -9,7 +10,8 @@ const DAY = 86_400_000;
 const PAGE = 30;
 
 export type SubscriptionAction =
-  | { action: "grant"; planId: string; days?: number }
+  | { action: "grant"; planId: string; days?: number; seats?: number }
+  | { action: "seats"; seats?: number }
   | { action: "extend-trial"; days?: number }
   | { action: "lock" }
   | { action: "free" };
@@ -28,7 +30,10 @@ export function stateOf(sub: { planId: string; status: "TRIALING" | "ACTIVE" | "
 // never goes through the tenant scope on purpose.
 @Injectable()
 export class PlatformService {
-  constructor(private readonly db: SystemPrismaService) {}
+  constructor(
+    private readonly db: SystemPrismaService,
+    private readonly billing: BillingService,
+  ) {}
 
   async stats(now = new Date()) {
     const [workspaces, users, new7, new30, subs, paid30, failed7] = await Promise.all([
@@ -121,7 +126,6 @@ export class PlatformService {
         subscription: true,
         users: { orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true, role: true, isActive: true, createdAt: true } },
         payments: { orderBy: { createdAt: "desc" }, take: 30 },
-        auditLog: { orderBy: { createdAt: "desc" }, take: 20, select: { id: true, action: true, summary: true, createdAt: true } },
         _count: { select: { projects: true, cards: true } },
       },
     });
@@ -135,6 +139,12 @@ export class PlatformService {
   async changeSubscription(id: string, cmd: SubscriptionAction, now = new Date()) {
     const sub = await this.db.subscription.findUnique({ where: { workspaceId: id } });
     if (!sub) throw new NotFoundException("Подписка не найдена");
+    const seatsOf = async (n?: number) => {
+      const active = await this.db.user.count({ where: { workspaceId: id, isActive: true } });
+      const seats = n ?? sub.seats ?? Math.max(active, 1);
+      if (!Number.isInteger(seats) || seats < 1 || seats > 10000) throw new BadRequestException("Мест — от 1 до 10000");
+      return seats;
+    };
     const days = (n?: number) => {
       if (n !== undefined && (!Number.isInteger(n) || n < 1 || n > 3650)) throw new BadRequestException("Срок — от 1 до 3650 дней");
       return n ?? 30;
@@ -146,12 +156,22 @@ export class PlatformService {
         const plan = await this.db.plan.findUnique({ where: { id: cmd.planId } });
         if (!plan || plan.priceKopecks <= 0) throw new BadRequestException("Выберите платный тариф");
         const n = days(cmd.days);
+        const seats = await seatsOf(cmd.seats);
+        if (plan.maxUsers !== null && seats > plan.maxUsers) throw new BadRequestException(`На тарифе ${plan.name} — не больше ${plan.maxUsers} пользователей`);
         // No card is saved, so the period simply runs out and locks.
         data = {
-          plan: { connect: { id: plan.id } }, status: "ACTIVE", trialEndsAt: null, currentPeriodStart: now,
+          plan: { connect: { id: plan.id } }, status: "ACTIVE", seats, trialEndsAt: null, currentPeriodStart: now,
           currentPeriodEnd: new Date(now.getTime() + n * DAY), cancelAtPeriodEnd: true, failedAttempts: 0, nextAttemptAt: null,
         };
-        summary = `Выдан тариф ${plan.name} на ${n} дн.`;
+        summary = `Выдан тариф ${plan.name} на ${n} дн., мест: ${seats}`;
+        break;
+      }
+      case "seats": {
+        // Changes only the paid seats; the plan and period stay.
+        if (sub.planId === "FREE" || sub.status === "TRIALING") throw new BadRequestException("Места задаются для оплаченного тарифа. Сначала выдайте тариф");
+        const seats = await seatsOf(cmd.seats);
+        data = { seats };
+        summary = `Мест: ${sub.seats ?? "—"} → ${seats}`;
         break;
       }
       case "extend-trial": {
@@ -173,6 +193,7 @@ export class PlatformService {
         throw new BadRequestException("Неизвестное действие");
     }
     await this.db.subscription.update({ where: { workspaceId: id }, data });
+    this.billing.forgetSeats(id);
     await this.db.auditLog.create({ data: { workspaceId: id, userId: null, action: `platform.${cmd.action}`, summary: `Поддержка Plano: ${summary}` } });
     return this.workspace(id);
   }

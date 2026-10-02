@@ -91,10 +91,9 @@ export interface PlatformWorkspaceDetail {
   createdAt: string;
   state: PlatformState;
   storageBytes: number;
-  subscription: { planId: string; status: string; interval: string; trialEndsAt: string | null; currentPeriodEnd: string | null; cardMask: string | null; cancelAtPeriodEnd: boolean } | null;
+  subscription: { planId: string; status: string; interval: string; trialEndsAt: string | null; currentPeriodEnd: string | null; cardMask: string | null; cancelAtPeriodEnd: boolean; seats: number | null } | null;
   users: { id: string; name: string; email: string; role: string; isActive: boolean; createdAt: string }[];
   payments: { id: string; kind: string; method: string; invoiceNumber: number | null; planId: string; seats: number; amount: number; status: string; createdAt: string; paidAt: string | null }[];
-  auditLog: { id: string; action: string; summary: string; createdAt: string }[];
   _count: { projects: number; cards: number };
 }
 
@@ -367,7 +366,7 @@ export const api = {
   platformWorkspaces: (params: { q?: string; state?: string; cursor?: string }) =>
     apiFetch<{ items: PlatformWorkspaceRow[]; next: string | null }>(`/platform/workspaces?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`),
   platformWorkspace: (id: string) => apiFetch<PlatformWorkspaceDetail>(`/platform/workspaces/${id}`),
-  platformChangeSubscription: (id: string, body: { action: "grant" | "extend-trial" | "lock" | "free"; planId?: string; days?: number }) =>
+  platformChangeSubscription: (id: string, body: { action: "grant" | "extend-trial" | "lock" | "free" | "seats"; planId?: string; days?: number; seats?: number }) =>
     post<PlatformWorkspaceDetail>(`/platform/workspaces/${id}/subscription`, body),
   billing: () => apiFetch<BillingDto>("/billing"),
   checkout: (planId: string, interval: BillingInterval, seats: number) =>

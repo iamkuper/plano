@@ -59,6 +59,7 @@ function WorkspaceDialog({
   const [w, setW] = useState<PlatformWorkspaceDetail | null>(null);
   const [planId, setPlanId] = useState("PRO");
   const [days, setDays] = useState("30");
+  const [seats, setSeats] = useState("");
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -68,13 +69,19 @@ function WorkspaceDialog({
       .catch((e) => toast((e as Error).message, "error"));
   }, [id]);
 
-  async function act(action: "grant" | "extend-trial" | "lock" | "free") {
+  // Start the seats field from the paid seats, else the active users.
+  useEffect(() => {
+    if (w && seats === "") setSeats(String(w.subscription?.seats ?? Math.max(w.users.filter((u) => u.isActive).length, 1)));
+  }, [w, seats]);
+
+  async function act(action: "grant" | "extend-trial" | "lock" | "free" | "seats") {
     setBusy(true);
     try {
       setW(
         await api.platformChangeSubscription(id, {
           action,
           ...(action === "grant" ? { planId } : {}),
+          ...(action === "grant" || action === "seats" ? { seats: Number(seats) } : {}),
           ...(action === "grant" || action === "extend-trial"
             ? { days: Number(days) }
             : {}),
@@ -110,7 +117,8 @@ function WorkspaceDialog({
             </div>
             <div>
               <div className="text-ink-faint">Тариф</div>
-              {w.subscription?.planId ?? "FREE"}, до{" "}
+              {w.subscription?.planId ?? "FREE"}
+              {w.subscription?.seats != null ? `, мест: ${w.subscription.seats}` : ""}, до{" "}
               {day(
                 w.subscription?.trialEndsAt ??
                   w.subscription?.currentPeriodEnd ??
@@ -145,12 +153,26 @@ function WorkspaceDialog({
                   />
                 )}
               </Field>
+              <Field label="Мест">
+                {(a) => (
+                  <Input
+                    {...a}
+                    className="w-20"
+                    inputMode="numeric"
+                    value={seats}
+                    onChange={(e) => setSeats(e.target.value.replace(/\D/g, ""))}
+                  />
+                )}
+              </Field>
               <Button
                 variant="primary"
                 loading={busy}
                 onClick={() => act("grant")}
               >
                 Выдать тариф
+              </Button>
+              <Button loading={busy} onClick={() => act("seats")} title="Только число мест, тариф и срок не меняются">
+                Изменить места
               </Button>
               <Button loading={busy} onClick={() => act("extend-trial")}>
                 Продлить пробный
@@ -218,19 +240,6 @@ function WorkspaceDialog({
             )}
           </div>
 
-          <div>
-            <h3 className="mb-2 text-sm font-medium">Последние действия</h3>
-            <ul className="divide-y divide-border text-sm">
-              {w.auditLog.map((e) => (
-                <li key={e.id} className="flex justify-between gap-3 py-1.5">
-                  <span>{e.summary}</span>
-                  <span className="shrink-0 text-ink-faint">
-                    {day(e.createdAt)}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
         </div>
       )}
     </Dialog>

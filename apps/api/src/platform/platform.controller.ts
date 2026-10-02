@@ -6,8 +6,8 @@ import { PlatformService } from "./platform.service";
 import { BillingService } from "../billing/billing.service";
 
 class SubscriptionActionDto {
-  @IsIn(["grant", "extend-trial", "lock", "free"])
-  action!: "grant" | "extend-trial" | "lock" | "free";
+  @IsIn(["grant", "extend-trial", "lock", "free", "seats"])
+  action!: "grant" | "extend-trial" | "lock" | "free" | "seats";
 
   @IsOptional()
   @IsString()
@@ -18,6 +18,13 @@ class SubscriptionActionDto {
   @Min(1)
   @Max(3650)
   days?: number;
+
+  // Paid seats for "grant" and "seats".
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  seats?: number;
 }
 
 // Hidden back-office for the platform owner. Not linked anywhere in the app;
