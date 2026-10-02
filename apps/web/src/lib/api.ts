@@ -1,0 +1,228 @@
+import type {
+  BoardDto,
+  CardDetailDto,
+  CardTileDto,
+  CardPriority,
+  CardType,
+  ChecklistItemDto,
+  ColumnDto,
+  CommentDto,
+  NotificationDto,
+  RecurrenceFrequency,
+  RecurringRuleDto,
+  AttachmentDto,
+  ProjectListItemDto,
+  RoleDto,
+  SettingsDto,
+  TeamBoardColumnDto,
+  TemplateListItemDto,
+  TimeEntryDto,
+  UserDto,
+  UserRole,
+} from "@amo-kanban/shared";
+
+export type BulkAction = "move" | "assign" | "unassign" | "priority" | "due" | "delete";
+
+export interface RecurringInput {
+  title: string;
+  description?: string | null;
+  type?: CardType;
+  priority?: CardPriority;
+  estimateHours?: number | null;
+  assigneeIds?: string[];
+  checklist?: string[];
+  frequency: RecurrenceFrequency;
+  interval: number;
+  weekday?: number | null;
+  monthDay?: number | null;
+  dueInDays?: number | null;
+  startDate: string;
+}
+
+// Absolute URL for a signed attachment path from the API.
+export const fileUrl = (path: string) => `${API_URL}${path}`;
+
+// Multipart upload with progress (fetch has no upload progress).
+export function uploadAttachment(cardId: string, file: File, onProgress?: (pct: number) => void) {
+  return new Promise<AttachmentDto>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${API_URL}/cards/${cardId}/attachments`);
+    const token = getToken();
+    if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(Math.round((e.loaded / e.total) * 100));
+    xhr.onload = () => {
+      let body: { message?: string | string[] } & Partial<AttachmentDto> = {};
+      try {
+        body = JSON.parse(xhr.responseText);
+      } catch {}
+      if (xhr.status >= 200 && xhr.status < 300) resolve(body as AttachmentDto);
+      else if (xhr.status === 413) reject(new Error(`«${file.name}» больше 20 МБ`));
+      else reject(new Error((Array.isArray(body.message) ? body.message.join(", ") : body.message) ?? `Не удалось загрузить «${file.name}»`));
+    };
+    xhr.onerror = () => reject(new Error("Нет связи с сервером"));
+    const form = new FormData();
+    form.append("file", file);
+    xhr.send(form);
+  });
+}
+
+
+export interface TemplateCardInput {
+  title: string;
+  description?: string | null;
+  type: CardType;
+  estimateHours?: number | null;
+  checklist: string[];
+}
+export interface TemplateInput {
+  name: string;
+  columns: string[];
+  cards: TemplateCardInput[];
+}
+export type TemplateDetailDto = TemplateInput & { id: string; cards: (TemplateCardInput & { id: string; position: number })[] };
+
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
+const TOKEN_KEY = "amo-kanban.token";
+
+export function getToken() {
+  return typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string | null) {
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
+
+export class UnauthorizedError extends Error {}
+
+async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...init?.headers,
+    },
+    cache: "no-store",
+  });
+  if (res.status === 401) {
+    setToken(null);
+    throw new UnauthorizedError("Требуется вход");
+  }
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
+    throw new Error(message ?? `Запрос не выполнен (${res.status})`);
+  }
+  const text = await res.text();
+  return (text ? JSON.parse(text) : undefined) as T;
+}
+
+const post = <T>(path: string, body: unknown) => apiFetch<T>(path, { method: "POST", body: JSON.stringify(body) });
+const patch = <T>(path: string, body: unknown) => apiFetch<T>(path, { method: "PATCH", body: JSON.stringify(body) });
+const del = (path: string) => apiFetch<void>(path, { method: "DELETE" });
+
+export interface CardPatch {
+  title: string;
+  description: string | null;
+  type: CardType;
+  priority: CardPriority;
+  dueDate: string | null;
+  estimateHours: number | null;
+  assigneeIds: string[];
+}
+
+export const api = {
+  login: (email: string, password: string) => post<{ accessToken: string }>("/auth/login", { email, password }),
+  setup: (name: string, email: string, password: string) =>
+    post<{ accessToken: string }>("/auth/setup", { name, email, password }),
+  me: () => apiFetch<UserDto>("/users/me"),
+  users: () => apiFetch<UserDto[]>("/users"),
+
+  createUser: (data: { name: string; email: string; password: string; role: UserRole; roleId?: string }) => post<UserDto>("/users", data),
+  updateUser: (id: string, data: Partial<{ name: string; role: UserRole; roleId: string; isActive: boolean }>) =>
+    patch<UserDto>(`/users/${id}`, data),
+
+  resetUserPassword: (id: string, password: string) => post<void>(`/users/${id}/password`, { password }),
+
+  template: (id: string) => apiFetch<TemplateDetailDto>(`/templates/${id}`),
+  createTemplate: (data: TemplateInput) => post<{ id: string }>("/templates", data),
+  saveTemplate: (id: string, data: TemplateInput) => apiFetch<TemplateDetailDto>(`/templates/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  deleteTemplate: (id: string) => del(`/templates/${id}`),
+  timeReport: (from: string, to: string, userId?: string) =>
+    apiFetch<unknown[]>(`/reports/time?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}`),
+  templateFromProject: (projectId: string, name: string) => post<{ id: string }>(`/templates/from-project/${projectId}`, { name }),
+
+  projects: (status?: string) => apiFetch<ProjectListItemDto[]>(`/projects${status ? `?status=${status}` : ""}`),
+  createProject: (data: { title: string; templateId?: string; deadline?: string }) =>
+    post<{ id: string }>("/projects", data),
+  project: (id: string) => apiFetch<ProjectListItemDto>(`/projects/${id}`),
+  projectStats: (id: string) => apiFetch<{ hoursBudget: number | null; loggedMinutes: number }>(`/projects/${id}/stats`),
+  projectBoard: (id: string) => apiFetch<BoardDto>(`/projects/${id}/board`),
+  teamBoard: (assigneeId?: string) =>
+    apiFetch<TeamBoardColumnDto[]>(`/team-board${assigneeId ? `?assigneeId=${assigneeId}` : ""}`),
+  templates: () => apiFetch<TemplateListItemDto[]>("/templates"),
+
+  addColumn: (boardId: string, title: string) => post<ColumnDto>(`/boards/${boardId}/columns`, { title }),
+  updateColumn: (id: string, data: Partial<{ title: string; wipLimit: number | null; position: number }>) =>
+    patch<ColumnDto>(`/columns/${id}`, data),
+  updateProject: (
+    id: string,
+    data: Partial<{
+      title: string;
+      status: string;
+      startDate: string | null;
+      deadline: string | null;
+      hoursBudget: number | null;
+    }>,
+  ) => patch<ProjectListItemDto>(`/projects/${id}`, data),
+  deleteProject: (id: string) => del(`/projects/${id}`),
+  deleteColumn: (id: string) => del(`/columns/${id}`),
+
+  settings: () => apiFetch<SettingsDto>("/settings"),
+  roles: () => apiFetch<RoleDto[]>("/roles"),
+  createRole: (data: { name: string; permissions?: string[] }) => post<RoleDto>("/roles", data),
+  updateRole: (id: string, data: Partial<{ name: string; permissions: string[]; isDefault: boolean }>) => patch<RoleDto>(`/roles/${id}`, data),
+  deleteRole: (id: string) => del(`/roles/${id}`),
+  updateSettings: (data: Partial<SettingsDto>) => patch<SettingsDto>("/settings", data),
+
+  updateMe: (data: Partial<{ name: string; email: string }>) => patch<UserDto>("/users/me", data),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    post<void>("/users/me/password", { currentPassword, newPassword }),
+  setAvatar: (avatarUrl: string | null) =>
+    apiFetch<UserDto>("/users/me/avatar", { method: "PUT", body: JSON.stringify({ avatarUrl }) }),
+
+  card: (id: string) => apiFetch<CardDetailDto>(`/cards/${id}`),
+  searchCards: (q: string) => apiFetch<CardTileDto[]>(`/cards/search?q=${encodeURIComponent(q)}`),
+  createCard: (columnId: string, title: string) => post<CardTileDto>("/cards", { columnId, title }),
+  moveCard: (id: string, columnId: string, position?: number) =>
+    post<CardTileDto>(`/cards/${id}/move`, { columnId, position }),
+  updateCard: (id: string, data: Partial<CardPatch>) => patch<CardTileDto>(`/cards/${id}`, data),
+  deleteCard: (id: string) => del(`/cards/${id}`),
+
+  addChecklistItem: (cardId: string, text: string) => post<ChecklistItemDto>(`/cards/${cardId}/checklist`, { text }),
+  updateChecklistItem: (itemId: string, data: { text?: string; done?: boolean }) =>
+    patch<ChecklistItemDto>(`/checklist/${itemId}`, data),
+  deleteChecklistItem: (itemId: string) => del(`/checklist/${itemId}`),
+
+  addComment: (cardId: string, text: string, mentionIds: string[] = [], attachmentIds: string[] = []) =>
+    post<CommentDto>(`/cards/${cardId}/comments`, { text, mentionIds, attachmentIds }),
+  bulkCards: (ids: string[], action: BulkAction, extra: Partial<{ columnId: string; userIds: string[]; priority: CardPriority; dueDate: string | null }> = {}) =>
+    post<{ count: number }>("/cards/bulk", { ids, action, ...extra }),
+  deleteAttachment: (id: string) => del(`/attachments/${id}`),
+  recurring: (projectId: string) => apiFetch<RecurringRuleDto[]>(`/projects/${projectId}/recurring`),
+  createRecurring: (projectId: string, data: RecurringInput) => post<RecurringRuleDto>(`/projects/${projectId}/recurring`, data),
+  updateRecurring: (id: string, data: RecurringInput) => apiFetch<RecurringRuleDto>(`/recurring/${id}`, { method: "PUT", body: JSON.stringify(data) }),
+  toggleRecurring: (id: string, active: boolean) => patch<RecurringRuleDto>(`/recurring/${id}`, { active }),
+  runRecurring: (id: string) => post<{ id: string }>(`/recurring/${id}/run`, {}),
+  deleteRecurring: (id: string) => del(`/recurring/${id}`),
+  markCardRead: (cardId: string) => post<void>(`/cards/${cardId}/read`, {}),
+  notifications: () => apiFetch<{ items: NotificationDto[]; unread: number }>("/notifications"),
+  markNotificationsRead: (ids?: string[]) => post<void>("/notifications/read", { ids }),
+  deleteComment: (commentId: string) => del(`/comments/${commentId}`),
+
+  addTimeEntry: (cardId: string, data: { minutes: number; date: string; note?: string }) =>
+    post<TimeEntryDto>(`/cards/${cardId}/time`, data),
+  deleteTimeEntry: (entryId: string) => del(`/time/${entryId}`),
+};

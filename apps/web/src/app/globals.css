@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Keyboard focus is always visible; mouse clicks don't draw rings. */
+:focus-visible {
+  /* Lighter than the brand colour so it's visible on the dark chrome too. */
+  outline: 2px solid #5b6168;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+@keyframes sheet-in {
+  from { transform: translateX(16px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes pop-in {
+  from { transform: translateY(4px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+.animate-sheet-in { animation: sheet-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.animate-dialog-in,
+.animate-toast-in { animation: pop-in 140ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-sheet-in,
+  .animate-dialog-in,
+  .animate-toast-in { animation: none; }
+}

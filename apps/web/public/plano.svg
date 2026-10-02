@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 240" width="240" height="240" fill="none">
+  <defs>
+    <!-- Градиент активной карточки -->
+    <linearGradient id="planoGradLight" x1="62" y1="46" x2="178" y2="110" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#2563EB" />
+    </linearGradient>
+
+    <!-- Мягкая тень под изометрической конструкцией -->
+    <radialGradient id="stackShadow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#0F172A" stop-opacity="0.15" />
+      <stop offset="100%" stop-color="#0F172A" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+
+  <!-- Светлый контейнер с тонким бордером -->
+  <rect width="240" height="240" rx="52" fill="#F8FAFC" />
+  <rect x="0.5" y="0.5" width="239" height="239" rx="51.5" stroke="#E2E8F0" stroke-width="1" />
+
+  <!-- Тень основания -->
+  <ellipse cx="120" cy="172" rx="64" ry="18" fill="url(#stackShadow)" />
+
+  <!-- Нижний слой (Бэклог) -->
+  <path d="M120 102 L178 134 L120 166 L62 134 Z" fill="#E2E8F0" />
+  <path d="M62 134 L120 166 V176 L62 144 Z" fill="#CBD5E1" />
+  <path d="M178 134 L120 166 V176 L178 144 Z" fill="#94A3B8" />
+
+  <!-- Средний слой (В работе) -->
+  <path d="M120 74 L178 106 L120 138 L62 106 Z" fill="#CBD5E1" />
+  <path d="M62 106 L120 138 V148 L62 116 Z" fill="#94A3B8" />
+  <path d="M178 106 L120 138 V148 L178 116 Z" fill="#64748B" />
+
+  <!-- Верхний активный слой (Готово / Фокус) -->
+  <path d="M120 46 L178 78 L120 110 L62 78 Z" fill="url(#planoGradLight)" />
+  <path d="M62 78 L120 110 V120 L62 88 Z" fill="#0369A1" />
+  <path d="M178 78 L120 110 V120 L178 88 Z" fill="#1D4ED8" />
+</svg>

@@ -1,0 +1,339 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Single-company app: no workspaces/tenants. ADMIN manages users,
+// templates; MEMBER works with boards and cards.
+enum UserRole {
+  ADMIN
+  MEMBER
+}
+
+enum ProjectStatus {
+  ACTIVE
+  ON_HOLD
+  DONE
+  ARCHIVED
+}
+
+enum CardPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum CardType {
+  SETUP
+  INTEGRATION
+  WIDGET
+  TRAINING
+  BUG
+  OTHER
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         UserRole @default(MEMBER)
+  // For MEMBER: which custom role grants the permissions. ADMIN ignores it.
+  roleId       String?
+  customRole   Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  isActive     Boolean  @default(true)
+  // Small square photo as a data: URL (resized client-side to 256px).
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+
+  assignedCards CardAssignee[]
+  comments      Comment[]
+  timeEntries   TimeEntry[]
+  activity      ActivityLog[]
+  notifications Notification[] @relation("NotificationRecipient")
+  notified      Notification[] @relation("NotificationActor")
+  cardReads     CardRead[]
+  attachments   Attachment[]
+}
+
+model Project {
+  id          String        @id @default(cuid())
+  title       String
+  status      ProjectStatus @default(ACTIVE)
+  startDate   DateTime?
+  deadline    DateTime?
+  hoursBudget Int?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  board          Board?
+  cards          Card[]
+  recurringRules RecurringRule[]
+}
+
+// A board belongs to a project. The team board is not stored — it is a view
+// over cards of all active projects grouped by Column.title.
+model Board {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  columns Column[]
+}
+
+model Column {
+  id       String @id @default(cuid())
+  boardId  String
+  board    Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  title    String
+  // Fractional ordering: inserting between a and b takes (a + b) / 2, so a
+  // move updates one row instead of renumbering the whole column.
+  position Float
+  wipLimit Int?
+
+  cards Card[]
+
+  @@index([boardId, position])
+}
+
+model Card {
+  id             String    @id @default(cuid())
+  // Human-facing key, shown as AMO-<number> (like Jira issue keys).
+  number         Int       @unique @default(autoincrement())
+  projectId      String
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  columnId       String
+  column         Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  title          String
+  description    String?
+  type           CardType  @default(OTHER)
+  priority       CardPriority @default(MEDIUM)
+  position       Float
+  dueDate        DateTime?
+  estimateHours  Int?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  // Set when the card was created by a recurring rule.
+  recurringRuleId String?
+  recurringRule   RecurringRule? @relation(fields: [recurringRuleId], references: [id], onDelete: SetNull)
+
+  assignees     CardAssignee[]
+  checklist     ChecklistItem[]
+  comments      Comment[]
+  timeEntries   TimeEntry[]
+  activity      ActivityLog[]
+  notifications Notification[]
+  reads         CardRead[]
+  attachments   Attachment[]
+
+  @@index([columnId, position])
+  @@index([projectId])
+}
+
+model CardAssignee {
+  cardId String
+  card   Card   @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, userId])
+}
+
+model ChecklistItem {
+  id       String  @id @default(cuid())
+  cardId   String
+  card     Card    @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  text     String
+  done     Boolean @default(false)
+  position Float
+
+  @@index([cardId, position])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  text      String
+  createdAt DateTime @default(now())
+
+  attachments Attachment[]
+
+  @@index([cardId, createdAt])
+}
+
+model TimeEntry {
+  id      String   @id @default(cuid())
+  cardId  String
+  card    Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId  String
+  user    User     @relation(fields: [userId], references: [id])
+  minutes Int
+  date    DateTime @db.Date
+  note    String?
+
+  @@index([cardId])
+  @@index([userId, date])
+}
+
+// Templates of a typical amoCRM implementation: columns + starter cards.
+model Template {
+  id        String   @id @default(cuid())
+  name      String
+  // Column titles, in order, created on the new project's board.
+  columns   String[]
+  createdAt DateTime @default(now())
+
+  cards TemplateCard[]
+}
+
+model TemplateCard {
+  id            String   @id @default(cuid())
+  templateId    String
+  template      Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  type          CardType @default(OTHER)
+  estimateHours Int?
+  // Checklist item texts, in order.
+  checklist     String[]
+  position      Float
+}
+
+model ActivityLog {
+  id        String   @id @default(cuid())
+  cardId    String
+  card      Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  // "created" | "moved" | "updated" | "commented" | ...
+  action    String
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([cardId, createdAt])
+}
+
+// Workspace-wide settings: a single row with id = 1.
+model Settings {
+  id             Int      @id @default(1)
+  workspaceName  String   @default("Канбан")
+  // Card key prefix: TSK → TSK-12.
+  cardPrefix     String   @default("TSK")
+  // Stages for new projects created without a template.
+  defaultColumns String[] @default(["Бэклог", "В работе", "На проверке", "Готово"])
+  updatedAt      DateTime @updatedAt
+}
+
+enum NotificationType {
+  ASSIGNED // you were made an assignee
+  MENTIONED // @you in a discussion message
+  COMMENTED // new message on a card you're assigned to
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
+  actorId   String
+  actor     User             @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  cardId    String
+  card      Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  // Message excerpt for MENTIONED / COMMENTED.
+  text      String?
+  readAt    DateTime?
+  createdAt DateTime         @default(now())
+
+  @@index([userId, readAt, createdAt])
+}
+
+// When a user last opened a card's discussion — drives unread counters.
+model CardRead {
+  userId String
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cardId String
+  card   Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  readAt DateTime @default(now())
+
+  @@id([userId, cardId])
+}
+
+// Files on a card; commentId is set when the file was sent in the discussion.
+model Attachment {
+  id         String   @id @default(cuid())
+  cardId     String
+  card       Card     @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  commentId  String?
+  comment    Comment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  uploaderId String
+  uploader   User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  name       String
+  mime       String
+  size       Int
+  // File name inside the uploads directory.
+  storageKey String   @unique
+  createdAt  DateTime @default(now())
+
+  @@index([cardId])
+  @@index([commentId])
+}
+
+enum RecurrenceFrequency {
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+// Creates a fresh card on schedule (e.g. "monthly client report").
+model RecurringRule {
+  id            String              @id @default(cuid())
+  projectId     String
+  project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title         String
+  description   String?
+  type          CardType            @default(OTHER)
+  priority      CardPriority        @default(MEDIUM)
+  estimateHours Int?
+  assigneeIds   String[]
+  checklist     String[]
+  frequency     RecurrenceFrequency
+  // Every N days/weeks/months.
+  interval      Int                 @default(1)
+  // WEEKLY: 1 = Monday … 7 = Sunday.
+  weekday       Int?
+  // MONTHLY: 1–31; short months use their last day.
+  monthDay      Int?
+  // Due date = creation day + N days.
+  dueInDays     Int?
+  nextRunAt     DateTime
+  lastRunAt     DateTime?
+  active        Boolean             @default(true)
+  createdById   String
+  createdAt     DateTime            @default(now())
+
+  cards Card[]
+
+  @@index([active, nextRunAt])
+}
+
+// Custom role ("Сотрудник", "Менеджер"…) with a set of permission keys
+// (PERMISSIONS in @amo-kanban/shared). "Администратор" is the built-in
+// UserRole.ADMIN and isn't stored here.
+model Role {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  permissions String[]
+  // Given to new staff when no role is chosen.
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  users User[]
+}
