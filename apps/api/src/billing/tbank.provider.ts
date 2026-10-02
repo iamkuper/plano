@@ -54,7 +54,8 @@ export class TbankProvider implements PaymentProvider {
       ? {
           Email: p.email,
           Taxation: this.cfg.taxation,
-          Items: [{ Name: p.description.slice(0, 128), Price: p.amount, Quantity: 1, Amount: p.amount, Tax: this.cfg.tax }],
+          // Access to the service, paid in full: "услуга", "полный расчёт".
+          Items: [{ Name: p.description.slice(0, 128), Price: p.amount, Quantity: 1, Amount: p.amount, Tax: this.cfg.tax, PaymentMethod: "full_payment", PaymentObject: "service" }],
         }
       : undefined;
     const data = await this.call<{ Success: boolean; PaymentId?: string; PaymentURL?: string; Message?: string; Details?: string }>("Init", {

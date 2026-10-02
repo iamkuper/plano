@@ -29,7 +29,7 @@ export class AttachmentsController {
   // Public but signed (see withUrl): needed for <img src> and downloads.
   @Get("attachments/:id/file")
   async file(@Param("id") id: string, @Query("exp") exp: string, @Query("sig") sig: string, @Res() res: Response) {
-    const { row, path } = await this.attachments.file(id, exp, sig);
+    const { row, stream, size } = await this.attachments.file(id, exp, sig);
     const inline = INLINE.test(row.mime);
     res.setHeader("Content-Type", row.mime);
     res.setHeader("X-Content-Type-Options", "nosniff");
@@ -38,7 +38,9 @@ export class AttachmentsController {
       "Content-Disposition",
       `${inline ? "inline" : "attachment"}; filename="${encodeURIComponent(row.name)}"; filename*=UTF-8''${encodeURIComponent(row.name)}`,
     );
-    res.sendFile(path, (err) => err && !res.headersSent && res.status(404).end());
+    if (size !== undefined) res.setHeader("Content-Length", String(size));
+    stream.on("error", () => (res.headersSent ? res.destroy() : res.status(404).end()));
+    stream.pipe(res);
   }
 
   @Delete("attachments/:id")
