@@ -441,6 +441,15 @@ describe("paid seats", () => {
     await api(t, a.token).patch(`/users/${member.id}`, { isActive: true }).expect(402);
   });
 
+  it("counts file storage from the paid seats, not the active users", async () => {
+    const a = await register(t, "seatstorage");
+    await pay(a, 3);
+    const o = (await api(t, a.token).get("/billing").expect(200)).body;
+    const pro = o.plans.find((p: { id: string }) => p.id === "PRO");
+    expect(o.usage.users).toBe(1);
+    expect(o.storageLimitMb).toBe(pro.storageMbBase + 3 * pro.storageMbPerSeat);
+  });
+
   it("renews the paid seats even if fewer people are active", async () => {
     const a = await register(t, "seatsrenew");
     await pay(a, 4);

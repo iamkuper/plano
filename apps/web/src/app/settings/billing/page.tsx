@@ -92,7 +92,7 @@ function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, busy }: { 
     `Пользователей: ${limit(plan.maxUsers)}`,
     `Проектов: ${limit(plan.maxProjects)}`,
     `Повторяющихся задач: ${limit(plan.maxRecurring)}`,
-    plan.storageMbPerSeat ? `Файлы: ${storage(plan.storageMbPerSeat)} на пользователя` : `Файлы: ${storage(plan.storageMbBase)}`,
+    plan.storageMbPerSeat ? `Файлы: ${storage(plan.storageMbPerSeat)} на оплаченное место` : `Файлы: ${storage(plan.storageMbBase)}`,
     ...plan.features.map((f) => FEATURE_LABELS[f]),
   ];
   return (
@@ -227,14 +227,23 @@ function BillingView() {
           </div>
           <Usage label="Проекты" used={b.usage.projects} max={b.plan.maxProjects} />
           <Usage label="Повторяющиеся задачи" used={b.usage.recurring} max={b.plan.maxRecurring} />
-          <Usage label="Файлы" used={b.usage.storageMb} max={b.storageLimitMb} unit={(n) => storage(Math.round(n))} />
+          <div>
+            <Usage label="Файлы" used={b.usage.storageMb} max={b.storageLimitMb} unit={(n) => storage(Math.round(n))} />
+            {b.plan.storageMbPerSeat > 0 && (
+              <p className="mt-1 text-xs text-ink-faint">
+                {b.subscription.seats != null && !trial
+                  ? `${storage(b.plan.storageMbPerSeat)} за каждое оплаченное место`
+                  : `${storage(b.plan.storageMbPerSeat)} на каждого активного пользователя`}
+              </p>
+            )}
+          </div>
         </div>
         {b.testMode && (
           <p className="mt-4 text-sm text-ink-faint">Платежи идут через тестовый режим: реальные деньги не списываются.</p>
         )}
       </Card>
 
-      <Card title="Выбрать тариф" description="Цена — за каждое оплаченное место. Добавить больше пользователей, чем оплачено мест, нельзя. Год стоит как 10 месяцев." action={
+      <Card title="Выбрать тариф" description="Цена — за каждое оплаченное место. Пользователей и места для файлов доступно столько, сколько оплачено мест. Год стоит как 10 месяцев." action={
         <div className="flex flex-wrap items-center justify-end gap-3">
           <SeatPicker value={seatCount} min={minSeats} max={maxSeats === 0 ? null : maxSeats} onChange={setSeats} />
           <Segmented label="Период оплаты" value={interval} onChange={setInterval_} options={[{ value: "MONTH", label: "Месяц" }, { value: "YEAR", label: "Год" }]} />

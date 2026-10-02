@@ -116,7 +116,14 @@ export class BillingService {
     this.deny(`На тарифе ${plan.name} — не больше ${max} пользователей${invited}. Перейдите на платный тариф в разделе «Тариф и оплата».`);
   }
 
-  private storageLimitMb(plan: Plan, users: number) {
+  // Seats that per-seat allowances (file storage) are counted from: the paid
+  // seats on a paid plan, otherwise the active users (Free, trial).
+  private paidSeats(sub: Subscription | null, plan: Plan): number | null {
+    return plan.priceKopecks > 0 && sub?.seats != null && sub.status !== "TRIALING" ? sub.seats : null;
+  }
+
+  private storageLimitMb(plan: Plan, sub: Subscription | null, users: number) {
+    users = this.paidSeats(sub, plan) ?? users;
     return plan.storageMbBase + plan.storageMbPerSeat * Math.max(users, 1);
   }
 
@@ -128,7 +135,8 @@ export class BillingService {
   // would exceed the plan. Existing data is never touched.
   async assertWithin(limit: Limit, bytes = 0) {
     const workspaceId = this.ws;
-    const [plan, usage] = await Promise.all([this.effectivePlan(workspaceId), this.usage(workspaceId)]);
+    const sub = await this.db.subscription.findUnique({ where: { workspaceId } });
+    const [plan, usage] = await Promise.all([this.effectivePlan(workspaceId, sub), this.usage(workspaceId)]);
     const hint = plan.id === "BUSINESS" ? "" : " Перейдите на более высокий тариф в разделе «Тариф и оплата».";
     switch (limit) {
       case "users":
@@ -140,8 +148,12 @@ export class BillingService {
         if (plan.maxRecurring !== null && usage.recurring >= plan.maxRecurring) this.deny(`На тарифе ${plan.name} — не больше ${plan.maxRecurring} повторяющихся задач.${hint}`);
         break;
       case "storage": {
-        const limitMb = this.storageLimitMb(plan, usage.users);
-        if (usage.storageMb + bytes / 1024 / 1024 > limitMb) this.deny(`Место для файлов закончилось (${limitMb >= 1024 ? `${limitMb / 1024} ГБ` : `${limitMb} МБ`}).${hint}`);
+        const limitMb = this.storageLimitMb(plan, sub, usage.users);
+        const more =
+          this.paidSeats(sub, plan) !== null && plan.storageMbPerSeat
+            ? ` Каждое оплаченное место добавляет ${plan.storageMbPerSeat >= 1024 ? `${plan.storageMbPerSeat / 1024} ГБ` : `${plan.storageMbPerSeat} МБ`} — добавьте места в разделе «Тариф и оплата».`
+            : hint;
+        if (usage.storageMb + bytes / 1024 / 1024 > limitMb) this.deny(`Место для файлов закончилось (${limitMb >= 1024 ? `${limitMb / 1024} ГБ` : `${limitMb} МБ`}).${more}`);
         break;
       }
     }
@@ -182,7 +194,7 @@ export class BillingService {
         seats: sub.seats,
       },
       usage,
-      storageLimitMb: this.storageLimitMb(plan, usage.users),
+      storageLimitMb: this.storageLimitMb(plan, sub, usage.users),
       payments: payments.map((p) => ({
         id: p.id, kind: p.kind, planId: p.planId as PlanDto["id"], interval: p.interval, seats: p.seats,
         amount: p.amount, status: p.status, createdAt: p.createdAt.toISOString(), paidAt: p.paidAt?.toISOString() ?? null,
