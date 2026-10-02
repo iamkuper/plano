@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { COMPANY, LEGAL_PAGES } from "@/lib/company";
 import { SUPPORT } from "@/lib/support";
+import { SupportWidget } from "./support-widget";
 
 // Header and footer of the public pages (landing, pricing).
 export function SiteHeader() {
@@ -39,6 +40,7 @@ export function SiteHeader() {
 export function SiteFooter() {
   return (
     <footer className="border-t border-border bg-surface">
+      <SupportWidget />
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 text-sm sm:px-6 md:grid-cols-[1.2fr_1fr_1fr]">
         <div>
           <span className="flex items-center gap-2 font-semibold text-ink">

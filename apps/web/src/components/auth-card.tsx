@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Check } from "lucide-react";
+import { SupportWidget } from "./marketing/support-widget";
 
 const POINTS = ["14 дней Pro бесплатно, без карты", "Доски, список, календарь и Гант", "Обсуждения, файлы и учёт времени", "Оплата картой или по счёту, без автосписаний"];
 
@@ -44,6 +45,7 @@ export function AuthCard({
 }) {
   return (
     <div className="grid min-h-screen bg-bg lg:grid-cols-[1fr_1.05fr]">
+      <SupportWidget />
       <div className="relative flex flex-col overflow-hidden px-4 py-6 sm:px-10">
         <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden lg:hidden">
           <div className="lp-drift absolute -left-32 -top-32 size-[380px] rounded-full bg-[#3D8BF2]/15 blur-3xl" />
