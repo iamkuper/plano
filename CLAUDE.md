@@ -10,3 +10,4 @@
 - Права: новые действия добавлять в `PERMISSIONS` (shared), на сервере — `@RequirePermission(...)` + `PermissionGuard`, в вебе — `useCan()`.
 - UI: эталон Linear, профиль дизайна — `.ux-profile.md`. Цвета только через токены `apps/web/src/design/tokens.ts` (акцент и меню #2B2F33). Тексты интерфейса на русском, сухой тон.
 - Проверять интерфейс в браузере и скриншотами можно.
+- В облаке (Claude Code on the web) окружение готовит хук SessionStart из `.claude/settings.json`: он запускает `scripts/cloud-setup.sh`, лог — `/tmp/plano-setup.log`. Если база или зависимости не поднялись, посмотреть лог и запустить скрипт вручную.
