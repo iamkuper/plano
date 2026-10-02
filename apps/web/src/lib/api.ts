@@ -141,6 +141,7 @@ export interface CardPatch {
   description: string | null;
   type: CardType;
   priority: CardPriority;
+  startDate: string | null;
   dueDate: string | null;
   estimateHours: number | null;
   assigneeIds: string[];
@@ -206,6 +207,9 @@ export const api = {
   createLabel: (name: string, color: LabelColor) => post<LabelDto>("/labels", { name, color }),
   updateLabel: (id: string, data: Partial<{ name: string; color: LabelColor }>) => patch<LabelDto>(`/labels/${id}`, data),
   deleteLabel: (id: string) => del(`/labels/${id}`),
+  dependencies: (projectId: string) => apiFetch<{ cardId: string; dependsOnId: string }[]>(`/projects/${projectId}/dependencies`),
+  addDependency: (cardId: string, dependsOnId: string) => post<{ cardId: string; dependsOnId: string }>(`/cards/${cardId}/dependencies`, { dependsOnId }),
+  removeDependency: (cardId: string, dependsOnId: string) => del(`/cards/${cardId}/dependencies/${dependsOnId}`),
   billing: () => apiFetch<BillingDto>("/billing"),
   checkout: (planId: string, interval: BillingInterval) => post<{ paymentUrl: string }>("/billing/checkout", { planId, interval }),
   cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),

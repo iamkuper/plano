@@ -136,6 +136,13 @@ export class CardsService {
     const { assigneeIds, labelIds, ...fields } = dto;
     await this.assertUsers(assigneeIds);
     await this.assertLabels(labelIds);
+    if (dto.startDate !== undefined || dto.dueDate !== undefined) {
+      const current = await this.prisma.card.findUnique({ where: { id }, select: { startDate: true, dueDate: true } });
+      if (!current) throw new NotFoundException("Карточка не найдена");
+      const start = dto.startDate !== undefined ? dto.startDate : current.startDate;
+      const due = dto.dueDate !== undefined ? dto.dueDate : current.dueDate;
+      if (start && due && start > due) throw new BadRequestException("Начало не может быть позже срока");
+    }
     const before = assigneeIds
       ? (await this.prisma.cardAssignee.findMany({ where: { cardId: id }, select: { userId: true } })).map((a) => a.userId)
       : [];

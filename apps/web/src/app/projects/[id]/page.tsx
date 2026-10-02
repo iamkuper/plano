@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { BarChart3, CalendarDays, KanbanSquare, List, Settings, Table2 } from "lucide-react";
+import { BarChart3, CalendarDays, ChartGantt, KanbanSquare, List, Settings, Table2 } from "lucide-react";
 import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type UserDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { Board, BoardSkeleton, ProjectFunnel } from "@/components/board";
@@ -10,6 +10,7 @@ import { BulkBar } from "@/components/bulk-bar";
 import { BoardToolbar } from "@/components/board-toolbar";
 import { CardModal } from "@/components/card-modal";
 import { CardsCalendar } from "@/components/cards-calendar";
+import { GanttChart } from "@/components/gantt-chart";
 import { CardsList, CardsTable } from "@/components/cards-views";
 import { ProjectOverview } from "@/components/project-overview";
 import { PageHeader, Segmented } from "@/components/ui";
@@ -20,11 +21,13 @@ import { useFilters } from "@/lib/use-filters";
 import { useDebounced, useRealtime } from "@/lib/realtime";
 import { applyFilters } from "@/lib/card-filters";
 
-type View = "kanban" | "table" | "list" | "calendar" | "overview";
+type View = "kanban" | "table" | "list" | "calendar" | "gantt" | "overview";
 
 function ProjectPage({ projectId }: { projectId: string }) {
   const [project, setProject] = useState<ProjectListItemDto | null>(null);
   const [users, setUsers] = useState<UserDto[]>([]);
+  // null until the plan is known.
+  const [hasGantt, setHasGantt] = useState<boolean | null>(null);
   const state = useBoard(projectId);
   const { board, reload } = state;
   const [cardId, setCardId] = useCardParam();
@@ -65,6 +68,9 @@ function ProjectPage({ projectId }: { projectId: string }) {
   });
   useRealtime(`project:${projectId}`, { "board:changed": refresh });
   useEffect(() => {
+    api.billing().then((b) => setHasGantt(b.plan.features.includes("gantt"))).catch(() => setHasGantt(false));
+  }, []);
+  useEffect(() => {
     api.users().then((list) => setUsers(list.filter((u) => u.isActive))).catch(() => {});
   }, []);
 
@@ -101,6 +107,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
                 { value: "table", label: "Таблица", icon: Table2 },
                 { value: "list", label: "Список", icon: List },
                 { value: "calendar", label: "Календарь", icon: CalendarDays },
+                { value: "gantt", label: "Гант", icon: ChartGantt },
                 { value: "overview", label: "Обзор", icon: BarChart3 },
               ]}
             />
@@ -151,6 +158,9 @@ function ProjectPage({ projectId }: { projectId: string }) {
       )}
       {board && view === "list" && <CardsList columns={board.columns} filters={filters} onOpenCard={setCardId} />}
       {board && view === "calendar" && <CardsCalendar columns={board.columns} filters={filters} onOpenCard={setCardId} onChanged={reload} />}
+      {board && view === "gantt" && (
+        <GanttChart projectId={projectId} columns={board.columns} filters={filters} hasGantt={hasGantt} onOpenCard={setCardId} onChanged={reload} />
+      )}
       {board && view === "overview" && project && (
         <div className="py-5">
           <ProjectOverview project={project} columns={board.columns} onChanged={loadProject} />

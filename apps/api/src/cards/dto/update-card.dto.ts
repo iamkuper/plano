@@ -23,6 +23,11 @@ export class UpdateCardDto {
   @IsOptional()
   @Type(() => Date)
   @IsDate()
+  startDate?: Date | null;
+
+  @IsOptional()
+  @Type(() => Date)
+  @IsDate()
   dueDate?: Date;
 
   @IsOptional()

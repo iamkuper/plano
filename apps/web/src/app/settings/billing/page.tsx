@@ -21,6 +21,7 @@ const FEATURE_LABELS: Record<string, string> = {
   audit: "Журнал действий",
   export: "Экспорт данных",
   api: "API и webhook'и",
+  gantt: "Диаграмма Ганта",
 };
 
 function status(b: BillingDto) {

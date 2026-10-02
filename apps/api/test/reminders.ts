@@ -25,7 +25,7 @@ function check(name: string, ok: boolean, extra = "") {
 async function main() {
   const email = `rem-${run}@iso.test`;
   const reg = await fetch(`${API}/auth/register`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ workspaceName: "Напоминания", name: "Н", email, password: "password-123" }) });
-  const t = (await reg.json()).accessToken as string;
+  const t = ((await reg.json()) as { accessToken: string }).accessToken;
   const me = (await call(t, "GET", "/users/me")).body;
   const tpl = (await call(t, "GET", "/templates")).body[0];
   const proj = (await call(t, "POST", "/projects", { title: "Сроки", templateId: tpl.id })).body;

@@ -31,6 +31,7 @@ const SCOPE: Record<string, (ws: string) => Where> = {
   Invitation: (ws) => ({ workspaceId: ws }),
   Label: (ws) => ({ workspaceId: ws }),
   CardLabel: (ws) => ({ card: { workspaceId: ws } }),
+  CardDependency: (ws) => ({ card: { workspaceId: ws } }),
   Payment: (ws) => ({ workspaceId: ws }),
   Board: (ws) => ({ project: { workspaceId: ws } }),
   Column: (ws) => ({ board: { project: { workspaceId: ws } } }),
@@ -71,6 +72,7 @@ const PARENTS: Record<string, Record<string, string>> = {
   Notification: { cardId: "Card", userId: "User", actorId: "User" },
   CardRead: { cardId: "Card", userId: "User" },
   CardLabel: { cardId: "Card", labelId: "Label" },
+  CardDependency: { cardId: "Card", dependsOnId: "Card" },
   Attachment: { cardId: "Card", commentId: "Comment", uploaderId: "User" },
 };
 

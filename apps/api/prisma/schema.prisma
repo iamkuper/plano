@@ -155,6 +155,7 @@ model Card {
   type           CardType  @default(OTHER)
   priority       CardPriority @default(MEDIUM)
   position       Float
+  startDate      DateTime?
   dueDate        DateTime?
   estimateHours  Int?
   createdAt      DateTime  @default(now())
@@ -172,6 +173,9 @@ model Card {
   reads         CardRead[]
   attachments   Attachment[]
   labels        CardLabel[]
+  // This card can start only after the cards in `dependsOn` (Gantt arrows).
+  dependsOn     CardDependency[] @relation("Dependent")
+  blocks        CardDependency[] @relation("Blocker")
 
   @@unique([workspaceId, number])
   @@index([columnId, position])
@@ -532,4 +536,16 @@ model CardLabel {
 
   @@id([cardId, labelId])
   @@index([labelId])
+}
+
+// Finish-to-start dependency: `card` waits for `dependsOn`. Both cards belong
+// to the same project (checked in the service).
+model CardDependency {
+  cardId      String
+  card        Card   @relation("Dependent", fields: [cardId], references: [id], onDelete: Cascade)
+  dependsOnId String
+  dependsOn   Card   @relation("Blocker", fields: [dependsOnId], references: [id], onDelete: Cascade)
+
+  @@id([cardId, dependsOnId])
+  @@index([dependsOnId])
 }

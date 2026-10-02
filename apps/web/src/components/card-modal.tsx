@@ -426,6 +426,18 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
               )}
             </Field>
 
+            <Field label="Начало">
+              {(a) => (
+                <Input
+                  {...a}
+                  type="date"
+                  max={card.dueDate ? card.dueDate.slice(0, 10) : undefined}
+                  value={card.startDate ? card.startDate.slice(0, 10) : ""}
+                  onChange={(e) => save({ startDate: e.target.value || null })}
+                />
+              )}
+            </Field>
+
             <Field label="Срок">
               {(a) => (
                 <Input

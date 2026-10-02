@@ -135,6 +135,7 @@ export interface CardTileDto {
   type: CardType;
   priority: CardPriority;
   position: number;
+  startDate: string | null;
   dueDate: string | null;
   estimateHours: number | null;
   updatedAt: string;
@@ -256,6 +257,7 @@ export const CARD_FIELD_LABELS: Record<string, string> = {
   description: "описание",
   type: "тип",
   priority: "приоритет",
+  startDate: "начало",
   dueDate: "срок",
   estimateHours: "оценку",
   assigneeIds: "исполнителей",
@@ -278,7 +280,7 @@ export interface NotificationDto {
 // ---- Billing ----
 
 export type PlanId = "FREE" | "PRO" | "BUSINESS";
-export type PlanFeature = "time" | "roles" | "audit" | "export" | "api";
+export type PlanFeature = "time" | "roles" | "audit" | "export" | "api" | "gantt";
 export type BillingInterval = "MONTH" | "YEAR";
 export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED";
