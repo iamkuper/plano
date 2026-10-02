@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@amo-kanban/shared": "workspace:*",
+    "dejavu-fonts-ttf": "^2.37.3",
     "lucide-react": "^1.49.0",
     "next": "^14.2.13",
     "react": "^18.3.1",

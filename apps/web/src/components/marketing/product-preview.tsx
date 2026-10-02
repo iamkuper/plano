@@ -411,7 +411,7 @@ export function ProductPreview() {
                   <nav className="flex min-w-0 items-center gap-1.5 text-sm">
                     <span className="text-ink-faint">Проекты</span>
                     <ChevronRight size={14} className="shrink-0 text-ink-ghost" />
-                    <h1 className="truncate font-medium text-ink">Внедрение CRM</h1>
+                    <span className="truncate font-medium text-ink">Внедрение CRM</span>
                   </nav>
                   <div className="ml-auto flex shrink-0 items-center gap-2">
                     <span className="hidden xl:block">

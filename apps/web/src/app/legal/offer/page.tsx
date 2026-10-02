@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LegalPage } from "@/components/marketing/legal-page";
 import { COMPANY } from "@/lib/company";
 
-export const metadata: Metadata = { title: "Публичная оферта — Plano" };
+export const metadata: Metadata = { title: "Публичная оферта", alternates: { canonical: "/legal/offer" } };
 
 export default function OfferPage() {
   return (

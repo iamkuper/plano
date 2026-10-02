@@ -1,14 +1,13 @@
-"use client";
-
-import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ArrowRight, Check, FileText, LayoutTemplate, Repeat, ShieldCheck, Sparkles, Zap } from "lucide-react";
 import { PricingTable } from "@/components/marketing/pricing-table";
 import { ProductPreview } from "@/components/marketing/product-preview";
 import { Reveal } from "@/components/marketing/reveal";
 import { SiteFooter, SiteHeader } from "@/components/marketing/site";
-import { getToken } from "@/lib/api";
+import { SignedInRedirect } from "@/components/marketing/signed-in-redirect";
+import { COMPANY } from "@/lib/company";
+import { fetchPlans, jsonLd, SITE_DESCRIPTION, SITE_NAME, SITE_URL } from "@/lib/seo";
+import type { Metadata } from "next";
 
 const USE_CASES = [
   "Внедрение CRM",
@@ -144,18 +143,53 @@ const PROMISES = [
   { icon: Check, title: "Честная цена", text: "Только за тех, кто работает. Докупка — за оставшиеся дни." },
 ];
 
-export default function Landing() {
-  const router = useRouter();
-  const [ready, setReady] = useState(false);
-  // Signed in: straight to the app.
-  useEffect(() => {
-    if (getToken()) router.replace("/dashboard");
-    else setReady(true);
-  }, [router]);
-  if (!ready) return <div className="min-h-screen bg-bg" />;
+export const metadata: Metadata = {
+  title: { absolute: "Plano — канбан и таск-трекер для команд и агентств" },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
+};
+
+export default async function Landing() {
+  const pricing = await fetchPlans();
+  const ld = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      name: SITE_NAME,
+      url: SITE_URL,
+      logo: `${SITE_URL}/plano.svg`,
+      email: COMPANY.email,
+      legalName: COMPANY.name,
+      taxID: COMPANY.inn,
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "SoftwareApplication",
+      name: SITE_NAME,
+      url: SITE_URL,
+      applicationCategory: "BusinessApplication",
+      operatingSystem: "Web",
+      inLanguage: "ru",
+      description: SITE_DESCRIPTION,
+      offers: (pricing?.plans ?? []).map((p) => ({
+        "@type": "Offer",
+        name: p.name,
+        price: (p.priceKopecks / 100).toFixed(2),
+        priceCurrency: "RUB",
+        description: p.priceKopecks ? "За пользователя в месяц" : "Бесплатно",
+      })),
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: FAQ.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
+    },
+  ];
 
   return (
     <div className="min-h-screen overflow-x-hidden bg-bg">
+      <SignedInRedirect />
+      <script type="application/ld+json" dangerouslySetInnerHTML={jsonLd(ld)} />
       <SiteHeader />
       <main>
         {/* Hero */}
@@ -294,7 +328,7 @@ export default function Landing() {
               <p className="mt-3 text-ink-faint">Год — по цене десяти месяцев.</p>
             </Reveal>
             <Reveal>
-              <PricingTable />
+              <PricingTable initial={pricing} />
             </Reveal>
           </div>
         </section>

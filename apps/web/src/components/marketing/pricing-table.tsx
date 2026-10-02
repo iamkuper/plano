@@ -25,12 +25,13 @@ const limit = (n: number | null, word: string) => (n === null ? `${word} без 
 const gb = (mb: number) => `${Math.round(mb / 1024)} ГБ`;
 
 // Public plans, read from the API so the page always matches billing.
-export function PricingTable() {
-  const [plans, setPlans] = useState<PlanDto[] | null>(null);
-  const [trialDays, setTrialDays] = useState(14);
+export function PricingTable({ initial }: { initial?: { plans: PlanDto[]; trialDays: number } | null }) {
+  const [plans, setPlans] = useState<PlanDto[] | null>(initial?.plans ?? null);
+  const [trialDays, setTrialDays] = useState(initial?.trialDays ?? 14);
   const [interval, setInterval_] = useState<"MONTH" | "YEAR">("MONTH");
 
   useEffect(() => {
+    if (initial) return; // rendered on the server already
     fetch(`${API_URL}/billing/plans`)
       .then((r) => r.json())
       .then((d: { plans: PlanDto[]; trialDays: number }) => {
@@ -38,7 +39,7 @@ export function PricingTable() {
         setTrialDays(d.trialDays);
       })
       .catch(() => setPlans([]));
-  }, []);
+  }, [initial]);
 
   return (
     <div>

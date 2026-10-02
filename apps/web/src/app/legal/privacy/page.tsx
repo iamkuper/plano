@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/marketing/legal-page";
 import { COMPANY } from "@/lib/company";
 
-export const metadata: Metadata = { title: "Политика обработки персональных данных — Plano" };
+export const metadata: Metadata = { title: "Политика обработки персональных данных", alternates: { canonical: "/legal/privacy" } };
 
 export default function PrivacyPage() {
   return (

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LegalPage } from "@/components/marketing/legal-page";
 import { COMPANY } from "@/lib/company";
 
-export const metadata: Metadata = { title: "Пользовательское соглашение — Plano" };
+export const metadata: Metadata = { title: "Пользовательское соглашение", alternates: { canonical: "/legal/terms" } };
 
 export default function TermsPage() {
   return (

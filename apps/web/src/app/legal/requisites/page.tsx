@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { LegalPage } from "@/components/marketing/legal-page";
 import { COMPANY } from "@/lib/company";
 
-export const metadata: Metadata = { title: "Реквизиты — Plano" };
+export const metadata: Metadata = { title: "Реквизиты", alternates: { canonical: "/legal/requisites" } };
 
 const ROWS: [string, string][] = [
   ["Наименование", COMPANY.name],

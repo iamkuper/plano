@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LegalPage } from "@/components/marketing/legal-page";
 import { COMPANY } from "@/lib/company";
 
-export const metadata: Metadata = { title: "Согласие на обработку персональных данных — Plano" };
+export const metadata: Metadata = { title: "Согласие на обработку персональных данных", alternates: { canonical: "/legal/consent" } };
 
 export default function ConsentPage() {
   return (
