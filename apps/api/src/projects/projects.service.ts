@@ -7,6 +7,7 @@ import { AttachmentsService } from "../attachments/attachments.service";
 import { CreateProjectDto } from "./dto/create-project.dto";
 import { UpdateProjectDto } from "./dto/update-project.dto";
 import { CARD_FIELDS, OWN_FIELDS } from "../prisma/tenant";
+import { BillingService } from "../billing/billing.service";
 
 @Injectable()
 export class ProjectsService {
@@ -15,6 +16,7 @@ export class ProjectsService {
     private readonly settings: SettingsService,
     private readonly realtime: RealtimeService,
     private readonly attachments: AttachmentsService,
+    private readonly billing: BillingService,
   ) {}
 
   async list(status?: ProjectStatus) {
@@ -46,6 +48,7 @@ export class ProjectsService {
   // gets the template's columns and its cards land in the first column;
   // without one, the workspace's default stages are used and it starts empty.
   async create(dto: CreateProjectDto) {
+    await this.billing.assertWithin("projects");
     const template = dto.templateId
       ? await this.prisma.template.findUnique({
           where: { id: dto.templateId },

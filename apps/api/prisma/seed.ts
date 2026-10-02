@@ -12,7 +12,7 @@ const LEGACY_TEMPLATES = ["Стандартное внедрение amoCRM"];
 async function seedAdmin(email: string, password: string, name: string, workspaceName: string) {
   const passwordHash = await bcrypt.hash(password, 10);
   const existing = await prisma.user.findUnique({ where: { email } });
-  const workspaceId = existing?.workspaceId ?? (await prisma.workspace.create({ data: { name: workspaceName } })).id;
+  const workspaceId = existing?.workspaceId ?? (await prisma.workspace.create({ data: { name: workspaceName, subscription: { create: { planId: "PRO", status: "TRIALING", trialEndsAt: new Date(Date.now() + 14 * 86_400_000) } } } })).id;
   await prisma.user.upsert({
     where: { email },
     update: { passwordHash, isActive: true, role: "ADMIN" },

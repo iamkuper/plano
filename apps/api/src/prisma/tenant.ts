@@ -27,6 +27,8 @@ const SCOPE: Record<string, (ws: string) => Where> = {
   Card: (ws) => ({ workspaceId: ws }),
   Template: (ws) => ({ workspaceId: ws }),
   Role: (ws) => ({ workspaceId: ws }),
+  Subscription: (ws) => ({ workspaceId: ws }),
+  Payment: (ws) => ({ workspaceId: ws }),
   Board: (ws) => ({ project: { workspaceId: ws } }),
   Column: (ws) => ({ board: { project: { workspaceId: ws } } }),
   RecurringRule: (ws) => ({ project: { workspaceId: ws } }),
@@ -43,7 +45,11 @@ const SCOPE: Record<string, (ws: string) => Where> = {
 
 // Models that carry workspaceId themselves: it is set from the context on
 // create, never taken from the caller.
-const OWN = new Set(["User", "Project", "Card", "Template", "Role"]);
+const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment"]);
+
+// Shared catalogue, not tenant data: readable by everyone, never writable here.
+const GLOBAL_READ = new Set(["Plan"]);
+const READS = new Set(["findFirst", "findFirstOrThrow", "findUnique", "findUniqueOrThrow", "findMany", "count", "aggregate", "groupBy"]);
 
 // Foreign keys that must point into the same workspace when written.
 const PARENTS: Record<string, Record<string, string>> = {
@@ -90,6 +96,10 @@ export function scopedClient(base: PrismaClient) {
         async $allOperations({ model, operation, args, query }) {
           const ws = currentWorkspaceId();
           if (!ws) throw new Error(`Нет контекста рабочего пространства для ${model}.${operation}`);
+          if (GLOBAL_READ.has(model)) {
+            if (!READS.has(operation)) throw new Error(`${model} нельзя менять из рабочего пространства`);
+            return query(args);
+          }
           const scope = SCOPE[model];
           if (!scope) throw new Error(`Модель ${model} не описана в SCOPE`);
           const a = (args ?? {}) as Record<string, any>;

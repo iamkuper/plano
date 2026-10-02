@@ -7,6 +7,7 @@ import { CARD_FIELDS, runInWorkspace } from "../prisma/tenant";
 import { RealtimeService } from "../realtime/realtime.service";
 import { SaveRecurringDto } from "./recurring.dto";
 import { firstRun, nextRun } from "./schedule";
+import { BillingService } from "../billing/billing.service";
 
 @Injectable()
 export class RecurringService implements OnModuleInit, OnModuleDestroy {
@@ -20,6 +21,7 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
     private readonly system: SystemPrismaService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
+    private readonly billing: BillingService,
   ) {}
 
   onModuleInit() {
@@ -54,7 +56,8 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
     return { ...rule, nextRunAt: firstRun(rule, dto.startDate) };
   }
 
-  create(projectId: string, dto: SaveRecurringDto, userId: string) {
+  async create(projectId: string, dto: SaveRecurringDto, userId: string) {
+    await this.billing.assertWithin("recurring");
     return this.prisma.recurringRule.create({ data: { ...this.data(dto), projectId, createdById: userId } });
   }
 

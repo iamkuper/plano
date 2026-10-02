@@ -7,6 +7,7 @@ import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
+import { BillingService } from "../billing/billing.service";
 
 // Outside dist/ on purpose: the build wipes dist. The API runs from apps/api,
 // so the default is apps/api/uploads; override with UPLOAD_DIR in production.
@@ -40,11 +41,13 @@ export class AttachmentsService {
     // Signed file links carry no session, so they read through the system client.
     private readonly system: SystemPrismaService,
     private readonly realtime: RealtimeService,
+    private readonly billing: BillingService,
   ) {}
 
   async add(cardId: string, userId: string, file: Express.Multer.File) {
     const card = await this.prisma.card.findUnique({ where: { id: cardId }, select: { id: true, projectId: true } });
     if (!card) throw new NotFoundException("Карточка не найдена");
+    await this.billing.assertWithin("storage", file.size);
     // Browsers send non-ASCII names as latin1 in multipart headers.
     const name = Buffer.from(file.originalname, "latin1").toString("utf8").slice(0, 200) || "файл";
     const row = await this.prisma.attachment.create({

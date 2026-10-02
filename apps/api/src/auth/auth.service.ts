@@ -5,6 +5,7 @@ import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { LoginDto } from "./dto/login.dto";
 import { templateCreateData } from "../templates/default-template";
 import { RegisterDto } from "./dto/register.dto";
+import { TRIAL_DAYS } from "../billing/billing.service";
 
 @Injectable()
 export class AuthService {
@@ -31,7 +32,13 @@ export class AuthService {
         name: dto.name.trim(),
         passwordHash: await bcrypt.hash(dto.password, 10),
         role: "ADMIN",
-        workspace: { create: { name: dto.workspaceName.trim(), templates: { create: templateCreateData() } } },
+        workspace: {
+          create: {
+            name: dto.workspaceName.trim(),
+            templates: { create: templateCreateData() },
+            subscription: { create: { planId: "PRO", status: "TRIALING", trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) } },
+          },
+        },
       },
     });
     return this.issueToken(user.id, user.email);

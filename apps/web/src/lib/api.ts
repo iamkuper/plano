@@ -1,4 +1,6 @@
 import type {
+  BillingDto,
+  BillingInterval,
   BoardDto,
   CardDetailDto,
   CardTileDto,
@@ -181,6 +183,10 @@ export const api = {
   deleteColumn: (id: string) => del(`/columns/${id}`),
 
   settings: () => apiFetch<SettingsDto>("/settings"),
+  billing: () => apiFetch<BillingDto>("/billing"),
+  checkout: (planId: string, interval: BillingInterval) => post<{ paymentUrl: string }>("/billing/checkout", { planId, interval }),
+  cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),
+  mockPay: (orderId: string, success: boolean) => post<void>(`/billing/dev/pay/${encodeURIComponent(orderId)}`, { success }),
   roles: () => apiFetch<RoleDto[]>("/roles"),
   createRole: (data: { name: string; permissions?: string[] }) => post<RoleDto>("/roles", data),
   updateRole: (id: string, data: Partial<{ name: string; permissions: string[]; isDefault: boolean }>) => patch<RoleDto>(`/roles/${id}`, data),

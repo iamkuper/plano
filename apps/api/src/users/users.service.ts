@@ -5,6 +5,7 @@ import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { OWN_FIELDS } from "../prisma/tenant";
+import { BillingService } from "../billing/billing.service";
 
 const publicFields = {
   id: true,
@@ -43,6 +44,7 @@ export class UsersService {
     private readonly prisma: PrismaService,
     // Email is unique across workspaces, so availability is checked globally.
     private readonly system: SystemPrismaService,
+    private readonly billing: BillingService,
   ) {}
 
   async list() {
@@ -56,6 +58,7 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto) {
+    await this.billing.assertWithin("users");
     if (await this.system.user.findUnique({ where: { email: dto.email } })) {
       throw new ConflictException("Пользователь с такой почтой уже существует");
     }

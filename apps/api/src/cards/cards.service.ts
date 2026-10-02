@@ -11,6 +11,7 @@ import { UpdateCardDto } from "./dto/update-card.dto";
 import { MoveCardDto } from "./dto/move-card.dto";
 import { BulkCardsDto } from "./dto/bulk.dto";
 import { CARD_FIELDS } from "../prisma/tenant";
+import { BillingService } from "../billing/billing.service";
 
 @Injectable()
 export class CardsService {
@@ -19,6 +20,7 @@ export class CardsService {
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
     private readonly attachments: AttachmentsService,
+    private readonly billing: BillingService,
   ) {}
 
   // Opening a card marks its discussion and its notifications as read.
@@ -307,6 +309,7 @@ export class CardsService {
   // ---- time ----
 
   async addTimeEntry(cardId: string, userId: string, data: { minutes: number; date: Date; note?: string }) {
+    await this.billing.assertFeature("time");
     const entry = await this.prisma.timeEntry.create({
       data: { cardId, userId, ...data },
       include: { user: { select: { id: true, name: true, avatarUrl: true } } },

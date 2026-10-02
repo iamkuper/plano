@@ -30,6 +30,7 @@ export const PERMISSIONS = [
   { key: "projects.delete", label: "Удалять проекты" },
   { key: "cards.delete", label: "Удалять карточки" },
   { key: "templates.manage", label: "Создавать и менять шаблоны" },
+  { key: "billing.manage", label: "Управлять тарифом и оплатой" },
   { key: "time.viewAll", label: "Видеть время всех сотрудников", hint: "Без этого права в отчёте видно только своё время" },
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number]["key"];
@@ -257,4 +258,78 @@ export interface NotificationDto {
   createdAt: string;
   actor: UserRefDto;
   card: { id: string; number: number; title: string; projectId: string };
+}
+
+// ---- Billing ----
+
+export type PlanId = "FREE" | "PRO" | "BUSINESS";
+export type PlanFeature = "time" | "roles" | "audit" | "export" | "api";
+export type BillingInterval = "MONTH" | "YEAR";
+export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE";
+export type PaymentStatus = "PENDING" | "PAID" | "FAILED";
+
+// A year costs 10 months.
+export const YEAR_MONTHS_CHARGED = 10;
+
+export interface PlanDto {
+  id: PlanId;
+  name: string;
+  position: number;
+  // Kopecks per user per month.
+  priceKopecks: number;
+  maxUsers: number | null;
+  maxProjects: number | null;
+  maxRecurring: number | null;
+  storageMbBase: number;
+  storageMbPerSeat: number;
+  features: PlanFeature[];
+}
+
+export interface BillingUsage {
+  users: number;
+  projects: number;
+  recurring: number;
+  storageMb: number;
+}
+
+export interface PaymentDto {
+  id: string;
+  kind: "INITIAL" | "RENEWAL";
+  planId: PlanId;
+  interval: BillingInterval;
+  seats: number;
+  amount: number;
+  status: PaymentStatus;
+  createdAt: string;
+  paidAt: string | null;
+}
+
+export interface BillingDto {
+  // Plan that applies right now (FREE after an expired trial).
+  plan: PlanDto;
+  plans: PlanDto[];
+  subscription: {
+    planId: PlanId;
+    status: SubscriptionStatus;
+    interval: BillingInterval;
+    trialEndsAt: string | null;
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+    cardMask: string | null;
+  };
+  usage: BillingUsage;
+  // Storage allowed on the current plan, MB (null = unlimited).
+  storageLimitMb: number | null;
+  payments: PaymentDto[];
+  // True when payments go to the built-in test provider instead of T-Bank.
+  testMode: boolean;
+}
+
+// Amount in kopecks for `seats` users on a plan.
+export function planAmount(plan: Pick<PlanDto, "priceKopecks">, seats: number, interval: BillingInterval) {
+  return plan.priceKopecks * seats * (interval === "YEAR" ? YEAR_MONTHS_CHARGED : 1);
+}
+
+export function formatRub(kopecks: number) {
+  return `${(kopecks / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 }

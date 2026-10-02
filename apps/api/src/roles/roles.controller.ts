@@ -5,6 +5,7 @@ import { AdminGuard } from "../auth/guards/admin.guard";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { OWN_FIELDS } from "../prisma/tenant";
+import { BillingService } from "../billing/billing.service";
 
 const KEYS = PERMISSIONS.map((p) => p.key);
 
@@ -47,7 +48,10 @@ const withCount = { _count: { select: { users: true } } } as const;
 @Controller("roles")
 @UseGuards(JwtAuthGuard)
 export class RolesController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly billing: BillingService,
+  ) {}
 
   @Get()
   list() {
@@ -57,6 +61,7 @@ export class RolesController {
   @Post()
   @UseGuards(AdminGuard)
   async create(@Body() dto: CreateRoleDto) {
+    await this.billing.assertFeature("roles");
     const name = dto.name.trim();
     await this.assertFree(name);
     const first = (await this.prisma.role.count()) === 0;

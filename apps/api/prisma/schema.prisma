@@ -55,6 +55,9 @@ model Workspace {
   cards     Card[]
   templates Template[]
   roles     Role[]
+
+  subscription Subscription?
+  payments     Payment[]
 }
 
 model User {
@@ -368,4 +371,96 @@ model Role {
   users User[]
 
   @@unique([workspaceId, name])
+}
+
+// ---- Billing ----
+
+enum SubscriptionStatus {
+  TRIALING // paid plan on trial, no card yet
+  ACTIVE // FREE, or a paid plan within a paid period
+  PAST_DUE // renewal charge failed; still has the plan while we retry
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+enum PaymentKind {
+  INITIAL // first payment, the customer pays on the bank's page
+  RENEWAL // recurring charge by the saved card
+}
+
+// Global catalogue (not tenant data), edited in the DB or by migrations.
+// Prices are in kopecks per user per month. Storage limit =
+// storageMbBase + storageMbPerSeat * active users. Null limit = unlimited.
+model Plan {
+  id                String   @id
+  name              String
+  position          Int
+  priceKopecks      Int
+  maxUsers          Int?
+  maxProjects       Int?
+  maxRecurring      Int?
+  storageMbBase     Int      @default(0)
+  storageMbPerSeat  Int      @default(0)
+  // time, roles, audit, export, api
+  features          String[]
+
+  subscriptions Subscription[]
+  payments      Payment[]
+}
+
+// One per workspace, always present (FREE when nothing is paid).
+model Subscription {
+  id                 String             @id @default(cuid())
+  workspaceId        String             @unique
+  workspace          Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  planId             String
+  plan               Plan               @relation(fields: [planId], references: [id])
+  status             SubscriptionStatus @default(ACTIVE)
+  interval           BillingInterval    @default(MONTH)
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  // Stop renewing at the end of the paid period and fall back to FREE.
+  cancelAtPeriodEnd  Boolean            @default(false)
+  // T-Bank token of the saved card, for recurring charges.
+  rebillId           String?
+  cardMask           String?
+  failedAttempts     Int                @default(0)
+  nextAttemptAt      DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  @@index([status, currentPeriodEnd])
+}
+
+model Payment {
+  id            String          @id @default(cuid())
+  workspaceId   String
+  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  kind          PaymentKind
+  planId        String
+  plan          Plan            @relation(fields: [planId], references: [id])
+  interval      BillingInterval
+  seats         Int
+  // Kopecks.
+  amount        Int
+  status        PaymentStatus   @default(PENDING)
+  // Our id sent to the bank as OrderId.
+  orderId       String          @unique
+  providerPaymentId String?
+  paymentUrl    String?
+  failReason    String?
+  createdAt     DateTime        @default(now())
+  paidAt        DateTime?
+
+  @@index([workspaceId, createdAt])
 }
