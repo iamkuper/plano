@@ -175,6 +175,11 @@ export class BillingService {
 
   // ---- the billing page ----
 
+  async publicPlans() {
+    const plans = await this.db.plan.findMany({ orderBy: { position: "asc" } });
+    return { plans: plans.map(toDto), trialDays: TRIAL_DAYS };
+  }
+
   async overview(): Promise<BillingDto> {
     const workspaceId = this.ws;
     const [sub, plans, payments, usage] = await Promise.all([

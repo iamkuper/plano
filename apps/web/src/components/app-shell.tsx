@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   House,
+  LifeBuoy,
   FolderKanban,
   LogOut,
   PanelLeftClose,
@@ -21,6 +22,7 @@ import { BILLING_CHANGED, api, setToken } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { onProjectsChanged } from "@/lib/projects-events";
 import { useSettings } from "@/lib/settings";
+import { SUPPORT } from "@/lib/support";
 import { useAuth } from "@/lib/use-auth";
 import { Avatar, LetterMark } from "./avatar";
 import { HeaderSearch } from "./header-search";
@@ -477,6 +479,16 @@ function Shell({ children }: { children: React.ReactNode }) {
                   />{" "}
                   Профиль
                 </Link>
+                {SUPPORT.url && (
+                  <a
+                    href={SUPPORT.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-ink transition-colors hover:bg-surface-soft"
+                  >
+                    <LifeBuoy size={15} strokeWidth={1.75} className="text-ink-ghost" /> Поддержка
+                  </a>
+                )}
                 <button
                   onClick={() => {
                     setToken(null);

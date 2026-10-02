@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { TemplateListItemDto } from "@amo-kanban/shared";
+import { goal } from "@/lib/analytics";
 import { api } from "@/lib/api";
 import { notifyProjectsChanged } from "@/lib/projects-events";
 import { Button, Dialog, Field, Input, Select } from "./ui";
@@ -38,6 +39,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
         deadline: deadline || undefined,
       });
       notifyProjectsChanged();
+      goal("project_created");
       onClose();
       router.push(`/projects/${project.id}`);
     } catch (err) {

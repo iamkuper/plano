@@ -7,6 +7,7 @@ import { daysLeft, formatRub, planAmount, prorateSeats, type BillingDto, type Bi
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Button, Card, Dialog, Field, Input, PageHeader, Segmented, Skeleton, Textarea } from "@/components/ui";
+import { goal } from "@/lib/analytics";
 import { api, downloadInvoicePdf } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
@@ -120,6 +121,7 @@ function InvoiceDialog({ plan, interval, seats, addSeats, amount: fixedAmount, i
           setError(null);
           setBusy(true);
           try {
+            goal("invoice_requested", { plan: plan.id });
             const { id, invoiceNumber, pdf } = await api.requestInvoice({ planId: plan.id, interval, seats, addSeats, ...form, payerKpp: form.payerKpp || null });
             if (pdf) {
               await downloadInvoicePdf(id, invoiceNumber).catch(() => {});
@@ -252,6 +254,7 @@ function BillingView() {
   const paid = params.get("paid");
   useEffect(() => {
     if (paid === null) return;
+    if (paid === "1") goal("payment_success");
     toast(paid === "1" ? "Оплата получена, тариф обновится через несколько секунд" : "Оплата не прошла. Попробуйте ещё раз", paid === "1" ? "success" : "error");
     const timers = [2000, 5000, 10000].map((ms) => setTimeout(load, ms));
     return () => timers.forEach(clearTimeout);
@@ -261,6 +264,7 @@ function BillingView() {
     setBusy(plan.id);
     try {
       const topUp = seatTopUp(b!, plan, plan.maxUsers === null ? seatCount : Math.min(seatCount, plan.maxUsers));
+      goal("payment_started", { plan: plan.id, kind: topUp ? "seats" : "plan" });
       if (topUp) {
         window.location.href = (await api.buySeats(topUp.extra)).paymentUrl;
         return;

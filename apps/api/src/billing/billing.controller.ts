@@ -66,6 +66,12 @@ class DevPayDto {
 export class BillingController {
   constructor(private readonly billing: BillingService) {}
 
+  // Public: the landing and pricing pages show the plans.
+  @Get("plans")
+  plans() {
+    return this.billing.publicPlans();
+  }
+
   // Anyone in the workspace sees the plan and usage; paying needs the right.
   @Get()
   @UseGuards(JwtAuthGuard)

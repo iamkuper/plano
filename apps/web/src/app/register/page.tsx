@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { goal } from "@/lib/analytics";
 import { api, setToken } from "@/lib/api";
 import { AuthCard } from "@/components/auth-card";
 import { Button, Field, Input } from "@/components/ui";
@@ -19,6 +20,7 @@ export default function RegisterPage() {
     setError(null);
     try {
       const { accessToken } = await api.register(workspaceName, name, email, password);
+      goal("signup");
       setToken(accessToken);
       router.replace("/dashboard");
     } catch (err) {
