@@ -16,6 +16,9 @@ const pg = new EmbeddedPostgres({
   password: "kanban",
   port: 5433,
   persistent: true,
+  // initdb refuses to run as root (cloud sandboxes, containers): let the
+  // package create an unprivileged "postgres" user to run the server.
+  createPostgresUser: process.getuid?.() === 0,
 });
 
 async function up() {
