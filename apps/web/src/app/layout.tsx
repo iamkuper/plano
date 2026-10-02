@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Golos_Text } from "next/font/google";
+import { CookieBanner } from "@/components/cookie-banner";
 import { Metrika } from "@/components/metrika";
 import "./globals.css";
 
@@ -18,6 +19,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full bg-bg font-sans text-base text-ink">
         {children}
         <Metrika />
+        <CookieBanner />
       </body>
     </html>
   );

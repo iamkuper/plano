@@ -1,9 +1,14 @@
+"use client";
+
 import Script from "next/script";
+import { useConsent } from "@/lib/consent";
 import { YM_ID } from "@/lib/analytics";
 
-// Yandex Metrica counter; rendered only when NEXT_PUBLIC_YM_ID is set.
+// Yandex Metrica counter: only when NEXT_PUBLIC_YM_ID is set and the visitor
+// accepted cookies.
 export function Metrika() {
-  if (!YM_ID) return null;
+  const consent = useConsent();
+  if (!YM_ID || !consent) return null;
   return (
     <Script id="ym" strategy="afterInteractive">
       {`(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();
