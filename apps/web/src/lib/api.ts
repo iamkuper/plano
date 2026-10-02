@@ -278,7 +278,7 @@ export const api = {
   templates: () => apiFetch<TemplateListItemDto[]>("/templates"),
 
   addColumn: (boardId: string, title: string) => post<ColumnDto>(`/boards/${boardId}/columns`, { title }),
-  updateColumn: (id: string, data: Partial<{ title: string; wipLimit: number | null; position: number }>) =>
+  updateColumn: (id: string, data: Partial<{ title: string; wipLimit: number | null; position: number; color: LabelColor | null }>) =>
     patch<ColumnDto>(`/columns/${id}`, data),
   updateProject: (
     id: string,

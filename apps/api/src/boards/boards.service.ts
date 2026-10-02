@@ -78,12 +78,15 @@ export class BoardsService {
 
     const unread = await this.unreadCounts(userId, columns.flatMap((c) => c.cards.map((card) => card.id)));
     const byTitle = new Map<string, WithUnread<(typeof columns)[number]["cards"][number]>[]>();
+    // A merged stage takes the first colour any board chose for it.
+    const colorOf = new Map<string, string>();
     for (const column of columns) {
+      if (column.color && !colorOf.has(column.title)) colorOf.set(column.title, column.color);
       const bucket = byTitle.get(column.title) ?? [];
       bucket.push(...column.cards.map((c) => ({ ...c, unreadComments: unread.get(c.id) ?? 0 })));
       byTitle.set(column.title, bucket);
     }
-    return [...byTitle].map(([title, cards]) => ({ title, cards }));
+    return [...byTitle].map(([title, cards]) => ({ title, color: colorOf.get(title) ?? null, cards }));
   }
 
   async addColumn(boardId: string, title: string) {
@@ -111,7 +114,7 @@ export class BoardsService {
     this.realtime.boardChanged(column.board.projectId);
   }
 
-  async updateColumn(columnId: string, data: { title?: string; wipLimit?: number | null; position?: number }) {
+  async updateColumn(columnId: string, data: { title?: string; wipLimit?: number | null; position?: number; color?: string | null }) {
     const column = await this.prisma.column.update({ where: { id: columnId }, data, include: { board: { select: { projectId: true } } } });
     this.realtime.boardChanged(column.board.projectId);
     const { board: _board, ...rest } = column;

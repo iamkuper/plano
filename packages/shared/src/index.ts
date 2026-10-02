@@ -158,6 +158,8 @@ export interface ColumnDto {
   title: string;
   position: number;
   wipLimit: number | null;
+  // Chosen colour; null = automatic by position (stageColor).
+  color: LabelColor | null;
   cards: CardTileDto[];
 }
 
@@ -169,6 +171,7 @@ export interface BoardDto {
 
 export interface TeamBoardColumnDto {
   title: string;
+  color: LabelColor | null;
   cards: CardTileDto[];
 }
 

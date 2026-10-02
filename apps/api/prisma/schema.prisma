@@ -139,6 +139,8 @@ model Column {
   // move updates one row instead of renumbering the whole column.
   position Float
   wipLimit Int?
+  // LABEL_COLORS key chosen by the team; null = automatic by position.
+  color    String?
 
   cards Card[]
 

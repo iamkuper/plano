@@ -10,10 +10,12 @@ import {
   type ProjectStatus,
   type RecurringRuleDto,
   type UserDto,
+  type LabelColor,
 } from "@amo-kanban/shared";
+import { ColorButton } from "@/components/color-swatches";
 import { AppShell } from "@/components/app-shell";
 import { Button, Card, ConfirmDialog, Field, IconButton, Input, PageHeader, Select } from "@/components/ui";
-import { stageColor } from "@/design/tokens";
+import { columnColor, stageColor } from "@/design/tokens";
 import { useCan } from "@/lib/permissions";
 import { api } from "@/lib/api";
 import { notifyProjectsChanged } from "@/lib/projects-events";
@@ -116,6 +118,7 @@ function StageRow({
   index,
   count,
   onRename,
+  onColor,
   onLimit,
   onMove,
   onDelete,
@@ -124,6 +127,7 @@ function StageRow({
   index: number;
   count: number;
   onRename: (title: string) => void;
+  onColor: (color: LabelColor | null) => void;
   onLimit: (limit: number | null) => void;
   onMove: (dir: -1 | 1) => void;
   onDelete: () => void;
@@ -131,8 +135,14 @@ function StageRow({
   const [title, setTitle] = useState(column.title);
   const cards = column.cards.length;
   return (
-    <div className="grid h-12 grid-cols-[4px_minmax(0,1fr)_120px_64px_auto] items-center gap-3 border-b border-border px-3 last:border-b-0">
-      <span className="h-6 rounded-full" style={{ background: stageColor(index, count) }} />
+    <div className="grid h-12 grid-cols-[16px_minmax(0,1fr)_120px_64px_auto] items-center gap-3 border-b border-border px-3 last:border-b-0">
+      <ColorButton
+        className="block size-4"
+        color={columnColor(column.color, index, count)}
+        value={column.color}
+        auto={stageColor(index, count)}
+        onChange={onColor}
+      />
       <Input
         aria-label={`Название этапа ${index + 1}`}
         value={title}
@@ -213,6 +223,7 @@ function StagesSection({ boardId, columns, reload }: { boardId: string; columns:
             index={i}
             count={columns.length}
             onRename={(title) => guard(api.updateColumn(col.id, { title }), "Этап переименован")}
+            onColor={(color) => guard(api.updateColumn(col.id, { color }), "Цвет этапа изменён")}
             onLimit={(wipLimit) => guard(api.updateColumn(col.id, { wipLimit }))}
             onMove={(dir) => move(i, dir)}
             onDelete={() => guard(api.deleteColumn(col.id), `Этап «${col.title}» удалён`)}
