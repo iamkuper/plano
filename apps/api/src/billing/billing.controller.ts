@@ -20,10 +20,6 @@ class CheckoutDto {
   seats?: number;
 }
 
-class CancelDto {
-  @IsBoolean()
-  cancel!: boolean;
-}
 
 class DevPayDto {
   @IsBoolean()
@@ -48,13 +44,6 @@ export class BillingController {
     return this.billing.checkout(dto.planId, dto.interval, dto.seats, user.email);
   }
 
-  @Post("cancel")
-  @HttpCode(204)
-  @UseGuards(JwtAuthGuard, PermissionGuard)
-  @RequirePermission("billing.manage")
-  cancel(@Body() dto: CancelDto) {
-    return this.billing.setCancel(dto.cancel);
-  }
 
   // Leave the trial or a locked workspace for the free plan.
   @Post("free")

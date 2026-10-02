@@ -6,13 +6,11 @@ import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { currentWorkspaceId, runInWorkspace } from "../prisma/tenant";
 import { PAYMENT_PROVIDER, type PaymentNotification, type PaymentProvider } from "./payment-provider";
 import { mockNotification } from "./mock.provider";
-import { isLocked } from "./subscription-state";
+import { GRACE_AFTER_PERIOD_MS, isLocked } from "./subscription-state";
 import { AuditService } from "../audit/audit.service";
 
 const DAY = 86_400_000;
 export const TRIAL_DAYS = 14;
-export const MAX_RENEWAL_ATTEMPTS = 3;
-const RETRY_AFTER_MS = DAY;
 
 export type Limit = "users" | "projects" | "recurring" | "storage";
 
@@ -231,7 +229,7 @@ export class BillingService {
         amount: payment.amount,
         description: `Plano, тариф ${plan.name}: ${seats} польз., ${interval === "YEAR" ? "год" : "месяц"}`,
         customerKey: workspaceId,
-        recurrent: true,
+        recurrent: false,
         email,
       });
       await this.db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: init.providerPaymentId, paymentUrl: init.paymentUrl } });
@@ -242,14 +240,6 @@ export class BillingService {
     }
   }
 
-  async setCancel(cancel: boolean) {
-    const workspaceId = this.ws;
-    const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId } });
-    if (sub.planId === "FREE") throw new BadRequestException("Платной подписки нет");
-    if (isLocked(sub)) throw new BadRequestException("Тариф уже закончился");
-    if (sub.status === "TRIALING") throw new BadRequestException("Пробный период закончится сам, списаний не будет");
-    await this.db.subscription.update({ where: { workspaceId }, data: { cancelAtPeriodEnd: cancel } });
-  }
 
   // ---- bank notifications ----
 
@@ -284,8 +274,12 @@ export class BillingService {
     this.forgetSeats(payment.workspaceId);
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId: payment.workspaceId } });
     const now = new Date();
-    // A renewal continues the paid period; a first payment starts it now.
-    const start = payment.kind === "RENEWAL" && sub.currentPeriodEnd && sub.currentPeriodEnd > now ? sub.currentPeriodEnd : now;
+    // Paying the same plan, period and seats before it ends extends it from
+    // the current end; any change (plan, period, seats) starts a new period now.
+    const prolong =
+      sub.status === "ACTIVE" && sub.planId === payment.planId && sub.interval === payment.interval && sub.seats === payment.seats &&
+      !!sub.currentPeriodEnd && sub.currentPeriodEnd > now;
+    const start = prolong ? sub.currentPeriodEnd! : now;
     await this.db.subscription.update({
       where: { workspaceId: payment.workspaceId },
       data: {
@@ -299,8 +293,9 @@ export class BillingService {
         cancelAtPeriodEnd: false,
         failedAttempts: 0,
         nextAttemptAt: null,
-        ...(n?.rebillId ? { rebillId: n.rebillId } : {}),
-        ...(n?.cardMask ? { cardMask: n.cardMask } : {}),
+        // No recurring charges: nothing about the card is kept.
+        rebillId: null,
+        cardMask: null,
       },
     });
     // Webhooks and the scheduler have no request, so enter the workspace.
@@ -355,67 +350,15 @@ export class BillingService {
     await this.audit.record("billing.free", "Выбран бесплатный тариф");
   }
 
-  // Renews paid periods that ended, locks cancelled and unpaid ones.
+  // No automatic renewals: a trial or paid period that ran out (paid ones
+  // after a short grace) makes the workspace read-only until paid by card.
   async runDue(now = new Date()) {
-    // Trials that ran out without a payment.
     const trials = await this.db.subscription.findMany({ where: { status: "TRIALING", trialEndsAt: { lte: now } } });
     for (const t of trials) await this.lock(t.workspaceId);
-
-    const due = await this.db.subscription.findMany({
-      where: {
-        status: { in: ["ACTIVE", "PAST_DUE"] },
-        planId: { not: "FREE" },
-        currentPeriodEnd: { lte: now },
-        OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
-      },
-      include: { plan: true },
+    const ended = await this.db.subscription.findMany({
+      where: { status: { in: ["ACTIVE", "PAST_DUE"] }, planId: { not: "FREE" }, currentPeriodEnd: { lte: new Date(now.getTime() - GRACE_AFTER_PERIOD_MS) } },
     });
-    for (const sub of due) {
-      try {
-        await this.renew(sub, now);
-      } catch (e) {
-        this.log.error(`Renewal of ${sub.workspaceId} failed: ${(e as Error).message}`);
-      }
-    }
-    return { trials: trials.length, renewals: due.length };
-  }
-
-  private async renew(sub: Subscription & { plan: Plan }, now: Date) {
-    if (sub.cancelAtPeriodEnd || !sub.rebillId) return this.lock(sub.workspaceId);
-
-    // Renew the paid seats (never fewer than the users actually active).
-    const active = await this.db.user.count({ where: { workspaceId: sub.workspaceId, isActive: true } });
-    const seats = Math.max(sub.seats ?? active, active, 1);
-    const payment = await this.db.payment.create({
-      data: {
-        workspaceId: sub.workspaceId, kind: "RENEWAL", planId: sub.planId, interval: sub.interval, seats,
-        amount: planAmount(sub.plan, seats, sub.interval), orderId: this.newOrderId(),
-      },
-    });
-    let failure: string | undefined;
-    try {
-      const init = await this.provider.init({
-        orderId: payment.orderId, amount: payment.amount, customerKey: sub.workspaceId, recurrent: false,
-        description: `Plano, продление тарифа ${sub.plan.name}: ${seats} польз.`,
-      });
-      await this.db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: init.providerPaymentId } });
-      const result = await this.provider.charge(init.providerPaymentId, sub.rebillId);
-      if (result.confirmed) {
-        const settled = await this.db.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "PAID", paidAt: now } });
-        if (settled.count) await this.activate(payment);
-        return;
-      }
-      failure = result.reason;
-    } catch (e) {
-      failure = (e as Error).message;
-    }
-
-    await this.db.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED", failReason: failure } });
-    const attempts = sub.failedAttempts + 1;
-    if (attempts >= MAX_RENEWAL_ATTEMPTS) return this.lock(sub.workspaceId);
-    await this.db.subscription.update({
-      where: { workspaceId: sub.workspaceId },
-      data: { status: "PAST_DUE", failedAttempts: attempts, nextAttemptAt: new Date(now.getTime() + RETRY_AFTER_MS) },
-    });
+    for (const e of ended) await this.lock(e.workspaceId);
+    return { trials: trials.length, ended: ended.length };
   }
 }

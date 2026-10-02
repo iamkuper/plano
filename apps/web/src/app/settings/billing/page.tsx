@@ -6,7 +6,7 @@ import { Check, Minus, Plus } from "lucide-react";
 import { formatRub, planAmount, type BillingDto, type BillingInterval, type PlanDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
-import { Button, Card, ConfirmDialog, PageHeader, Segmented, Skeleton } from "@/components/ui";
+import { Button, Card, PageHeader, Segmented, Skeleton } from "@/components/ui";
 import { api } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
@@ -32,9 +32,7 @@ function status(b: BillingDto) {
   }
   if (s.status === "TRIALING" && b.plan.id !== "FREE") return `Пробный период до ${date(s.trialEndsAt)}`;
   if (b.plan.id === "FREE") return s.status === "TRIALING" ? "Пробный период закончился, действует бесплатный тариф" : "Бесплатный тариф";
-  if (s.status === "PAST_DUE") return "Не удалось списать оплату. Попробуем ещё раз, проверьте карту";
-  if (s.cancelAtPeriodEnd) return `Оплачен до ${date(s.currentPeriodEnd)}, продление отключено`;
-  return `Оплачен до ${date(s.currentPeriodEnd)}, дальше спишем автоматически${s.cardMask ? ` с карты ${s.cardMask}` : ""}`;
+  return `Оплачен до ${date(s.currentPeriodEnd)}. Автоматических списаний нет: чтобы продлить, оплатите следующий период картой`;
 }
 
 function Usage({ label, used, max, unit }: { label: string; used: number; max: number | null; unit?: (n: number) => string }) {
@@ -118,11 +116,9 @@ function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, busy }: { 
       <div className="mt-3">
         {plan.priceKopecks === 0 ? (
           <Button disabled className="w-full">{current ? "Текущий тариф" : "Бесплатный"}</Button>
-        ) : same ? (
-          <Button disabled className="w-full">Текущий тариф</Button>
         ) : (
           <Button variant="primary" className="w-full" disabled={!canPay || tooSmall} loading={busy} onClick={onPick}>
-            {current ? "Изменить и оплатить" : "Выбрать"}
+            {same ? "Продлить" : current ? "Изменить и оплатить" : "Выбрать"}
           </Button>
         )}
       </div>
@@ -136,7 +132,6 @@ function BillingView() {
   const [b, setB] = useState<BillingDto | null>(null);
   const [interval, setInterval_] = useState<BillingInterval>("MONTH");
   const [busy, setBusy] = useState<string | null>(null);
-  const [confirmCancel, setConfirmCancel] = useState(false);
   const canPay = can("billing.manage");
   const [seats, setSeats] = useState<number | null>(null);
 
@@ -176,22 +171,12 @@ function BillingView() {
     }
   }
 
-  async function setCancel(cancel: boolean) {
-    try {
-      await api.cancelSubscription(cancel);
-      toast(cancel ? "Продление отключено" : "Продление включено", "success");
-      load();
-    } catch (e) {
-      toast((e as Error).message, "error");
-    }
-  }
 
   if (!b) return <Skeleton className="h-64" />;
   const minSeats = Math.max(b.usage.users, 1);
   const seatCount = Math.max(seats ?? minSeats, minSeats);
   const maxSeats = b.plans.reduce<number | null>((m, p) => (p.priceKopecks <= 0 ? m : p.maxUsers === null || m === null ? null : Math.max(m, p.maxUsers)), 0);
   const trial = b.subscription.status === "TRIALING" && !b.locked;
-  const paidPlan = b.subscription.planId !== "FREE" && b.subscription.status !== "TRIALING" && !b.locked;
   const canLeaveForFree = canPay && (b.locked || b.subscription.status === "TRIALING");
   return (
     <>
@@ -211,12 +196,6 @@ function BillingView() {
           >
             Перейти на бесплатный
           </Button>
-        ) : paidPlan && canPay ? (
-          b.subscription.cancelAtPeriodEnd ? (
-            <Button onClick={() => setCancel(false)}>Включить продление</Button>
-          ) : (
-            <Button variant="ghost" onClick={() => setConfirmCancel(true)}>Отключить продление</Button>
-          )
         ) : undefined
       }>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -255,7 +234,7 @@ function BillingView() {
             <PlanCard key={p.id} plan={p} b={b} interval={interval} seats={seatCount} canPay={canPay} busy={busy === p.id} onPick={() => pick(p)} />
           ))}
         </div>
-        <p className="mt-4 text-sm text-ink-faint">Оплата нового тарифа начинает новый оплаченный период с сегодняшнего дня. При превышении лимитов существующие данные остаются, новые записи создать нельзя.</p>
+        <p className="mt-4 text-sm text-ink-faint">Оплата разовая, картой. Продление с тем же тарифом, периодом и числом мест добавляет период к текущему; любое изменение начинает новый период с сегодняшнего дня. После окончания периода есть 3 дня, затем пространство переходит в режим чтения до оплаты. При превышении лимитов существующие данные остаются, новые записи создать нельзя.</p>
       </Card>
 
       <Card title="Платежи" bodyClassName="p-0">
@@ -288,18 +267,6 @@ function BillingView() {
         )}
       </Card>
 
-      {confirmCancel && (
-        <ConfirmDialog
-          title="Отключить продление?"
-          body={`Тариф ${b.plan.name} будет действовать до ${date(b.subscription.currentPeriodEnd)}, потом начнётся бесплатный. Данные сохранятся.`}
-          confirmLabel="Отключить"
-          onConfirm={async () => {
-            await setCancel(true);
-            setConfirmCancel(false);
-          }}
-          onClose={() => setConfirmCancel(false)}
-        />
-      )}
     </>
   );
 }

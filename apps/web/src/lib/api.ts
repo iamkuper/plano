@@ -335,7 +335,6 @@ export const api = {
   billing: () => apiFetch<BillingDto>("/billing"),
   checkout: (planId: string, interval: BillingInterval, seats: number) =>
     post<{ paymentUrl: string }>("/billing/checkout", { planId, interval, seats }),
-  cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),
   mockPay: (orderId: string, success: boolean) => post<void>(`/billing/dev/pay/${encodeURIComponent(orderId)}`, { success }),
   roles: () => apiFetch<RoleDto[]>("/roles"),
   createRole: (data: { name: string; permissions?: string[] }) => post<RoleDto>("/roles", data),
