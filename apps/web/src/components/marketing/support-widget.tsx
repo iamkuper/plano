@@ -26,12 +26,7 @@ const TEASER_KEY = "plano.chat-teaser-closed";
 function ManagerAvatar({ size = 40 }: { size?: number }) {
   return (
     <span className="relative shrink-0" style={{ width: size, height: size }}>
-      <span
-        className="grid size-full place-items-center rounded-full bg-gradient-to-br from-[#3D8BF2] to-[#8A6CE8] font-semibold text-white"
-        style={{ fontSize: size * 0.42 }}
-      >
-        {MANAGER.name[0]}
-      </span>
+      <img src="/manager.jpg" alt={MANAGER.name} className="size-full rounded-full object-cover" />
       <span aria-hidden className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-surface bg-[#2FA36B]" />
     </span>
   );
