@@ -23,6 +23,7 @@ import { RecurringDialog } from "./recurring-dialog";
 import { priorityColor } from "@/design/tokens";
 import { Avatar, AvatarStack, LetterMark } from "./avatar";
 import { LabelPicker } from "./label-picker";
+import { CustomFieldInputs } from "./custom-field-inputs";
 import { CARD_TYPE_STYLES } from "./card-type-icon";
 import {
   Button,
@@ -119,6 +120,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
   const [users, setUsers] = useState<UserDto[]>([]);
   const [columns, setColumns] = useState<{ id: string; title: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [hasFields, setHasFields] = useState(false);
   const changed = useRef(false);
 
   const [title, setTitle] = useState("");
@@ -148,6 +150,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
       .then((b) => setColumns(b.columns.map(({ id, title }) => ({ id, title }))))
       .catch((e) => setError(e.message));
     api.me().then(setMe).catch(() => {});
+    api.billing().then((b) => setHasFields(b.plan.features.includes("fields"))).catch(() => {});
     api.users().then((list) => setUsers(list.filter((u) => u.isActive))).catch(() => {});
   }, [reload]);
 
@@ -186,6 +189,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
   }
 
   const save = (patch: Partial<CardPatch>) => run(() => api.updateCard(cardId, patch));
+  const reloadCard = () => run(async () => {});
 
   // Keep the discussion scrolled to the latest message.
   const chatEnd = useRef<HTMLDivElement>(null);
@@ -449,6 +453,8 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
                 />
               )}
             </Field>
+
+            <CustomFieldInputs card={card} canEdit={hasFields} onChanged={reloadCard} />
 
             <Field label="Оценка, часов">
               {(a) => (

@@ -99,7 +99,8 @@ export class RolesController {
 
   private async assertFree(name: string, exceptId?: string) {
     if (name.toLowerCase() === "администратор") throw new ConflictException("«Администратор» — встроенная роль");
-    const taken = await this.prisma.role.findFirst({ where: { name: { equals: name, mode: "insensitive" }, id: { not: exceptId } } });
-    if (taken) throw new ConflictException("Роль с таким названием уже есть");
+    // Compared in JS: the database's case folding doesn't cover Cyrillic.
+    const all = await this.prisma.role.findMany({ select: { id: true, name: true } });
+    if (all.some((r) => r.id !== exceptId && r.name.toLowerCase() === name.toLowerCase())) throw new ConflictException("Роль с таким названием уже есть");
   }
 }

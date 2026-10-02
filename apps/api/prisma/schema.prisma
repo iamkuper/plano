@@ -60,6 +60,7 @@ model Workspace {
   payments     Payment[]
   invitations  Invitation[]
   labels       Label[]
+  customFields CustomField[]
 }
 
 model User {
@@ -174,6 +175,7 @@ model Card {
   attachments   Attachment[]
   labels        CardLabel[]
   // This card can start only after the cards in `dependsOn` (Gantt arrows).
+  fieldValues   CardFieldValue[]
   dependsOn     CardDependency[] @relation("Dependent")
   blocks        CardDependency[] @relation("Blocker")
 
@@ -548,4 +550,43 @@ model CardDependency {
 
   @@id([cardId, dependsOnId])
   @@index([dependsOnId])
+}
+
+// ---- Custom fields (Business) ----
+
+enum CustomFieldType {
+  TEXT
+  NUMBER
+  DATE
+  SELECT
+  CHECKBOX
+}
+
+model CustomField {
+  id          String          @id @default(cuid())
+  workspaceId String
+  workspace   Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  type        CustomFieldType
+  // Choices of a SELECT field.
+  options     String[]
+  position    Float
+  createdAt   DateTime        @default(now())
+
+  values CardFieldValue[]
+
+  @@unique([workspaceId, name])
+}
+
+// One value per card and field; `value` holds a string, number, boolean or
+// a YYYY-MM-DD date string depending on the field's type.
+model CardFieldValue {
+  cardId  String
+  card    Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  fieldId String
+  field   CustomField @relation(fields: [fieldId], references: [id], onDelete: Cascade)
+  value   Json
+
+  @@id([cardId, fieldId])
+  @@index([fieldId])
 }

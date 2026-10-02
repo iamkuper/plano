@@ -86,6 +86,7 @@ export class CardsService {
         },
         attachments: { orderBy: { createdAt: "desc" }, include: { uploader: { select: { id: true, name: true, avatarUrl: true } } } },
         recurringRule: { select: { id: true, frequency: true, interval: true, active: true } },
+        fieldValues: { select: { fieldId: true, value: true } },
         timeEntries: { orderBy: { date: "desc" }, include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
         activity: { orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
       },

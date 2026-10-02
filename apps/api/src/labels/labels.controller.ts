@@ -63,8 +63,9 @@ export class LabelsController {
   }
 
   private async assertFree(name: string, exceptId?: string) {
-    const taken = await this.prisma.label.findFirst({ where: { name: { equals: name, mode: "insensitive" }, id: { not: exceptId } } });
-    if (taken) throw new ConflictException("Метка с таким названием уже есть");
+    // Compared in JS: the database's case folding doesn't cover Cyrillic.
+    const all = await this.prisma.label.findMany({ select: { id: true, name: true } });
+    if (all.some((l) => l.id !== exceptId && l.name.toLowerCase() === name.toLowerCase())) throw new ConflictException("Метка с таким названием уже есть");
   }
 }
 

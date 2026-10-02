@@ -31,6 +31,7 @@ export const PERMISSIONS = [
   { key: "cards.delete", label: "Удалять карточки" },
   { key: "templates.manage", label: "Создавать и менять шаблоны" },
   { key: "labels.manage", label: "Менять и удалять метки", hint: "Создавать и назначать метки может любой сотрудник" },
+  { key: "fields.manage", label: "Настраивать дополнительные поля карточек" },
   { key: "billing.manage", label: "Управлять тарифом и оплатой" },
   { key: "time.viewAll", label: "Видеть время всех сотрудников", hint: "Без этого права в отчёте видно только своё время" },
 ] as const;
@@ -241,7 +242,29 @@ export interface RecurringRuleDto {
   active: boolean;
 }
 
+export const CUSTOM_FIELD_TYPES = ["TEXT", "NUMBER", "DATE", "SELECT", "CHECKBOX"] as const;
+export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number];
+
+export const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
+  TEXT: "Текст",
+  NUMBER: "Число",
+  DATE: "Дата",
+  SELECT: "Список",
+  CHECKBOX: "Флажок",
+};
+
+export interface CustomFieldDto {
+  id: string;
+  name: string;
+  type: CustomFieldType;
+  options: string[];
+  position: number;
+}
+
+export type CustomFieldValue = string | number | boolean;
+
 export interface CardDetailDto extends Omit<CardTileDto, "checklist"> {
+  fieldValues: { fieldId: string; value: CustomFieldValue }[];
   attachments: AttachmentDto[];
   recurringRule?: { id: string; frequency: RecurrenceFrequency; interval: number; active: boolean } | null;
   column: { id: string; title: string };
@@ -280,7 +303,7 @@ export interface NotificationDto {
 // ---- Billing ----
 
 export type PlanId = "FREE" | "PRO" | "BUSINESS";
-export type PlanFeature = "time" | "roles" | "audit" | "export" | "api" | "gantt";
+export type PlanFeature = "time" | "roles" | "audit" | "export" | "api" | "gantt" | "fields";
 export type BillingInterval = "MONTH" | "YEAR";
 export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED";

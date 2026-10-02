@@ -18,6 +18,7 @@ import { BillingModule } from "./billing/billing.module";
 import { MailModule } from "./mail/mail.module";
 import { LabelsModule } from "./labels/labels.controller";
 import { DependenciesModule } from "./dependencies/dependencies.controller";
+import { FieldsModule } from "./fields/fields.controller";
 import { InvitationsModule } from "./invitations/invitations.module";
 
 @Module({
@@ -41,6 +42,7 @@ import { InvitationsModule } from "./invitations/invitations.module";
     MailModule,
     LabelsModule,
     DependenciesModule,
+    FieldsModule,
     InvitationsModule,
   ],
 })

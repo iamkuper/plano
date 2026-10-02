@@ -22,6 +22,7 @@ const FEATURE_LABELS: Record<string, string> = {
   export: "Экспорт данных",
   api: "API и webhook'и",
   gantt: "Диаграмма Ганта",
+  fields: "Дополнительные поля карточек",
 };
 
 function status(b: BillingDto) {
