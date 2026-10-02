@@ -15,6 +15,8 @@ import { ReportsModule } from "./reports/reports.module";
 import { RecurringModule } from "./recurring/recurring.module";
 import { AttachmentsModule } from "./attachments/attachments.module";
 import { BillingModule } from "./billing/billing.module";
+import { MailModule } from "./mail/mail.module";
+import { InvitationsModule } from "./invitations/invitations.module";
 
 @Module({
   imports: [
@@ -34,6 +36,8 @@ import { BillingModule } from "./billing/billing.module";
     RecurringModule,
     AttachmentsModule,
     BillingModule,
+    MailModule,
+    InvitationsModule,
   ],
 })
 export class AppModule {}

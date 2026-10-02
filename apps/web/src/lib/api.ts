@@ -23,6 +23,15 @@ import type {
   UserRole,
 } from "@amo-kanban/shared";
 
+export interface InvitationDto {
+  id: string;
+  email: string;
+  role: UserRole;
+  roleId: string | null;
+  expiresAt: string;
+  createdAt: string;
+}
+
 export type BulkAction = "move" | "assign" | "unassign" | "priority" | "due" | "delete";
 
 export interface RecurringInput {
@@ -183,6 +192,13 @@ export const api = {
   deleteColumn: (id: string) => del(`/columns/${id}`),
 
   settings: () => apiFetch<SettingsDto>("/settings"),
+  invitations: () => apiFetch<InvitationDto[]>("/invitations"),
+  invite: (data: { email: string; role?: UserRole; roleId?: string }) => post<{ id: string; email: string; link: string; emailSent: boolean }>("/invitations", data),
+  revokeInvitation: (id: string) => del(`/invitations/${id}`),
+  invitationPreview: (token: string) => apiFetch<{ email: string; workspaceName: string }>(`/auth/invitations/${encodeURIComponent(token)}`),
+  acceptInvite: (token: string, name: string, password: string) => post<{ accessToken: string }>("/auth/accept-invite", { token, name, password }),
+  forgotPassword: (email: string) => post<void>("/auth/forgot", { email }),
+  resetPassword: (token: string, password: string) => post<void>("/auth/reset", { token, password }),
   billing: () => apiFetch<BillingDto>("/billing"),
   checkout: (planId: string, interval: BillingInterval) => post<{ paymentUrl: string }>("/billing/checkout", { planId, interval }),
   cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),

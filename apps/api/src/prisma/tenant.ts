@@ -28,6 +28,7 @@ const SCOPE: Record<string, (ws: string) => Where> = {
   Template: (ws) => ({ workspaceId: ws }),
   Role: (ws) => ({ workspaceId: ws }),
   Subscription: (ws) => ({ workspaceId: ws }),
+  Invitation: (ws) => ({ workspaceId: ws }),
   Payment: (ws) => ({ workspaceId: ws }),
   Board: (ws) => ({ project: { workspaceId: ws } }),
   Column: (ws) => ({ board: { project: { workspaceId: ws } } }),
@@ -45,7 +46,7 @@ const SCOPE: Record<string, (ws: string) => Where> = {
 
 // Models that carry workspaceId themselves: it is set from the context on
 // create, never taken from the caller.
-const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment"]);
+const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment", "Invitation"]);
 
 // Shared catalogue, not tenant data: readable by everyone, never writable here.
 const GLOBAL_READ = new Set(["Plan"]);
@@ -54,6 +55,7 @@ const READS = new Set(["findFirst", "findFirstOrThrow", "findUnique", "findUniqu
 // Foreign keys that must point into the same workspace when written.
 const PARENTS: Record<string, Record<string, string>> = {
   User: { roleId: "Role" },
+  Invitation: { roleId: "Role", invitedById: "User" },
   Card: { projectId: "Project", columnId: "Column", recurringRuleId: "RecurringRule" },
   Board: { projectId: "Project" },
   Column: { boardId: "Board" },

@@ -108,6 +108,9 @@ export class UsersService {
   }
 
   async update(id: string, dto: UpdateUserDto) {
+    if (dto.isActive === true && (await this.prisma.user.findFirst({ where: { id, isActive: false }, select: { id: true } }))) {
+      await this.billing.assertWithin("users");
+    }
     // Picking a custom role makes the user a MEMBER of it.
     const data = dto.roleId ? { ...dto, role: "MEMBER" as const } : dto;
     return toDto(await this.prisma.user.update({ where: { id }, data, select: publicFields }));

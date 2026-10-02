@@ -58,6 +58,7 @@ model Workspace {
 
   subscription Subscription?
   payments     Payment[]
+  invitations  Invitation[]
 }
 
 model User {
@@ -85,6 +86,7 @@ model User {
   notified      Notification[] @relation("NotificationActor")
   cardReads     CardRead[]
   attachments   Attachment[]
+  passwordResets PasswordReset[]
 
   @@index([workspaceId])
 }
@@ -463,4 +465,35 @@ model Payment {
   paidAt        DateTime?
 
   @@index([workspaceId, createdAt])
+}
+
+// ---- Invitations and password reset ----
+
+// Only the SHA-256 of a token is stored; the token itself goes into the link.
+model Invitation {
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  email       String
+  role        UserRole  @default(MEMBER)
+  roleId      String?
+  invitedById String
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([workspaceId, acceptedAt])
+}
+
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
 }

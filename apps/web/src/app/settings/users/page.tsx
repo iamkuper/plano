@@ -1,23 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Copy, Mail, Plus } from "lucide-react";
 import type { RoleDto, UserDto, UserRole } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Avatar } from "@/components/avatar";
 import { Badge, Button, Dialog, Field, PageHeader, Panel, td, th, tr, TableSkeleton, Input, Select } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, type InvitationDto } from "@/lib/api";
 import { toast } from "@/lib/toast";
 
 // One select for both kinds of role: "ADMIN" (built in) or a custom role id.
 const ADMIN = "ADMIN";
 const roleValue = (u: Pick<UserDto, "role" | "roleId">) => (u.role === "ADMIN" ? ADMIN : (u.roleId ?? ""));
-const rolePatch = (value: string): { role: UserRole; roleId?: string } => (value === ADMIN ? { role: "ADMIN" } : { role: "MEMBER", roleId: value });
+const MEMBER = "MEMBER";
+const rolePatch = (value: string): { role: UserRole; roleId?: string } =>
+  value === ADMIN ? { role: "ADMIN" } : value === MEMBER ? { role: "MEMBER" } : { role: "MEMBER", roleId: value };
 
-function RoleOptions({ roles }: { roles: RoleDto[] }) {
+function RoleOptions({ roles, withMember }: { roles: RoleDto[]; withMember?: boolean }) {
   return (
     <>
+      {withMember && <option value={MEMBER}>Участник без дополнительных прав</option>}
       <option value={ADMIN}>Администратор</option>
       {roles.map((r) => (
         <option key={r.id} value={r.id}>
@@ -28,11 +31,77 @@ function RoleOptions({ roles }: { roles: RoleDto[] }) {
   );
 }
 
+function InviteDialog({ roles, onClose, onInvited }: { roles: RoleDto[]; onClose: () => void; onInvited: () => void }) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState(() => roles.find((r) => r.isDefault)?.id ?? roles[0]?.id ?? MEMBER);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ link: string; emailSent: boolean; email: string } | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      setResult(await api.invite({ email, ...rolePatch(role) }));
+      onInvited();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (result) {
+    return (
+      <Dialog title="Приглашение создано" description={result.emailSent ? `Письмо отправлено на ${result.email}` : "Письмо не отправлено: почта на сервере не настроена. Передайте ссылку сами"} onClose={onClose}>
+        <div className="space-y-4">
+          <Field label="Ссылка-приглашение" hint="Действует 7 дней, срабатывает один раз">
+            {(a) => <Input {...a} readOnly value={result.link} onFocus={(e) => e.currentTarget.select()} />}
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button
+              onClick={async () => {
+                await navigator.clipboard?.writeText(result.link).catch(() => {});
+                toast("Ссылка скопирована", "success");
+              }}
+            >
+              <Copy size={15} /> Скопировать
+            </Button>
+            <Button variant="primary" onClick={onClose}>Готово</Button>
+          </div>
+        </div>
+      </Dialog>
+    );
+  }
+
+  return (
+    <Dialog title="Пригласить сотрудника" description="Человек получит ссылку, по которой сам задаст имя и пароль" onClose={onClose}>
+      <form onSubmit={submit} className="space-y-4">
+        <Field label="Почта" error={error}>
+          {(a) => <Input {...a} type="email" invalid={!!error} value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />}
+        </Field>
+        <Field label="Роль">
+          {(a) => (
+            <Select {...a} value={role} onChange={(e) => setRole(e.target.value)}>
+              <RoleOptions roles={roles} withMember />
+            </Select>
+          )}
+        </Field>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button type="button" onClick={onClose}>Отмена</Button>
+          <Button variant="primary" loading={busy}>Пригласить</Button>
+        </div>
+      </form>
+    </Dialog>
+  );
+}
+
 function NewUserDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [role, setRole] = useState(() => roles.find((r) => r.isDefault)?.id ?? roles[0]?.id ?? ADMIN);
+  const [role, setRole] = useState(() => roles.find((r) => r.isDefault)?.id ?? roles[0]?.id ?? MEMBER);
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
@@ -74,7 +143,7 @@ function NewUserDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onClos
         <Field label="Роль">
           {(a) => (
             <Select {...a} value={role} onChange={(e) => setRole(e.target.value)}>
-              <RoleOptions roles={roles} />
+              <RoleOptions roles={roles} withMember />
             </Select>
           )}
         </Field>
@@ -133,6 +202,8 @@ export default function UsersPage() {
   const [users, setUsers] = useState<UserDto[] | null>(null);
   const [me, setMe] = useState<UserDto | null>(null);
   const [creating, setCreating] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const [invitations, setInvitations] = useState<InvitationDto[]>([]);
   const [resetting, setResetting] = useState<UserDto | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [roles, setRoles] = useState<RoleDto[]>([]);
@@ -140,6 +211,7 @@ export default function UsersPage() {
   const load = useCallback(() => {
     api.users().then(setUsers).catch(() => {});
     api.roles().then(setRoles).catch(() => {});
+    api.invitations().then(setInvitations).catch(() => {});
   }, []);
   useEffect(() => {
     load();
@@ -165,9 +237,14 @@ export default function UsersPage() {
         meta={<SettingsTabs />}
         actions={
           isAdmin && (
-            <Button variant="primary" onClick={() => setCreating(true)}>
-              <Plus size={15} /> Новый сотрудник
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={() => setCreating(true)}>
+                <Plus size={15} /> Новый сотрудник
+              </Button>
+              <Button variant="primary" onClick={() => setInviting(true)}>
+                <Mail size={15} /> Пригласить
+              </Button>
+            </div>
           )
         }
       />
@@ -238,6 +315,37 @@ export default function UsersPage() {
         </table>
       </Panel>
       )}
+      {isAdmin && invitations.length > 0 && (
+        <Panel className="mb-5 overflow-hidden">
+          <div className="border-b border-border px-4 py-2.5 text-sm font-medium">Приглашения</div>
+          <table className="w-full border-collapse">
+            <tbody>
+              {invitations.map((i) => (
+                <tr key={i.id} className={tr}>
+                  <td className={td}>{i.email}</td>
+                  <td className={`${td} text-ink-faint`}>
+                    {i.role === "ADMIN" ? "Администратор" : (roles.find((r) => r.id === i.roleId)?.name ?? "Без роли")}
+                  </td>
+                  <td className={`${td} text-ink-faint`}>до {new Date(i.expiresAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</td>
+                  <td className={`${td} text-right`}>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={async () => {
+                        await api.revokeInvitation(i.id).catch((e) => toast((e as Error).message, "error"));
+                        load();
+                      }}
+                    >
+                      Отозвать
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Panel>
+      )}
+      {inviting && <InviteDialog roles={roles} onClose={() => setInviting(false)} onInvited={load} />}
       {creating && <NewUserDialog roles={roles} onClose={() => setCreating(false)} onCreated={load} />}
       {resetting && <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />}
     </AppShell>

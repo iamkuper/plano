@@ -40,6 +40,11 @@ export default function LoginPage() {
       {error && <p className="text-base text-danger">{error}</p>}
       <Button variant="primary" className="w-full py-2.5">Войти</Button>
       <p className="text-center text-xs text-ink-faint">
+        <Link href="/forgot" className="font-medium text-accent hover:underline">
+          Забыли пароль?
+        </Link>
+      </p>
+      <p className="text-center text-xs text-ink-faint">
         Нет аккаунта?{" "}
         <Link href="/register" className="font-medium text-accent hover:underline">
           Создать рабочее пространство
