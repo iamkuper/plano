@@ -1,22 +1,31 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
+import { currentWorkspaceId } from "../prisma/tenant";
 import { UpdateSettingsDto } from "./settings.dto";
 
-// Single-row workspace settings (id = 1), created on first read if missing.
+// Settings of the current workspace (name, card prefix, default stages).
 @Injectable()
 export class SettingsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  get() {
-    return this.prisma.settings.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
+  private get id() {
+    return currentWorkspaceId()!;
   }
 
-  update(dto: UpdateSettingsDto) {
-    const data = {
-      ...dto,
-      cardPrefix: dto.cardPrefix?.toUpperCase(),
-      defaultColumns: dto.defaultColumns?.map((c) => c.trim()).filter(Boolean),
-    };
-    return this.prisma.settings.upsert({ where: { id: 1 }, update: data, create: { id: 1, ...data } });
+  async get() {
+    const { id, name, cardPrefix, defaultColumns, updatedAt } = await this.prisma.workspace.findUniqueOrThrow({ where: { id: this.id } });
+    return { id, workspaceName: name, cardPrefix, defaultColumns, updatedAt };
+  }
+
+  async update(dto: UpdateSettingsDto) {
+    await this.prisma.workspace.update({
+      where: { id: this.id },
+      data: {
+        name: dto.workspaceName,
+        cardPrefix: dto.cardPrefix?.toUpperCase(),
+        defaultColumns: dto.defaultColumns?.map((c) => c.trim()).filter(Boolean),
+      },
+    });
+    return this.get();
   }
 }

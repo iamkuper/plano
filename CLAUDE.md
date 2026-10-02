@@ -11,3 +11,4 @@
 - UI: эталон Linear, профиль дизайна — `.ux-profile.md`. Цвета только через токены `apps/web/src/design/tokens.ts` (акцент и меню #2B2F33). Тексты интерфейса на русском, сухой тон.
 - Проверять интерфейс в браузере и скриншотами можно.
 - В облаке (Claude Code on the web) окружение готовит хук SessionStart из `.claude/settings.json`: он запускает `scripts/cloud-setup.sh`, лог — `/tmp/plano-setup.log`. Если база или зависимости не поднялись, посмотреть лог и запустить скрипт вручную.
+- Мультитенантность: сервисы получают `PrismaService` (скоуп по рабочему пространству, `src/prisma/tenant.ts`). Новая модель — добавить в `SCOPE` (и в `PARENTS`, если есть внешние ключи). Создавая запись User/Project/Card/Template/Role, подмешивать `OWN_FIELDS`/`CARD_FIELDS`. `SystemPrismaService` — только для логина, планировщика и подписанных ссылок. После изменений в доступе к данным: `node apps/api/test/isolation.mjs` на запущенном API.

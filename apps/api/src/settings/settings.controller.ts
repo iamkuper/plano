@@ -8,8 +8,8 @@ import { SettingsService } from "./settings.service";
 export class SettingsController {
   constructor(private readonly settings: SettingsService) {}
 
-  // Public: the login page shows the workspace name. Nothing sensitive here.
   @Get()
+  @UseGuards(JwtAuthGuard)
   get() {
     return this.settings.get();
   }

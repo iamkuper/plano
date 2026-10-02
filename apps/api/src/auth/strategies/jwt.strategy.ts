@@ -1,7 +1,7 @@
 import { Injectable, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
-import { PrismaService } from "../../prisma/prisma.service";
+import { SystemPrismaService } from "../../prisma/system-prisma.service";
 import type { AuthenticatedUser } from "../current-user.decorator";
 
 export interface JwtPayload {
@@ -11,7 +11,7 @@ export interface JwtPayload {
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(private readonly prisma: PrismaService) {
+  constructor(private readonly prisma: SystemPrismaService) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -27,6 +27,6 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!user?.isActive) {
       throw new UnauthorizedException();
     }
-    return { userId: user.id, email: user.email, role: user.role, permissions: user.customRole?.permissions ?? [] };
+    return { userId: user.id, workspaceId: user.workspaceId, email: user.email, role: user.role, permissions: user.customRole?.permissions ?? [] };
   }
 }

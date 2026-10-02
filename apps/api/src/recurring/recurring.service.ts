@@ -2,6 +2,8 @@ import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } 
 import type { RecurringRule } from "@prisma/client";
 import { NotificationsService } from "../notifications/notifications.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { SystemPrismaService } from "../prisma/system-prisma.service";
+import { CARD_FIELDS, runInWorkspace } from "../prisma/tenant";
 import { RealtimeService } from "../realtime/realtime.service";
 import { SaveRecurringDto } from "./recurring.dto";
 import { firstRun, nextRun } from "./schedule";
@@ -14,6 +16,8 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
 
   constructor(
     private readonly prisma: PrismaService,
+    // The scheduler looks across all workspaces, then works inside each one.
+    private readonly system: SystemPrismaService,
     private readonly realtime: RealtimeService,
     private readonly notifications: NotificationsService,
   ) {}
@@ -84,6 +88,7 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
     const due = rule.dueInDays != null ? new Date(runAt.getTime() + rule.dueInDays * 86_400_000) : null;
     const card = await this.prisma.card.create({
       data: {
+        ...CARD_FIELDS,
         projectId: rule.projectId,
         columnId: column.id,
         title: rule.title,
@@ -111,14 +116,17 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
     this.running = true;
     try {
       const now = new Date();
-      const due = await this.prisma.recurringRule.findMany({
+      const due = await this.system.recurringRule.findMany({
         where: { active: true, nextRunAt: { lte: now }, project: { status: { in: ["ACTIVE", "ON_HOLD"] } } },
+        include: { project: { select: { workspaceId: true } } },
       });
-      for (const rule of due) {
-        await this.createCard(rule, rule.nextRunAt);
-        let next = nextRun(rule, rule.nextRunAt);
-        while (next <= now) next = nextRun(rule, next);
-        await this.prisma.recurringRule.update({ where: { id: rule.id }, data: { lastRunAt: now, nextRunAt: next } });
+      for (const { project, ...rule } of due) {
+        await runInWorkspace(project.workspaceId, async () => {
+          await this.createCard(rule, rule.nextRunAt);
+          let next = nextRun(rule, rule.nextRunAt);
+          while (next <= now) next = nextRun(rule, next);
+          await this.prisma.recurringRule.update({ where: { id: rule.id }, data: { lastRunAt: now, nextRunAt: next } });
+        });
       }
       if (due.length) this.log.log(`Created ${due.length} recurring card(s)`);
     } catch (e) {

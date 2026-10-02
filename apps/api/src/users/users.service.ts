@@ -1,8 +1,10 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
 import { PrismaService } from "../prisma/prisma.service";
+import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
+import { OWN_FIELDS } from "../prisma/tenant";
 
 const publicFields = {
   id: true,
@@ -37,7 +39,11 @@ const AVATAR_MAX = 1_500_000; // chars of the data URL
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // Email is unique across workspaces, so availability is checked globally.
+    private readonly system: SystemPrismaService,
+  ) {}
 
   async list() {
     return (await this.prisma.user.findMany({ select: publicFields, orderBy: { name: "asc" } })).map(toDto);
@@ -50,13 +56,14 @@ export class UsersService {
   }
 
   async create(dto: CreateUserDto) {
-    if (await this.prisma.user.findUnique({ where: { email: dto.email } })) {
+    if (await this.system.user.findUnique({ where: { email: dto.email } })) {
       throw new ConflictException("Пользователь с такой почтой уже существует");
     }
     const role = dto.role ?? "MEMBER";
     const roleId = role === "ADMIN" ? null : (dto.roleId ?? (await this.prisma.role.findFirst({ where: { isDefault: true } }))?.id ?? null);
     const user = await this.prisma.user.create({
       data: {
+        ...OWN_FIELDS,
         email: dto.email,
         name: dto.name,
         role,
@@ -70,7 +77,7 @@ export class UsersService {
 
   async updateMe(userId: string, data: { name?: string; email?: string }) {
     if (data.email) {
-      const taken = await this.prisma.user.findFirst({ where: { email: data.email, id: { not: userId } } });
+      const taken = await this.system.user.findFirst({ where: { email: data.email, id: { not: userId } } });
       if (taken) throw new ConflictException("Эта почта уже занята другим сотрудником");
     }
     return toDto(await this.prisma.user.update({ where: { id: userId }, data, select: publicFields }));

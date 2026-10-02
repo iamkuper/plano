@@ -4,6 +4,7 @@ import { PERMISSIONS } from "@amo-kanban/shared";
 import { AdminGuard } from "../auth/guards/admin.guard";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PrismaService } from "../prisma/prisma.service";
+import { OWN_FIELDS } from "../prisma/tenant";
 
 const KEYS = PERMISSIONS.map((p) => p.key);
 
@@ -59,7 +60,7 @@ export class RolesController {
     const name = dto.name.trim();
     await this.assertFree(name);
     const first = (await this.prisma.role.count()) === 0;
-    return this.prisma.role.create({ data: { name, permissions: dto.permissions ?? [], isDefault: first }, include: withCount });
+    return this.prisma.role.create({ data: { ...OWN_FIELDS, name, permissions: dto.permissions ?? [], isDefault: first }, include: withCount });
   }
 
   @Patch(":id")

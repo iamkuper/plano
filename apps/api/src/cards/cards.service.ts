@@ -10,6 +10,7 @@ import { CreateCardDto } from "./dto/create-card.dto";
 import { UpdateCardDto } from "./dto/update-card.dto";
 import { MoveCardDto } from "./dto/move-card.dto";
 import { BulkCardsDto } from "./dto/bulk.dto";
+import { CARD_FIELDS } from "../prisma/tenant";
 
 @Injectable()
 export class CardsService {
@@ -29,6 +30,14 @@ export class CardsService {
     });
     const { count } = await this.prisma.notification.updateMany({ where: { userId, cardId, readAt: null }, data: { readAt: new Date() } });
     if (count) this.realtime.notify(userId);
+  }
+
+  // Assignees must be people of this workspace.
+  private async assertUsers(ids: string[] | undefined) {
+    const unique = [...new Set(ids ?? [])];
+    if (unique.length && (await this.prisma.user.count({ where: { id: { in: unique } } })) !== unique.length) {
+      throw new BadRequestException("Исполнитель не найден");
+    }
   }
 
   private log(cardId: string, userId: string, action: string, payload?: Prisma.InputJsonValue) {
@@ -86,6 +95,7 @@ export class CardsService {
       include: { board: { select: { projectId: true } } },
     });
     if (!column) throw new NotFoundException("Колонка не найдена");
+    await this.assertUsers(dto.assigneeIds);
 
     const last = await this.prisma.card.findFirst({
       where: { columnId: dto.columnId },
@@ -93,6 +103,7 @@ export class CardsService {
     });
     const card = await this.prisma.card.create({
       data: {
+        ...CARD_FIELDS,
         projectId: column.board.projectId,
         columnId: dto.columnId,
         title: dto.title,
@@ -114,6 +125,7 @@ export class CardsService {
 
   async update(id: string, dto: UpdateCardDto, userId: string) {
     const { assigneeIds, ...fields } = dto;
+    await this.assertUsers(assigneeIds);
     const before = assigneeIds
       ? (await this.prisma.cardAssignee.findMany({ where: { cardId: id }, select: { userId: true } })).map((a) => a.userId)
       : [];

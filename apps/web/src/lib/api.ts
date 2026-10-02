@@ -135,8 +135,8 @@ export interface CardPatch {
 
 export const api = {
   login: (email: string, password: string) => post<{ accessToken: string }>("/auth/login", { email, password }),
-  setup: (name: string, email: string, password: string) =>
-    post<{ accessToken: string }>("/auth/setup", { name, email, password }),
+  register: (workspaceName: string, name: string, email: string, password: string) =>
+    post<{ accessToken: string }>("/auth/register", { workspaceName, name, email, password }),
   me: () => apiFetch<UserDto>("/users/me"),
   users: () => apiFetch<UserDto[]>("/users"),
 

@@ -1,14 +1,15 @@
-import { ForbiddenException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
-import { PrismaService } from "../prisma/prisma.service";
+import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { LoginDto } from "./dto/login.dto";
-import { SetupDto } from "./dto/setup.dto";
+import { templateCreateData } from "../templates/default-template";
+import { RegisterDto } from "./dto/register.dto";
 
 @Injectable()
 export class AuthService {
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: SystemPrismaService,
     private readonly jwt: JwtService,
   ) {}
 
@@ -17,18 +18,20 @@ export class AuthService {
     return { accessToken };
   }
 
-  // One-time bootstrap: the very first user becomes ADMIN. After that, users
-  // are only created by an admin via POST /users — there is no open sign-up.
-  async setup(dto: SetupDto) {
-    if ((await this.prisma.user.count()) > 0) {
-      throw new ForbiddenException("Первый администратор уже создан");
+  // Open sign-up: creates a workspace together with its first administrator.
+  // Further staff are added by that administrator via POST /users.
+  async register(dto: RegisterDto) {
+    const email = dto.email.trim();
+    if (await this.prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } })) {
+      throw new ConflictException("Эта почта уже зарегистрирована");
     }
     const user = await this.prisma.user.create({
       data: {
-        email: dto.email,
-        name: dto.name,
+        email,
+        name: dto.name.trim(),
         passwordHash: await bcrypt.hash(dto.password, 10),
         role: "ADMIN",
+        workspace: { create: { name: dto.workspaceName.trim(), templates: { create: templateCreateData() } } },
       },
     });
     return this.issueToken(user.id, user.email);

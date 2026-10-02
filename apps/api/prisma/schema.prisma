@@ -7,8 +7,10 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Single-company app: no workspaces/tenants. ADMIN manages users,
-// templates; MEMBER works with boards and cards.
+// Multi-tenant: every top-level row (User, Project, Card, Template, Role)
+// belongs to a Workspace; the rest is reached through those. Isolation is
+// enforced in src/prisma/tenant.ts. ADMIN manages users and templates of
+// their workspace; MEMBER works with boards and cards.
 enum UserRole {
   ADMIN
   MEMBER
@@ -36,8 +38,30 @@ enum CardType {
   OTHER
 }
 
+model Workspace {
+  id             String   @id @default(cuid())
+  name           String   @default("Канбан")
+  // Card key prefix: TSK → TSK-12.
+  cardPrefix     String   @default("TSK")
+  // Last issued card number; keys are numbered per workspace.
+  cardCounter    Int      @default(0)
+  // Stages for new projects created without a template.
+  defaultColumns String[] @default(["Бэклог", "В работе", "На проверке", "Готово"])
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  users     User[]
+  projects  Project[]
+  cards     Card[]
+  templates Template[]
+  roles     Role[]
+}
+
 model User {
   id           String   @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Globally unique: one account belongs to one workspace.
   email        String   @unique
   passwordHash String
   name         String
@@ -58,10 +82,14 @@ model User {
   notified      Notification[] @relation("NotificationActor")
   cardReads     CardRead[]
   attachments   Attachment[]
+
+  @@index([workspaceId])
 }
 
 model Project {
   id          String        @id @default(cuid())
+  workspaceId String
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   title       String
   status      ProjectStatus @default(ACTIVE)
   startDate   DateTime?
@@ -73,6 +101,8 @@ model Project {
   board          Board?
   cards          Card[]
   recurringRules RecurringRule[]
+
+  @@index([workspaceId])
 }
 
 // A board belongs to a project. The team board is not stored — it is a view
@@ -104,7 +134,10 @@ model Column {
 model Card {
   id             String    @id @default(cuid())
   // Human-facing key, shown as AMO-<number> (like Jira issue keys).
-  number         Int       @unique @default(autoincrement())
+  workspaceId    String
+  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  // Per-workspace key number, assigned in src/prisma/tenant.ts.
+  number         Int
   projectId      String
   project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   columnId       String
@@ -131,6 +164,7 @@ model Card {
   reads         CardRead[]
   attachments   Attachment[]
 
+  @@unique([workspaceId, number])
   @@index([columnId, position])
   @@index([projectId])
 }
@@ -185,13 +219,17 @@ model TimeEntry {
 
 // Templates of a typical amoCRM implementation: columns + starter cards.
 model Template {
-  id        String   @id @default(cuid())
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   name      String
   // Column titles, in order, created on the new project's board.
   columns   String[]
   createdAt DateTime @default(now())
 
   cards TemplateCard[]
+
+  @@index([workspaceId])
 }
 
 model TemplateCard {
@@ -222,16 +260,6 @@ model ActivityLog {
 }
 
 // Workspace-wide settings: a single row with id = 1.
-model Settings {
-  id             Int      @id @default(1)
-  workspaceName  String   @default("Канбан")
-  // Card key prefix: TSK → TSK-12.
-  cardPrefix     String   @default("TSK")
-  // Stages for new projects created without a template.
-  defaultColumns String[] @default(["Бэклог", "В работе", "На проверке", "Готово"])
-  updatedAt      DateTime @updatedAt
-}
-
 enum NotificationType {
   ASSIGNED // you were made an assignee
   MENTIONED // @you in a discussion message
@@ -328,12 +356,16 @@ model RecurringRule {
 // (PERMISSIONS in @amo-kanban/shared). "Администратор" is the built-in
 // UserRole.ADMIN and isn't stored here.
 model Role {
-  id          String   @id @default(cuid())
-  name        String   @unique
+  id          String    @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
   permissions String[]
   // Given to new staff when no role is chosen.
   isDefault   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   users User[]
+
+  @@unique([workspaceId, name])
 }

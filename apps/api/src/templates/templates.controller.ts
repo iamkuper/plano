@@ -3,6 +3,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { PrismaService } from "../prisma/prisma.service";
 import { FromProjectDto, SaveTemplateDto } from "./templates.dto";
+import { OWN_FIELDS } from "../prisma/tenant";
 
 const clean = (dto: SaveTemplateDto) => ({
   name: dto.name.trim(),
@@ -43,7 +44,7 @@ export class TemplatesController {
   @RequirePermission("templates.manage")
   create(@Body() dto: SaveTemplateDto) {
     const { cards, ...data } = clean(dto);
-    return this.prisma.template.create({ data: { ...data, cards: { create: cards } } });
+    return this.prisma.template.create({ data: { ...OWN_FIELDS, ...data, cards: { create: cards } } });
   }
 
   @Put(":id")
@@ -82,6 +83,7 @@ export class TemplatesController {
     const cards = board.columns.flatMap((col) => col.cards);
     return this.prisma.template.create({
       data: {
+        ...OWN_FIELDS,
         name: dto.name.trim(),
         columns: board.columns.map((c) => c.title),
         cards: {

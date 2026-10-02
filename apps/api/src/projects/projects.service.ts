@@ -6,6 +6,7 @@ import { RealtimeService } from "../realtime/realtime.service";
 import { AttachmentsService } from "../attachments/attachments.service";
 import { CreateProjectDto } from "./dto/create-project.dto";
 import { UpdateProjectDto } from "./dto/update-project.dto";
+import { CARD_FIELDS, OWN_FIELDS } from "../prisma/tenant";
 
 @Injectable()
 export class ProjectsService {
@@ -55,26 +56,30 @@ export class ProjectsService {
 
     const columnTitles = template?.columns.length ? template.columns : (await this.settings.get()).defaultColumns;
 
-    return this.prisma.$transaction(async (tx) => {
-      const project = await tx.project.create({
-        data: {
-          title: dto.title,
-          startDate: dto.startDate,
-          deadline: dto.deadline,
-          hoursBudget: dto.hoursBudget,
-          board: {
-            create: {
-              columns: { create: columnTitles.map((title, i) => ({ title, position: i + 1 })) },
-            },
+    const project = await this.prisma.project.create({
+      data: {
+        ...OWN_FIELDS,
+        title: dto.title,
+        startDate: dto.startDate,
+        deadline: dto.deadline,
+        hoursBudget: dto.hoursBudget,
+        board: {
+          create: {
+            columns: { create: columnTitles.map((title, i) => ({ title, position: i + 1 })) },
           },
         },
-        include: { board: { include: { columns: { orderBy: { position: "asc" } } } } },
-      });
+      },
+      include: { board: { include: { columns: { orderBy: { position: "asc" } } } } },
+    });
 
+    // Not one transaction on purpose: the tenant scope validates each card's
+    // column in the workspace, which it can only see once committed.
+    try {
       const firstColumn = project.board!.columns[0];
       for (const [i, tc] of (template?.cards ?? []).entries()) {
-        await tx.card.create({
+        await this.prisma.card.create({
           data: {
+            ...CARD_FIELDS,
             projectId: project.id,
             columnId: firstColumn.id,
             title: tc.title,
@@ -86,9 +91,11 @@ export class ProjectsService {
           },
         });
       }
-
-      return project;
-    });
+    } catch (e) {
+      await this.prisma.project.delete({ where: { id: project.id } }).catch(() => {});
+      throw e;
+    }
+    return project;
   }
 
   async update(id: string, dto: UpdateProjectDto) {

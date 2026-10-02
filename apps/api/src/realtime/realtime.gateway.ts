@@ -10,6 +10,8 @@ import {
 } from "@nestjs/websockets";
 import type { Server, Socket } from "socket.io";
 import { PrismaService } from "../prisma/prisma.service";
+import { SystemPrismaService } from "../prisma/system-prisma.service";
+import { runInWorkspace } from "../prisma/tenant";
 
 // Rooms: user:<id> (personal: notifications), project:<id> (board), card:<id>
 // (card window). Events carry ids only; clients refetch what they show.
@@ -23,6 +25,7 @@ export class RealtimeGateway implements OnGatewayConnection {
   constructor(
     private readonly jwt: JwtService,
     private readonly prisma: PrismaService,
+    private readonly system: SystemPrismaService,
   ) {}
 
   // Auth runs async; "join" messages can arrive before it finishes, so they
@@ -35,9 +38,10 @@ export class RealtimeGateway implements OnGatewayConnection {
     try {
       const token = (client.handshake.auth as { token?: string })?.token;
       const payload = await this.jwt.verifyAsync<{ sub: string }>(token ?? "");
-      const user = await this.prisma.user.findUnique({ where: { id: payload.sub } });
+      const user = await this.system.user.findUnique({ where: { id: payload.sub } });
       if (!user?.isActive) throw new Error("inactive");
       client.data.userId = user.id;
+      client.data.workspaceId = user.workspaceId;
       await client.join(`user:${user.id}`);
       return true;
     } catch {
@@ -49,7 +53,13 @@ export class RealtimeGateway implements OnGatewayConnection {
   @SubscribeMessage("join")
   async join(@ConnectedSocket() client: Socket, @MessageBody() room: string) {
     if (!(await client.data.ready)) return;
-    if (typeof room === "string" && ROOM_RE.test(room)) await client.join(room);
+    if (typeof room !== "string" || !ROOM_RE.test(room)) return;
+    // Only rooms of the user's own workspace.
+    const [kind, id] = room.split(":");
+    const exists = await runInWorkspace(client.data.workspaceId, () =>
+      kind === "project" ? this.prisma.project.count({ where: { id } }) : this.prisma.card.count({ where: { id } }),
+    );
+    if (exists) await client.join(room);
   }
 
   @SubscribeMessage("leave")

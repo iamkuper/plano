@@ -5,6 +5,7 @@ import { unlink } from "fs/promises";
 import { extname, join, resolve } from "path";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { PrismaService } from "../prisma/prisma.service";
+import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
 
 // Outside dist/ on purpose: the build wipes dist. The API runs from apps/api,
@@ -36,6 +37,8 @@ export function withUrl<T extends Row>(a: T) {
 export class AttachmentsService {
   constructor(
     private readonly prisma: PrismaService,
+    // Signed file links carry no session, so they read through the system client.
+    private readonly system: SystemPrismaService,
     private readonly realtime: RealtimeService,
   ) {}
 
@@ -64,7 +67,7 @@ export class AttachmentsService {
     if (!expires || expires < Date.now() || expected.length !== given.length || !timingSafeEqual(expected, given)) {
       throw new ForbiddenException("Ссылка устарела — откройте карточку заново");
     }
-    const row = await this.prisma.attachment.findUnique({ where: { id } });
+    const row = await this.system.attachment.findUnique({ where: { id } });
     if (!row) throw new NotFoundException("Файл не найден");
     return { row, path: join(UPLOAD_DIR, row.storageKey) };
   }
