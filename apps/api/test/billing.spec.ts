@@ -450,3 +450,31 @@ describe("paid seats", () => {
     expect([renewal.status, renewal.seats]).toEqual(["PAID", 4]);
   });
 });
+
+describe("users beyond the paid seats", () => {
+  it("locks out the newest extra users and flags them in the staff list", async () => {
+    const a = await register(t, "overseat");
+    const extra = [];
+    for (let i = 0; i < 2; i++) {
+      const email = `${unique("o")}@iso.test`;
+      await api(t, a.token).post("/users", { email, name: `O${i}`, password: "password-123" }).expect(201);
+      extra.push(email);
+    }
+    // 3 active users, but only 2 seats paid (e.g. an old subscription)
+    await setPlan(t, a.workspaceId, "PRO");
+    await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { seats: 2 } });
+    billing.forgetSeats(a.workspaceId);
+
+    const list = (await api(t, a.token).get("/users").expect(200)).body as { email: string; overSeat: boolean }[];
+    expect(list.filter((u) => u.overSeat).map((u) => u.email)).toEqual([extra[1]]);
+    const server = t.app.getHttpServer();
+    const refused = await request(server).post("/auth/login").send({ email: extra[1], password: "password-123" }).expect(403);
+    expect(refused.body.message).toContain("нет оплаченного места");
+    await request(server).post("/auth/login").send({ email: extra[0], password: "password-123" }).expect(201);
+
+    // freeing a seat lets them back in
+    const first = (await t.db.user.findUniqueOrThrow({ where: { email: extra[0] } })).id;
+    await api(t, a.token).patch(`/users/${first}`, { isActive: false }).expect(200);
+    await request(server).post("/auth/login").send({ email: extra[1], password: "password-123" }).expect(201);
+  });
+});

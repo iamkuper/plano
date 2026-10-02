@@ -71,6 +71,34 @@ export class BillingService {
     return plan.maxUsers;
   }
 
+  // Active users beyond the paid seats. Seats go to administrators first,
+  // then by who joined earlier, so the newest extra people are the ones
+  // left out. Cached briefly: the auth check calls this on every request.
+  private overSeatCache = new Map<string, { at: number; ids: Set<string> }>();
+  async overSeatIds(workspaceId: string): Promise<Set<string>> {
+    const hit = this.overSeatCache.get(workspaceId);
+    if (hit && Date.now() - hit.at < 5000) return hit.ids;
+    const sub = await this.db.subscription.findUnique({ where: { workspaceId } });
+    const plan = await this.effectivePlan(workspaceId, sub);
+    const max = this.seatLimit(sub, plan);
+    let ids = new Set<string>();
+    if (max !== null) {
+      const users = await this.db.user.findMany({
+        where: { workspaceId, isActive: true },
+        orderBy: [{ role: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, role: true },
+      });
+      // UserRole enum order is ADMIN, MEMBER, so "asc" puts admins first.
+      ids = new Set(users.slice(max).map((u) => u.id));
+    }
+    this.overSeatCache.set(workspaceId, { at: Date.now(), ids });
+    return ids;
+  }
+
+  forgetSeats(workspaceId: string) {
+    this.overSeatCache.delete(workspaceId);
+  }
+
   // Throws 402 unless one more active user fits. `invitations` reserve seats
   // too, except when the person accepting one is that reservation.
   async assertSeat(workspaceId: string, { countInvitations }: { countInvitations: boolean }) {
@@ -241,6 +269,7 @@ export class BillingService {
   }
 
   private async activate(payment: Payment, n?: Pick<PaymentNotification, "rebillId" | "cardMask">) {
+    this.forgetSeats(payment.workspaceId);
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId: payment.workspaceId } });
     const now = new Date();
     // A renewal continues the paid period; a first payment starts it now.
@@ -288,6 +317,7 @@ export class BillingService {
 
   // Trial or paid period over and not renewed: read-only until paid.
   private async lock(workspaceId: string) {
+    this.forgetSeats(workspaceId);
     await this.db.subscription.update({
       where: { workspaceId },
       data: { status: "LOCKED", cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null },
@@ -299,6 +329,7 @@ export class BillingService {
   // Existing data stays; only creating beyond the Free limits is refused.
   async switchToFree() {
     const workspaceId = this.ws;
+    this.forgetSeats(workspaceId);
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId } });
     const paidActive = sub.planId !== "FREE" && sub.status !== "TRIALING" && sub.status !== "LOCKED" && !isLocked(sub);
     if (paidActive) throw new BadRequestException("Оплаченный тариф действует до конца периода. Отключите продление, и после него начнётся бесплатный");

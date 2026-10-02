@@ -88,6 +88,8 @@ export interface UserDto {
   isActive: boolean;
   avatarUrl?: string | null;
   emailNotifications?: boolean;
+  // Active but beyond the paid seats: can't sign in (staff list only).
+  overSeat?: boolean;
 }
 
 export interface UserRefDto {

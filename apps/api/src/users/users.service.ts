@@ -6,6 +6,7 @@ import { CreateUserDto } from "./dto/create-user.dto";
 import { UpdateUserDto } from "./dto/update-user.dto";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { BillingService } from "../billing/billing.service";
+import { currentWorkspaceId } from "../prisma/tenant";
 import { AuditService } from "../audit/audit.service";
 
 const publicFields = {
@@ -50,8 +51,20 @@ export class UsersService {
     private readonly audit: AuditService,
   ) {}
 
+  // Active users beyond the paid seats (they can't sign in).
+  private overSeat() {
+    const ws = currentWorkspaceId();
+    return ws ? this.billing.overSeatIds(ws) : Promise.resolve(new Set<string>());
+  }
+
+  private forgetSeats() {
+    const ws = currentWorkspaceId();
+    if (ws) this.billing.forgetSeats(ws);
+  }
+
   async list() {
-    return (await this.prisma.user.findMany({ select: publicFields, orderBy: { name: "asc" } })).map(toDto);
+    const [users, over] = await Promise.all([this.prisma.user.findMany({ select: publicFields, orderBy: { name: "asc" } }), this.overSeat()]);
+    return users.map((u) => ({ ...toDto(u), overSeat: over.has(u.id) }));
   }
 
   async me(userId: string) {
@@ -67,6 +80,7 @@ export class UsersService {
     }
     const role = dto.role ?? "MEMBER";
     const roleId = role === "ADMIN" ? null : (dto.roleId ?? (await this.prisma.role.findFirst({ where: { isDefault: true } }))?.id ?? null);
+    this.forgetSeats();
     const user = await this.prisma.user.create({
       data: {
         ...OWN_FIELDS,
@@ -116,6 +130,7 @@ export class UsersService {
     if (dto.isActive === true && (await this.prisma.user.findFirst({ where: { id, isActive: false }, select: { id: true } }))) {
       await this.billing.assertWithin("users");
     }
+    this.forgetSeats();
     // Picking a custom role makes the user a MEMBER of it.
     const data = dto.roleId ? { ...dto, role: "MEMBER" as const } : dto;
     const updated = await this.prisma.user.update({ where: { id }, data, select: publicFields });

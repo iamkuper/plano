@@ -14,22 +14,24 @@ import { api, type TemplateCardInput, type TemplateInput } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { plural } from "@/components/board-toolbar";
 
-type DraftCard = TemplateCardInput & { key: string; checklistText: string };
+type DraftItem = { key: string; text: string };
+type DraftCard = Omit<TemplateCardInput, "checklist"> & { key: string; checklist: DraftItem[] };
 type Draft = { name: string; columns: string[]; cards: DraftCard[] };
 
 let seq = 0;
-const toDraftCard = (c: TemplateCardInput): DraftCard => ({ ...c, key: `c${++seq}`, checklistText: c.checklist.join("\n") });
+const toDraftItem = (text: string): DraftItem => ({ key: `i${++seq}`, text });
+const toDraftCard = (c: TemplateCardInput): DraftCard => ({ ...c, key: `c${++seq}`, checklist: c.checklist.map(toDraftItem) });
 const EMPTY: Draft = { name: "", columns: ["Бэклог", "В работе", "На проверке", "Готово"], cards: [] };
 
 function toInput(d: Draft): TemplateInput {
   return {
     name: d.name.trim(),
     columns: d.columns.map((c) => c.trim()).filter(Boolean),
-    cards: d.cards.map(({ key: _k, checklistText, ...c }) => ({
+    cards: d.cards.map(({ key: _k, checklist, ...c }) => ({
       ...c,
       title: c.title.trim(),
       description: c.description?.trim() || null,
-      checklist: checklistText.split("\n").map((t) => t.trim()).filter(Boolean),
+      checklist: checklist.map((i) => i.text.trim()).filter(Boolean),
     })),
   };
 }
@@ -38,6 +40,82 @@ function swap<T>(list: T[], i: number, j: number) {
   const next = [...list];
   [next[i], next[j]] = [next[j], next[i]];
   return next;
+}
+
+// Same look as subtasks in the card window: a row per item, edited in place,
+// and an "add" row at the bottom. Enter adds; pasting several lines adds them all.
+function SubtasksEditor({ items, readOnly, onChange }: { items: DraftItem[]; readOnly: boolean; onChange: (items: DraftItem[]) => void }) {
+  const [draft, setDraft] = useState("");
+  const add = (texts: string[]) => {
+    const clean = texts.map((t) => t.trim()).filter(Boolean);
+    if (clean.length) onChange([...items, ...clean.map(toDraftItem)]);
+  };
+  return (
+    <div className="overflow-hidden rounded-lg border border-border">
+      {items.map((item, i) => (
+        <div key={item.key} className="group flex h-10 items-center gap-2 border-b border-border px-3 last:border-b-0">
+          <span className="grid size-4 shrink-0 place-items-center rounded-sm border border-border-strong" aria-hidden />
+          <input
+            aria-label={`Подзадача ${i + 1}`}
+            disabled={readOnly}
+            className="h-10 min-w-0 flex-1 bg-transparent text-base outline-none disabled:text-ink"
+            value={item.text}
+            onChange={(e) => onChange(items.map((x) => (x.key === item.key ? { ...x, text: e.target.value } : x)))}
+            onKeyDown={(e) => {
+              if (e.key === "Backspace" && !item.text) {
+                e.preventDefault();
+                onChange(items.filter((x) => x.key !== item.key));
+              }
+            }}
+          />
+          {!readOnly && (
+            <div className="flex shrink-0 items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
+              <IconButton size="sm" title="Выше" disabled={i === 0} onClick={() => onChange(swap(items, i, i - 1))}>
+                <ArrowUp size={14} />
+              </IconButton>
+              <IconButton size="sm" title="Ниже" disabled={i === items.length - 1} onClick={() => onChange(swap(items, i, i + 1))}>
+                <ArrowDown size={14} />
+              </IconButton>
+              <IconButton size="sm" title="Удалить подзадачу" onClick={() => onChange(items.filter((x) => x.key !== item.key))}>
+                <Trash2 size={14} strokeWidth={1.75} />
+              </IconButton>
+            </div>
+          )}
+        </div>
+      ))}
+      {!readOnly && (
+        <div className={`flex items-center gap-3 px-3 ${items.length ? "border-t border-border" : ""}`}>
+          <Plus size={16} strokeWidth={1.75} className="shrink-0 text-ink-ghost" />
+          <input
+            aria-label="Новая подзадача"
+            className="h-10 flex-1 bg-transparent text-base outline-none placeholder:text-ink-ghost"
+            placeholder="Добавить подзадачу"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                add([draft]);
+                setDraft("");
+              }
+            }}
+            onBlur={() => {
+              add([draft]);
+              setDraft("");
+            }}
+            onPaste={(e) => {
+              const lines = e.clipboardData.getData("text").split(/\r?\n/);
+              if (lines.length > 1) {
+                e.preventDefault();
+                add(lines);
+              }
+            }}
+          />
+        </div>
+      )}
+      {readOnly && !items.length && <p className="px-3 py-2.5 text-sm text-ink-ghost">Подзадач нет</p>}
+    </div>
+  );
 }
 
 function CardEditor({
@@ -59,7 +137,7 @@ function CardEditor({
 }) {
   const [open, setOpen] = useState(!card.title);
   const { icon: TypeIcon, color } = CARD_TYPE_STYLES[card.type];
-  const items = card.checklistText.split("\n").filter((t) => t.trim()).length;
+  const items = card.checklist.filter((i) => i.text.trim()).length;
   return (
     <div className="border-b border-border last:border-b-0">
       <div className="flex h-11 items-center gap-2 px-3">
@@ -117,16 +195,18 @@ function CardEditor({
               />
             )}
           </Field>
-          <div className="sm:col-span-2">
+          <div className="sm:col-span-3">
             <Field label="Описание">
               {(a) => <Textarea {...a} disabled={readOnly} className="min-h-[72px]" value={card.description ?? ""} onChange={(e) => onChange({ description: e.target.value })} />}
             </Field>
           </div>
-          <Field label="Чек-лист" hint="Пункт на строку">
-            {(a) => (
-              <Textarea {...a} disabled={readOnly} className="min-h-[72px]" value={card.checklistText} onChange={(e) => onChange({ checklistText: e.target.value })} />
-            )}
-          </Field>
+          <div className="sm:col-span-3">
+            <div className="mb-1.5 flex items-center gap-2 text-sm font-medium">
+              Подзадачи
+              {items > 0 && <span className="text-xs font-normal text-ink-ghost">{items}</span>}
+            </div>
+            <SubtasksEditor items={card.checklist} readOnly={readOnly} onChange={(checklist) => onChange({ checklist })} />
+          </div>
         </div>
       )}
     </div>

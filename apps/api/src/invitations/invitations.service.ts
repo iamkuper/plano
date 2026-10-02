@@ -69,6 +69,7 @@ export class InvitationsService {
 
   async preview(token: string) {
     const inv = await this.find(token);
+    this.billing.forgetSeats(inv.workspaceId);
     return { email: inv.email, workspaceName: inv.workspace.name };
   }
 

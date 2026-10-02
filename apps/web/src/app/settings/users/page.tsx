@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, Mail, Plus } from "lucide-react";
+import { Copy, Lock, Mail, Plus } from "lucide-react";
+import Link from "next/link";
 import type { RoleDto, UserDto, UserRole } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
@@ -254,6 +255,19 @@ export default function UsersPage() {
       <div className="h-5" />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
       {!users && <TableSkeleton />}
+      {users?.some((u) => u.overSeat) && (
+        <p className="mb-3 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          Активных сотрудников больше, чем оплачено мест. Отмеченные <Lock size={12} className="inline align-[-1px]" /> не могут войти, пока не{" "}
+          {isAdmin ? (
+            <Link href="/settings/billing" className="underline">
+              добавите места
+            </Link>
+          ) : (
+            "добавят места"
+          )}{" "}
+          или не отключите кого-то из остальных. Места достаются сначала администраторам, затем тем, кто в команде дольше.
+        </p>
+      )}
       {users && (
       <Panel className="mb-5 overflow-hidden">
         <table className="w-full border-collapse">
@@ -274,6 +288,16 @@ export default function UsersPage() {
                     <div>
                       <div className="font-medium">
                         {u.name}
+                        {u.overSeat && (
+                          <Lock
+                            size={13}
+                            strokeWidth={2}
+                            className="ml-1.5 inline align-[-1px] text-danger"
+                            aria-label="Нет оплаченного места"
+                          >
+                            <title>Нет оплаченного места: не может войти</title>
+                          </Lock>
+                        )}
                         {u.id === me?.id && <span className="ml-1.5 text-xs font-normal text-ink-faint">(вы)</span>}
                       </div>
                       <div className="text-xs text-ink-faint">{u.email}</div>
@@ -296,7 +320,11 @@ export default function UsersPage() {
                   )}
                 </td>
                 <td className={td}>
-                  <Badge tone={u.isActive ? "success" : "default"}>{u.isActive ? "Активен" : "Отключён"}</Badge>
+                  {u.overSeat ? (
+                    <Badge tone="danger">Нет места</Badge>
+                  ) : (
+                    <Badge tone={u.isActive ? "success" : "default"}>{u.isActive ? "Активен" : "Отключён"}</Badge>
+                  )}
                 </td>
                 {isAdmin && (
                   <td className={`${td} text-right`}>
