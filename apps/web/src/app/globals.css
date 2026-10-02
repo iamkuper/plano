@@ -77,3 +77,11 @@ select:focus-visible {
   .lp-rise, .lp-drift, .lp-float, .lp-grow, .lp-blink, .lp-typing > span, .lp-marquee { animation: none; }
   .lp-reveal { opacity: 1; transform: none; transition: none; }
 }
+
+/* Soft halo around the support chat button and the online dot. */
+@keyframes lp-pulse {
+  0% { transform: scale(1); opacity: 0.35; }
+  70%, 100% { transform: scale(1.35); opacity: 0; }
+}
+.lp-pulse { animation: lp-pulse 3.2s cubic-bezier(0.25, 0.6, 0.3, 1) infinite; }
+@media (prefers-reduced-motion: reduce) { .lp-pulse { animation: none; opacity: 0; } }

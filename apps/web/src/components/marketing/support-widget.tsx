@@ -89,7 +89,7 @@ export function SupportWidget() {
               <div className="font-medium">{MANAGER.name}</div>
               <div className="flex items-center gap-1.5 text-xs text-[#CDD0D4]">
                 <span className="relative flex size-2">
-                  <span className="absolute inset-0 animate-ping rounded-full bg-[#2FA36B] opacity-60 motion-reduce:hidden" />
+                  <span className="lp-pulse absolute inset-0 rounded-full bg-[#2FA36B]" />
                   <span className="relative size-2 rounded-full bg-[#2FA36B]" />
                 </span>
                 {MANAGER.role} · онлайн
@@ -159,7 +159,7 @@ export function SupportWidget() {
         aria-label={open ? "Закрыть чат" : "Написать в поддержку"}
         className="group relative grid size-14 place-items-center rounded-full bg-accent text-white shadow-lg shadow-black/20 transition-transform hover:scale-105"
       >
-        {!open && <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-accent/40 [animation-duration:2.5s] motion-reduce:hidden" />}
+        {!open && <span aria-hidden className="lp-pulse absolute inset-0 rounded-full bg-accent" />}
         {open ? <X size={22} /> : <MessageCircle size={24} strokeWidth={1.75} />}
         {!open && <span aria-hidden className="absolute right-0.5 top-0.5 size-3.5 rounded-full border-2 border-bg bg-[#2FA36B]" />}
       </button>
