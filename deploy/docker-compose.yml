@@ -1,0 +1,65 @@
+# Production stack on one server: Postgres, API, web, Caddy (HTTPS).
+# Run from this folder: docker compose up -d --build
+# Secrets and settings live in deploy/.env (not in git); see .env.example.
+name: plano
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: plano
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: plano
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plano -d plano"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  api:
+    build: { context: .., target: api }
+    restart: unless-stopped
+    env_file: api.env
+    environment:
+      DATABASE_URL: postgresql://plano:${POSTGRES_PASSWORD}@db:5432/plano?schema=public
+      PORT: "3101"
+      UPLOAD_DIR: /data/uploads
+    volumes:
+      - uploads:/data/uploads
+    depends_on:
+      db: { condition: service_healthy }
+
+  web:
+    build:
+      context: ..
+      target: web
+      args:
+        NEXT_PUBLIC_API_URL: https://api.${DOMAIN}
+        NEXT_PUBLIC_SITE_URL: https://${DOMAIN}
+        NEXT_PUBLIC_SUPPORT_TELEGRAM: ${SUPPORT_TELEGRAM:-}
+        NEXT_PUBLIC_SUPPORT_WHATSAPP: ${SUPPORT_WHATSAPP:-}
+        NEXT_PUBLIC_SUPPORT_EMAIL: ${SUPPORT_EMAIL:-}
+        NEXT_PUBLIC_YM_ID: ${YM_ID:-}
+    restart: unless-stopped
+    depends_on: [api]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api]
+
+volumes:
+  pgdata:
+  uploads:
+  caddy_data:
+  caddy_config:
