@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { goal } from "@/lib/analytics";
 import { api, setToken } from "@/lib/api";
@@ -58,6 +59,17 @@ export default function RegisterPage() {
       </Field>
       {error && <p className="text-base text-danger">{error}</p>}
       <Button variant="primary" className="w-full py-2.5">Создать</Button>
+      <p className="text-center text-xs leading-relaxed text-ink-ghost">
+        Нажимая «Создать», вы принимаете{" "}
+        <Link href="/legal/terms" target="_blank" className="underline hover:text-ink">
+          пользовательское соглашение
+        </Link>{" "}
+        и даёте{" "}
+        <Link href="/legal/consent" target="_blank" className="underline hover:text-ink">
+          согласие на обработку персональных данных
+        </Link>
+        .
+      </p>
     </AuthCard>
   );
 }

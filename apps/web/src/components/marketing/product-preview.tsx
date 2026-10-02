@@ -433,7 +433,7 @@ export function ProductPreview() {
           <span className="size-2.5 rounded-full bg-[#FF5F57]" />
           <span className="size-2.5 rounded-full bg-[#FEBC2E]" />
           <span className="size-2.5 rounded-full bg-[#28C840]" />
-          <span className="mx-auto hidden rounded-md bg-white px-10 py-0.5 text-[11px] text-[#9A9CA3] sm:block">plano.app/projects/crm</span>
+          <span className="mx-auto hidden rounded-md bg-white px-10 py-0.5 text-[11px] text-[#9A9CA3] sm:block">plano.team/projects/crm</span>
         </div>
         <div className="flex h-[480px] sm:h-[520px]">
           {/* Sidebar */}
