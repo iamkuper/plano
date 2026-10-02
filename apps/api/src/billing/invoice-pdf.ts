@@ -8,6 +8,8 @@ export interface Seller {
   name: string;
   inn: string;
   kpp?: string;
+  // ОГРН / ОГРНИП, printed after the INN.
+  ogrn?: string;
   address: string;
   bank: string;
   bik: string;
@@ -26,6 +28,7 @@ export function sellerFromEnv(env = process.env): Seller | null {
     name: env.SELLER_NAME,
     inn: env.SELLER_INN,
     kpp: env.SELLER_KPP || undefined,
+    ogrn: env.SELLER_OGRN || undefined,
     address: env.SELLER_ADDRESS ?? "",
     bank: env.SELLER_BANK ?? "",
     bik: env.SELLER_BIK,
@@ -109,7 +112,11 @@ export function renderInvoicePdf(seller: Seller, inv: InvoiceData): Promise<Buff
     text(value, L + 90, y, W - 90, { bold: true });
     y += doc.heightOfString(value, { width: W - 90 }) + 8;
   };
-  party("Поставщик:", [seller.name, `ИНН ${seller.inn}`, seller.kpp && `КПП ${seller.kpp}`, seller.address].filter(Boolean).join(", "));
+  const sole = seller.inn.length === 12; // ИП: 12-digit INN, ОГРНИП, signs alone
+  party(
+    "Поставщик:",
+    [seller.name, `ИНН ${seller.inn}`, seller.kpp && `КПП ${seller.kpp}`, seller.ogrn && `${sole ? "ОГРНИП" : "ОГРН"} ${seller.ogrn}`, seller.address].filter(Boolean).join(", "),
+  );
   party("Покупатель:", [inv.payer.name, `ИНН ${inv.payer.inn}`, inv.payer.kpp && `КПП ${inv.payer.kpp}`, inv.payer.address].filter(Boolean).join(", "));
   y += 6;
 
@@ -149,13 +156,16 @@ export function renderInvoicePdf(seller: Seller, inv: InvoiceData): Promise<Buff
   doc.moveTo(L, y).lineTo(L + W, y).lineWidth(1.5).stroke();
   y += 24;
 
-  const sign = (role: string, name?: string, x = L) => {
-    text(role, x, y, 90, { bold: true });
-    doc.moveTo(x + 90, y + 10).lineTo(x + 170, y + 10).lineWidth(0.6).stroke();
-    text(name ?? "", x + 175, y, 90);
+  const sign = (role: string, name: string | undefined, x: number, roleW = 90) => {
+    text(role, x, y, roleW, { bold: true });
+    doc.moveTo(x + roleW, y + 10).lineTo(x + roleW + 80, y + 10).lineWidth(0.6).stroke();
+    text(name ?? "", x + roleW + 85, y, 120);
   };
-  sign("Руководитель", seller.director);
-  sign("Бухгалтер", seller.accountant ?? seller.director, L + W / 2 + 10);
+  if (sole) sign("Индивидуальный предприниматель", seller.director, L, 205);
+  else {
+    sign("Руководитель", seller.director, L);
+    sign("Бухгалтер", seller.accountant ?? seller.director, L + W / 2 + 10);
+  }
   y += 40;
   text(`Оплата этого счёта означает согласие с условиями оказания услуг. Счёт действителен 10 ${plural(10, "день", "дня", "дней")}.`, L, y, W, { size: 7 });
 
