@@ -216,7 +216,7 @@ export const api = {
   deleteRole: (id: string) => del(`/roles/${id}`),
   updateSettings: (data: Partial<SettingsDto>) => patch<SettingsDto>("/settings", data),
 
-  updateMe: (data: Partial<{ name: string; email: string }>) => patch<UserDto>("/users/me", data),
+  updateMe: (data: Partial<{ name: string; email: string; emailNotifications: boolean }>) => patch<UserDto>("/users/me", data),
   changePassword: (currentPassword: string, newPassword: string) =>
     post<void>("/users/me/password", { currentPassword, newPassword }),
   setAvatar: (avatarUrl: string | null) =>

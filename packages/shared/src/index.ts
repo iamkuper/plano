@@ -85,6 +85,7 @@ export interface UserDto {
   permissions: Permission[];
   isActive: boolean;
   avatarUrl?: string | null;
+  emailNotifications?: boolean;
 }
 
 export interface UserRefDto {
@@ -261,7 +262,7 @@ export const CARD_FIELD_LABELS: Record<string, string> = {
   labelIds: "метки",
 };
 
-export type NotificationType = "ASSIGNED" | "MENTIONED" | "COMMENTED";
+export type NotificationType = "ASSIGNED" | "MENTIONED" | "COMMENTED" | "DUE_SOON" | "OVERDUE";
 
 export interface NotificationDto {
   id: string;
@@ -269,7 +270,8 @@ export interface NotificationDto {
   text: string | null;
   readAt: string | null;
   createdAt: string;
-  actor: UserRefDto;
+  // Null for system reminders.
+  actor: UserRefDto | null;
   card: { id: string; number: number; title: string; projectId: string };
 }
 

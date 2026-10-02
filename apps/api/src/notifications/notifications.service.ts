@@ -2,6 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
+import { MailableNotification, NotificationMailer } from "./notification-mailer";
 
 const excerpt = (text: string) => (text.length > 140 ? `${text.slice(0, 139)}…` : text);
 
@@ -10,6 +11,7 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
+    private readonly mailer: NotificationMailer,
   ) {}
 
   async list(userId: string) {
@@ -40,6 +42,8 @@ export class NotificationsService {
     if (!rows.length) return;
     await this.prisma.notification.createMany({ data: rows });
     for (const userId of new Set(rows.map((r) => r.userId))) this.realtime.notify(userId);
+    // Mail copies go out in the background.
+    void this.mailer.send(rows as MailableNotification[]);
   }
 
   // People newly added as assignees (the actor doesn't notify themselves).

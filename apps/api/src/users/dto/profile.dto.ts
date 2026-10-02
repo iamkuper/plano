@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString, MinLength, ValidateIf } from "class-validator";
+import { IsBoolean, IsEmail, IsOptional, IsString, MinLength, ValidateIf } from "class-validator";
 
 export class UpdateMeDto {
   @IsOptional()
@@ -9,6 +9,10 @@ export class UpdateMeDto {
   @IsOptional()
   @IsEmail({}, { message: "Укажите корректную почту" })
   email?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  emailNotifications?: boolean;
 }
 
 export class ChangePasswordDto {

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bell } from "lucide-react";
+import { Bell, Clock } from "lucide-react";
 import { cardKey, type NotificationDto } from "@amo-kanban/shared";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/card-filters";
@@ -14,6 +14,13 @@ const VERB: Record<NotificationDto["type"], string> = {
   ASSIGNED: "назначил(а) вас на",
   MENTIONED: "упомянул(а) вас в",
   COMMENTED: "написал(а) в",
+  DUE_SOON: "",
+  OVERDUE: "",
+};
+
+const SYSTEM_TEXT: Partial<Record<NotificationDto["type"], string>> = {
+  DUE_SOON: "Срок скоро наступит:",
+  OVERDUE: "Срок истёк:",
 };
 
 // Sidebar bell: assignments, @mentions and messages on your cards. Updates
@@ -80,10 +87,11 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
                   }}
                   className="flex w-full gap-2.5 rounded-md px-2 py-2 text-left transition-colors hover:bg-surface-soft"
                 >
-                  <Avatar user={n.actor} size={24} />
+                  {n.actor ? <Avatar user={n.actor} size={24} /> : <span className="grid size-6 shrink-0 place-items-center rounded-full bg-surface-sunken text-ink-faint"><Clock size={13} strokeWidth={1.75} /></span>}
                   <span className="min-w-0 flex-1">
                     <span className="block text-sm leading-5">
-                      <span className="font-medium">{n.actor.name}</span> <span className="text-ink-soft">{VERB[n.type]}</span>{" "}
+                      {n.actor ? <span className="font-medium">{n.actor.name}</span> : null}{" "}
+                      <span className="text-ink-soft">{n.actor ? VERB[n.type] : SYSTEM_TEXT[n.type]}</span>{" "}
                       <span className="font-medium">
                         {cardKey(n.card)} {n.card.title}
                       </span>

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { UserDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { Avatar } from "@/components/avatar";
-import { Button, Card, Field, Input, PageHeader } from "@/components/ui";
+import { Button, Card, Checkbox, Field, Input, PageHeader } from "@/components/ui";
 import { api } from "@/lib/api";
 import { imageToAvatarDataUrl } from "@/lib/image";
 import { toast } from "@/lib/toast";
@@ -87,9 +87,10 @@ function PhotoSection({ me, onSaved }: { me: UserDto; onSaved: (u: UserDto) => v
 function DetailsSection({ me, onSaved }: { me: UserDto; onSaved: (u: UserDto) => void }) {
   const [name, setName] = useState(me.name);
   const [email, setEmail] = useState(me.email);
+  const [emailNotifications, setEmailNotifications] = useState(me.emailNotifications ?? true);
   const [busy, setBusy] = useState(false);
   const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
-  const dirty = name.trim() !== me.name || email.trim() !== me.email;
+  const dirty = name.trim() !== me.name || email.trim() !== me.email || emailNotifications !== (me.emailNotifications ?? true);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -100,7 +101,7 @@ function DetailsSection({ me, onSaved }: { me: UserDto; onSaved: (u: UserDto) =>
     if (Object.keys(next).length) return;
     setBusy(true);
     try {
-      onSaved(await api.updateMe({ name: name.trim(), email: email.trim() }));
+      onSaved(await api.updateMe({ name: name.trim(), email: email.trim(), emailNotifications }));
       toast("Профиль сохранён", "success");
     } catch (err) {
       setErrors({ email: (err as Error).message });
@@ -121,6 +122,13 @@ function DetailsSection({ me, onSaved }: { me: UserDto; onSaved: (u: UserDto) =>
               <Input {...a} type="email" invalid={!!errors.email} value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
             )}
           </Field>
+        </div>
+        <div className="flex items-start gap-2.5">
+          <Checkbox checked={emailNotifications} onChange={setEmailNotifications} label="Дублировать уведомления на почту" />
+          <span>
+            <span className="block text-base">Дублировать уведомления на почту</span>
+            <span className="block text-sm text-ink-faint">Назначения, упоминания, сообщения и напоминания о сроках</span>
+          </span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-xs text-ink-ghost">Роль: {me.roleName}. Роль меняет администратор.</span>

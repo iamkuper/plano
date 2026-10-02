@@ -15,6 +15,7 @@ const publicFields = {
   roleId: true,
   isActive: true,
   avatarUrl: true,
+  emailNotifications: true,
   customRole: { select: { name: true, permissions: true } },
 } as const;
 
@@ -78,7 +79,7 @@ export class UsersService {
     return toDto(user);
   }
 
-  async updateMe(userId: string, data: { name?: string; email?: string }) {
+  async updateMe(userId: string, data: { name?: string; email?: string; emailNotifications?: boolean }) {
     if (data.email) {
       const taken = await this.system.user.findFirst({ where: { email: data.email, id: { not: userId } } });
       if (taken) throw new ConflictException("Эта почта уже занята другим сотрудником");

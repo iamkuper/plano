@@ -75,6 +75,8 @@ model User {
   roleId       String?
   customRole   Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
   isActive     Boolean  @default(true)
+  // Mail copies of notifications (assignments, mentions, due dates).
+  emailNotifications Boolean @default(true)
   // Small square photo as a data: URL (resized client-side to 256px).
   avatarUrl    String?
   createdAt    DateTime @default(now())
@@ -271,22 +273,28 @@ enum NotificationType {
   ASSIGNED // you were made an assignee
   MENTIONED // @you in a discussion message
   COMMENTED // new message on a card you're assigned to
+  DUE_SOON // your card is due today or tomorrow (sent by the scheduler)
+  OVERDUE // your card became overdue (sent by the scheduler)
 }
 
 model Notification {
   id        String           @id @default(cuid())
   userId    String
   user      User             @relation("NotificationRecipient", fields: [userId], references: [id], onDelete: Cascade)
-  actorId   String
-  actor     User             @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
+  // Null for system reminders (due dates).
+  actorId   String?
+  actor     User?            @relation("NotificationActor", fields: [actorId], references: [id], onDelete: Cascade)
   cardId    String
   card      Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
   type      NotificationType
   // Message excerpt for MENTIONED / COMMENTED.
   text      String?
   readAt    DateTime?
+  // The due date a reminder was sent for: one reminder per card, person and date.
+  dueFor    DateTime?
   createdAt DateTime         @default(now())
 
+  @@unique([userId, cardId, type, dueFor])
   @@index([userId, readAt, createdAt])
 }
 
