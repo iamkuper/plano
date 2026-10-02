@@ -20,11 +20,32 @@ function WhatsAppIcon() {
   );
 }
 
-// Floating "chat with us" button, bottom-right on the public pages. Hidden
-// when no Telegram or WhatsApp contact is configured.
+const MANAGER = { name: "Павел", role: "Менеджер Plano" };
+const TEASER_KEY = "plano.chat-teaser-closed";
+
+function ManagerAvatar({ size = 40 }: { size?: number }) {
+  return (
+    <span className="relative shrink-0" style={{ width: size, height: size }}>
+      <span
+        className="grid size-full place-items-center rounded-full bg-gradient-to-br from-[#3D8BF2] to-[#8A6CE8] font-semibold text-white"
+        style={{ fontSize: size * 0.42 }}
+      >
+        {MANAGER.name[0]}
+      </span>
+      <span aria-hidden className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-surface bg-[#2FA36B]" />
+    </span>
+  );
+}
+
+// Floating "chat with us" button, bottom-right on the public pages: a
+// manager's greeting with Telegram / WhatsApp links, and a short teaser
+// bubble a few seconds after the page opens. Hidden when no contact is set.
 export function SupportWidget() {
   const [open, setOpen] = useState(false);
+  const [typing, setTyping] = useState(true);
+  const [teaser, setTeaser] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     if (!open) return;
     const close = (e: MouseEvent | KeyboardEvent) => {
@@ -37,20 +58,68 @@ export function SupportWidget() {
       document.removeEventListener("keydown", close);
     };
   }, [open]);
+
+  // "Typing…" for a moment, then the greeting.
+  useEffect(() => {
+    if (!open) return;
+    setTyping(true);
+    const t = setTimeout(() => setTyping(false), 900);
+    return () => clearTimeout(t);
+  }, [open]);
+
+  // Teaser once per browser session, unless closed before.
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem(TEASER_KEY)) return;
+    } catch {}
+    const t = setTimeout(() => setTeaser(true), 6000);
+    return () => clearTimeout(t);
+  }, []);
+  const closeTeaser = () => {
+    setTeaser(false);
+    try {
+      sessionStorage.setItem(TEASER_KEY, "1");
+    } catch {}
+  };
+
   if (!SUPPORT.telegram && !SUPPORT.whatsapp) return null;
 
   return (
     <div ref={ref} className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       {open && (
-        <div role="dialog" aria-label="Чат с поддержкой" className="animate-dialog-in w-[280px] rounded-2xl border border-border bg-surface p-4 shadow-raised">
-          <div className="flex items-start gap-3">
-            <img src="/plano.svg" alt="" className="size-9 rounded-xl" />
-            <div>
-              <div className="font-medium">Напишите нам</div>
-              <p className="mt-0.5 text-sm text-ink-faint">Ответим на вопросы о Plano, поможем с настройкой и тарифом.</p>
+        <div role="dialog" aria-label="Чат с поддержкой" className="animate-dialog-in w-[300px] overflow-hidden rounded-2xl border border-border bg-surface shadow-raised">
+          <div className="flex items-center gap-3 bg-[#2B2F33] px-4 py-3 text-white">
+            <ManagerAvatar />
+            <div className="min-w-0">
+              <div className="font-medium">{MANAGER.name}</div>
+              <div className="flex items-center gap-1.5 text-xs text-[#CDD0D4]">
+                <span className="relative flex size-2">
+                  <span className="absolute inset-0 animate-ping rounded-full bg-[#2FA36B] opacity-60 motion-reduce:hidden" />
+                  <span className="relative size-2 rounded-full bg-[#2FA36B]" />
+                </span>
+                {MANAGER.role} · онлайн
+              </div>
             </div>
           </div>
-          <div className="mt-4 space-y-2">
+          <div className="space-y-2 bg-surface-soft px-4 py-4 text-sm">
+            {typing ? (
+              <div className="inline-flex items-center gap-1 rounded-2xl rounded-tl-md bg-surface px-3 py-2.5 text-ink-ghost shadow-sm">
+                <span className="lp-typing">
+                  <span>•</span>
+                  <span>•</span>
+                  <span>•</span>
+                </span>
+              </div>
+            ) : (
+              <>
+                <div className="lp-rise max-w-[90%] rounded-2xl rounded-tl-md bg-surface px-3 py-2 shadow-sm">Здравствуйте! 👋 Я {MANAGER.name}, помогу разобраться с Plano.</div>
+                <div className="lp-rise max-w-[90%] rounded-2xl rounded-tl-md bg-surface px-3 py-2 shadow-sm" style={{ animationDelay: "250ms" }}>
+                  Расскажу про тарифы, помогу перенести задачи и настроить команду. Напишите, где удобно — отвечу в мессенджере.
+                </div>
+              </>
+            )}
+          </div>
+          <div className="space-y-2 p-4 pt-3">
             {SUPPORT.telegram && (
               <a
                 href={SUPPORT.telegram}
@@ -58,7 +127,7 @@ export function SupportWidget() {
                 rel="noreferrer"
                 className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#229ED9] text-sm font-medium text-white transition-opacity hover:opacity-90"
               >
-                <TelegramIcon /> Telegram
+                <TelegramIcon /> Написать в Telegram
               </a>
             )}
             {SUPPORT.whatsapp && (
@@ -68,20 +137,36 @@ export function SupportWidget() {
                 rel="noreferrer"
                 className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#25D366] text-sm font-medium text-white transition-opacity hover:opacity-90"
               >
-                <WhatsAppIcon /> WhatsApp
+                <WhatsAppIcon /> Написать в WhatsApp
               </a>
             )}
           </div>
         </div>
       )}
+      {!open && teaser && (
+        <div className="lp-rise relative flex max-w-[260px] items-start gap-2.5 rounded-2xl rounded-br-md border border-border bg-surface p-3 pr-8 text-sm shadow-raised">
+          <ManagerAvatar size={32} />
+          <button onClick={() => (closeTeaser(), setOpen(true))} className="text-left">
+            <span className="block font-medium">{MANAGER.name}</span>
+            <span className="text-ink-faint">Есть вопросы о Plano? Напишите — отвечу за пару минут.</span>
+          </button>
+          <button onClick={closeTeaser} aria-label="Скрыть" className="absolute right-2 top-2 grid size-5 place-items-center rounded-full text-ink-ghost hover:bg-surface-soft hover:text-ink">
+            <X size={12} />
+          </button>
+        </div>
+      )}
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          setOpen((o) => !o);
+          closeTeaser();
+        }}
         aria-expanded={open}
         aria-label={open ? "Закрыть чат" : "Написать в поддержку"}
         className="group relative grid size-14 place-items-center rounded-full bg-accent text-white shadow-lg shadow-black/20 transition-transform hover:scale-105"
       >
         {!open && <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-accent/40 [animation-duration:2.5s] motion-reduce:hidden" />}
         {open ? <X size={22} /> : <MessageCircle size={24} strokeWidth={1.75} />}
+        {!open && <span aria-hidden className="absolute right-0.5 top-0.5 size-3.5 rounded-full border-2 border-bg bg-[#2FA36B]" />}
       </button>
     </div>
   );
