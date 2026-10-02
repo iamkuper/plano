@@ -39,6 +39,8 @@ export function sellerFromEnv(env = process.env): Seller | null {
 
 export interface InvoiceData {
   number: number;
+  // Account to activate on payment; printed on the invoice.
+  workspaceId: string;
   date: Date;
   payer: { name: string; inn: string; kpp?: string | null; address: string };
   item: string;
@@ -96,7 +98,9 @@ export function renderInvoicePdf(seller: Seller, inv: InvoiceData): Promise<Buff
   y += 74;
 
   text(`Счёт на оплату № ${inv.number} от ${longDate(inv.date)}`, L, y, W, { bold: true, size: 14 });
-  y += 26;
+  y += 22;
+  text(`ID аккаунта Plano: ${inv.workspaceId}`, L, y, W, { size: 9 });
+  y += 16;
   doc.moveTo(L, y).lineTo(L + W, y).lineWidth(1.5).stroke();
   y += 10;
 
@@ -139,6 +143,8 @@ export function renderInvoicePdf(seller: Seller, inv: InvoiceData): Promise<Buff
   text(`Всего наименований 1, на сумму ${money(inv.amount)} руб.`, L, y, W);
   y += 14;
   text(rublesInWords(inv.amount), L, y, W, { bold: true });
+  y += 18;
+  text(`В назначении платежа укажите: «Оплата по счёту № ${inv.number}, ID аккаунта ${inv.workspaceId}».`, L, y, W);
   y += 20;
   doc.moveTo(L, y).lineTo(L + W, y).lineWidth(1.5).stroke();
   y += 24;

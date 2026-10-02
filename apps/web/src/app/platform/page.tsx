@@ -269,7 +269,7 @@ function Invoices() {
               <div className="font-medium">
                 Счёт №{i.invoiceNumber} — {formatRub(i.amount)}
                 <span className="ml-2 font-normal text-ink-faint">
-                  {i.workspace.name}, {i.planId}, {i.seats} польз.,{" "}
+                  {i.workspace.name} (ID {i.workspace.id}), {i.planId}, {i.seats} польз.,{" "}
                   {i.interval === "YEAR" ? "год" : "месяц"}, запрошен{" "}
                   {day(i.createdAt)}
                 </span>

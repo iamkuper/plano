@@ -19,6 +19,8 @@ export function cardKey(card: { number: number }) {
 }
 
 export interface SettingsDto {
+  // Workspace (account) ID: quoted in invoices and when contacting support.
+  id?: string;
   workspaceName: string;
   cardPrefix: string;
   defaultColumns: string[];
@@ -342,7 +344,7 @@ export interface BillingUsage {
 
 export interface PaymentDto {
   id: string;
-  kind: "INITIAL" | "RENEWAL";
+  kind: "INITIAL" | "RENEWAL" | "SEATS";
   method: "CARD" | "INVOICE";
   invoiceNumber: number | null;
   payerName: string | null;
@@ -398,6 +400,19 @@ export interface BillingDto {
 // Amount in kopecks for `seats` users on a plan.
 export function planAmount(plan: Pick<PlanDto, "priceKopecks">, seats: number, interval: BillingInterval) {
   return plan.priceKopecks * seats * (interval === "YEAR" ? YEAR_MONTHS_CHARGED : 1);
+}
+
+// Days a prorated purchase is charged for: whole days left in the period,
+// at least one.
+export function daysLeft(periodEnd: Date | string, now = new Date()) {
+  return Math.max(1, Math.ceil((new Date(periodEnd).getTime() - now.getTime()) / 86_400_000));
+}
+
+// Extra seats bought mid-period: the plan's monthly price per seat (a year
+// is 10 months spread over 12) / 30 per day, for the days left. Kopecks.
+export function prorateSeats(plan: Pick<PlanDto, "priceKopecks">, interval: BillingInterval, extraSeats: number, periodEnd: Date | string, now = new Date()) {
+  const monthly = interval === "YEAR" ? (plan.priceKopecks * YEAR_MONTHS_CHARGED) / 12 : plan.priceKopecks;
+  return Math.max(100, Math.round((monthly / 30) * daysLeft(periodEnd, now) * extraSeats));
 }
 
 export function formatRub(kopecks: number) {

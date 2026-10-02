@@ -425,7 +425,8 @@ enum PaymentMethod {
 
 enum PaymentKind {
   INITIAL // first payment, the customer pays on the bank's page
-  RENEWAL // recurring charge by the saved card
+  RENEWAL // recurring charge by the saved card (no longer created)
+  SEATS // extra seats for the rest of the current paid period; `seats` = how many added
 }
 
 // Global catalogue (not tenant data), edited in the DB or by migrations.

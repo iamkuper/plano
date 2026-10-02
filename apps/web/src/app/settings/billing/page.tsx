@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check, Minus, Plus } from "lucide-react";
-import { formatRub, planAmount, type BillingDto, type BillingInterval, type InvoicePayer, type PlanDto } from "@amo-kanban/shared";
+import { daysLeft, formatRub, planAmount, prorateSeats, type BillingDto, type BillingInterval, type InvoicePayer, type PlanDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Button, Card, Dialog, Field, Input, PageHeader, Segmented, Skeleton, Textarea } from "@/components/ui";
@@ -80,8 +80,17 @@ function SeatPicker({ value, min, max, onChange }: { value: number; min: number;
   );
 }
 
+// Extra seats on the current paid plan: paid for the days left in the period.
+function seatTopUp(b: BillingDto, plan: PlanDto, seats: number) {
+  const s = b.subscription;
+  if (b.locked || s.status !== "ACTIVE" || s.planId !== plan.id || s.seats == null || !s.currentPeriodEnd) return null;
+  if (new Date(s.currentPeriodEnd) <= new Date() || seats <= s.seats) return null;
+  const extra = seats - s.seats;
+  return { extra, amount: prorateSeats(plan, s.interval, extra, s.currentPeriodEnd), days: daysLeft(s.currentPeriodEnd), until: s.currentPeriodEnd };
+}
+
 // Company details for a bank-transfer invoice. Prefilled from the last request.
-function InvoiceDialog({ plan, interval, seats, initial, pdfReady, onClose, onDone }: { plan: PlanDto; interval: BillingInterval; seats: number; initial: InvoicePayer | null; pdfReady: boolean; onClose: () => void; onDone: () => void }) {
+function InvoiceDialog({ plan, interval, seats, addSeats, amount: fixedAmount, initial, pdfReady, onClose, onDone }: { plan: PlanDto; interval: BillingInterval; seats: number; addSeats?: number; amount?: number; initial: InvoicePayer | null; pdfReady: boolean; onClose: () => void; onDone: () => void }) {
   const [form, setForm] = useState({
     payerName: initial?.payerName ?? "",
     payerInn: initial?.payerInn ?? "",
@@ -92,11 +101,15 @@ function InvoiceDialog({ plan, interval, seats, initial, pdfReady, onClose, onDo
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm((f) => ({ ...f, [k]: e.target.value }));
-  const amount = planAmount(plan, seats, interval);
+  const amount = fixedAmount ?? planAmount(plan, seats, interval);
   return (
     <Dialog
       title="Оплата по счёту"
-      description={`Тариф ${plan.name}, ${seats} польз., ${interval === "YEAR" ? "год" : "месяц"} — ${formatRub(amount)}`}
+      description={
+        addSeats
+          ? `Тариф ${plan.name}: +${addSeats} польз. до конца периода — ${formatRub(amount)}`
+          : `Тариф ${plan.name}, ${seats} польз., ${interval === "YEAR" ? "год" : "месяц"} — ${formatRub(amount)}`
+      }
       onClose={onClose}
       width="max-w-lg"
     >
@@ -107,7 +120,7 @@ function InvoiceDialog({ plan, interval, seats, initial, pdfReady, onClose, onDo
           setError(null);
           setBusy(true);
           try {
-            const { id, invoiceNumber, pdf } = await api.requestInvoice({ planId: plan.id, interval, seats, ...form, payerKpp: form.payerKpp || null });
+            const { id, invoiceNumber, pdf } = await api.requestInvoice({ planId: plan.id, interval, seats, addSeats, ...form, payerKpp: form.payerKpp || null });
             if (pdf) {
               await downloadInvoicePdf(id, invoiceNumber).catch(() => {});
               toast(`Счёт №${invoiceNumber} скачан и отправлен на ${form.payerEmail}`, "success");
@@ -160,6 +173,7 @@ function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, onInvoice,
   const seats = plan.maxUsers === null ? wanted : Math.min(wanted, plan.maxUsers);
   const tooSmall = plan.maxUsers !== null && b.usage.users > plan.maxUsers;
   const same = current && b.subscription.interval === interval && b.subscription.seats === seats;
+  const topUp = seatTopUp(b, plan, seats);
   const monthly = interval === "YEAR" ? (plan.priceKopecks * 10) / 12 : plan.priceKopecks;
   const features = [
     `Пользователей: ${limit(plan.maxUsers)}`,
@@ -185,7 +199,9 @@ function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, onInvoice,
         <p className="mt-4 text-sm text-ink-faint">
           {tooSmall
             ? `Тариф рассчитан на ${plan.maxUsers} польз., а активных уже ${b.usage.users}`
-            : `К оплате ${formatRub(planAmount(plan, seats, interval))} за ${interval === "YEAR" ? "год" : "месяц"} (${seats} польз.)`}
+            : topUp
+              ? `Докупить ${topUp.extra} ${topUp.extra === 1 ? "место" : "мест"} до ${date(topUp.until)} (${topUp.days} дн.): ${formatRub(topUp.amount)}. Период не меняется`
+              : `К оплате ${formatRub(planAmount(plan, seats, interval))} за ${interval === "YEAR" ? "год" : "месяц"} (${seats} польз.)`}
         </p>
       )}
       <div className="mt-3">
@@ -194,7 +210,7 @@ function PlanCard({ plan, b, interval, seats: wanted, canPay, onPick, onInvoice,
         ) : (
           <div className="space-y-1.5">
             <Button variant="primary" className="w-full" disabled={!canPay || tooSmall} loading={busy} onClick={onPick}>
-              {same ? "Продлить картой" : current ? "Изменить и оплатить картой" : "Оплатить картой"}
+              {topUp ? "Докупить картой" : same ? "Продлить картой" : current ? "Изменить и оплатить картой" : "Оплатить картой"}
             </Button>
             <Button variant="ghost" className="w-full" disabled={!canPay || tooSmall} onClick={onInvoice}>
               Оплатить по счёту
@@ -244,6 +260,11 @@ function BillingView() {
   async function pick(plan: PlanDto) {
     setBusy(plan.id);
     try {
+      const topUp = seatTopUp(b!, plan, plan.maxUsers === null ? seatCount : Math.min(seatCount, plan.maxUsers));
+      if (topUp) {
+        window.location.href = (await api.buySeats(topUp.extra)).paymentUrl;
+        return;
+      }
       const { paymentUrl } = await api.checkout(plan.id, interval, plan.maxUsers === null ? seatCount : Math.min(seatCount, plan.maxUsers));
       window.location.href = paymentUrl;
     } catch (e) {
@@ -337,7 +358,7 @@ function BillingView() {
                   <td className="px-4 py-2">{date(p.paidAt ?? p.createdAt)}</td>
                   <td className="px-4 py-2">
                     {b.plans.find((x) => x.id === p.planId)?.name}, {p.seats} польз., {p.interval === "YEAR" ? "год" : "месяц"}
-                    {p.kind === "RENEWAL" ? ", продление" : ""}
+                    {p.kind === "RENEWAL" ? ", продление" : p.kind === "SEATS" ? ", докупка мест" : ""}
                     <div className="text-xs text-ink-faint">{p.method === "INVOICE" ? `Счёт №${p.invoiceNumber}${p.payerName ? `, ${p.payerName}` : ""}` : "Картой"}</div>
                   </td>
                   <td className="px-4 py-2">{formatRub(p.amount)}</td>
@@ -388,6 +409,8 @@ function BillingView() {
           plan={invoiceFor}
           interval={interval}
           seats={invoiceFor.maxUsers === null ? seatCount : Math.min(seatCount, invoiceFor.maxUsers)}
+          addSeats={seatTopUp(b, invoiceFor, seatCount)?.extra}
+          amount={seatTopUp(b, invoiceFor, seatCount)?.amount}
           initial={b.lastPayer}
           pdfReady={b.invoicePdf}
           onClose={() => setInvoiceFor(null)}

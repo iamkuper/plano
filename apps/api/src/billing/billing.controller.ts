@@ -21,7 +21,21 @@ class CheckoutDto {
 }
 
 
+class SeatsDto {
+  @IsInt({ message: "Укажите, сколько мест добавить" })
+  @Min(1)
+  @Max(10000)
+  seats!: number;
+}
+
 class InvoiceDto extends CheckoutDto {
+  // Extra seats for the current period instead of a whole plan purchase.
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  addSeats?: number;
+
   @IsString()
   @MinLength(2, { message: "Укажите название организации" })
   @MaxLength(300)
@@ -66,6 +80,14 @@ export class BillingController {
     return this.billing.checkout(dto.planId, dto.interval, dto.seats, user.email);
   }
 
+
+  // More seats inside the current paid period, prorated for the days left.
+  @Post("seats")
+  @UseGuards(JwtAuthGuard, PermissionGuard)
+  @RequirePermission("billing.manage")
+  seats(@CurrentUser() user: AuthenticatedUser, @Body() dto: SeatsDto) {
+    return this.billing.buySeats(dto.seats, user.email);
+  }
 
   // Bank transfer: request an invoice (the platform owner issues it).
   @Post("invoice")

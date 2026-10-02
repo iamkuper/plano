@@ -34,7 +34,7 @@ describe("overview and the trial", () => {
     expect(o.plans.map((p: { id: string }) => p.id)).toEqual(["FREE", "PRO", "BUSINESS"]);
     expect(o.plans[2].features).toEqual(expect.arrayContaining(["gantt", "fields", "audit", "export"]));
     expect(o.plans[2].features).not.toContain("api");
-    expect(o.storageLimitMb).toBe(20480);
+    expect(o.storageLimitMb).toBe(10240);
     await api(t).get("/billing").expect(401);
   });
 });
@@ -567,5 +567,31 @@ describe("invoice PDF", () => {
     } finally {
       for (const k of Object.keys(seller)) delete process.env[k];
     }
+  });
+});
+
+describe("buying extra seats mid-period", () => {
+  it("charges price/30 per day left for the extra seats and keeps the period", async () => {
+    const a = await register(t, "addseats");
+    const A = api(t, a.token);
+    await A.post("/billing/seats", { seats: 1 }).expect(400); // trial: buy a whole plan instead
+    const co = (await A.post("/billing/checkout", { planId: "PRO", interval: "MONTH", seats: 2 })).body;
+    await A.post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
+    const end = new Date(Date.now() + 10 * DAY - 3600_000); // 10 days left
+    await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { currentPeriodEnd: end } });
+
+    const buy = (await A.post("/billing/seats", { seats: 3 }).expect(201)).body;
+    const p = await t.db.payment.findUniqueOrThrow({ where: { orderId: orderOf(buy.paymentUrl) } });
+    expect([p.kind, p.seats, p.amount]).toEqual(["SEATS", 3, Math.round((49000 / 30) * 10 * 3)]);
+    await A.post(`/billing/dev/pay/${p.orderId}`, { success: true }).expect(204);
+    const s = await sub(a.workspaceId);
+    expect([s.seats, s.currentPeriodEnd!.getTime()]).toEqual([5, end.getTime()]);
+
+    // by invoice too
+    const inv = (await A.post("/billing/invoice", { planId: "PRO", interval: "MONTH", addSeats: 1, payerName: "ООО Т", payerInn: "7701234567", payerAddress: "Москва, 1", payerEmail: "b@t.test" }).expect(201)).body;
+    const ip = await t.db.payment.findUniqueOrThrow({ where: { id: inv.id } });
+    expect([ip.kind, ip.seats, ip.amount]).toEqual(["SEATS", 1, Math.round((49000 / 30) * 10)]);
+    await billing.markInvoicePaid(inv.id);
+    expect((await sub(a.workspaceId)).seats).toBe(6);
   });
 });

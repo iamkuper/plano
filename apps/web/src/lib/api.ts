@@ -370,8 +370,9 @@ export const api = {
   billing: () => apiFetch<BillingDto>("/billing"),
   checkout: (planId: string, interval: BillingInterval, seats: number) =>
     post<{ paymentUrl: string }>("/billing/checkout", { planId, interval, seats }),
-  requestInvoice: (body: { planId: string; interval: BillingInterval; seats: number } & InvoicePayer) =>
+  requestInvoice: (body: { planId: string; interval: BillingInterval; seats: number; addSeats?: number } & InvoicePayer) =>
     post<{ id: string; invoiceNumber: number; pdf: boolean }>("/billing/invoice", body),
+  buySeats: (seats: number) => post<{ paymentUrl: string }>("/billing/seats", { seats }),
   cancelInvoice: (id: string) => post<void>(`/billing/invoice/${id}/cancel`, {}),
   platformInvoices: () => apiFetch<PlatformInvoice[]>("/platform/invoices"),
   platformInvoicePaid: (id: string) => post<void>(`/platform/invoices/${id}/paid`, {}),

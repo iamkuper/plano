@@ -1,7 +1,7 @@
 import { BadRequestException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { randomBytes } from "crypto";
 import type { Payment, Plan, Subscription } from "@prisma/client";
-import { planAmount, type BillingDto, type BillingInterval, type PlanDto, type PlanFeature } from "@amo-kanban/shared";
+import { daysLeft, planAmount, prorateSeats, type BillingDto, type BillingInterval, type PlanDto, type PlanFeature } from "@amo-kanban/shared";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { currentWorkspaceId, runInWorkspace } from "../prisma/tenant";
 import { PAYMENT_PROVIDER, type PaymentNotification, type PaymentProvider } from "./payment-provider";
@@ -232,6 +232,42 @@ export class BillingService {
     return { plan, seats };
   }
 
+  // Extra seats inside a running paid period: only the days left are paid,
+  // the period stays as it is.
+  private async seatsPurchase(workspaceId: string, extra: number) {
+    const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId }, include: { plan: true } });
+    const now = new Date();
+    if (sub.plan.priceKopecks <= 0 || sub.status !== "ACTIVE" || sub.seats == null || !sub.currentPeriodEnd || sub.currentPeriodEnd <= now) {
+      throw new BadRequestException("Докупить места можно в оплаченном периоде. Сейчас выберите тариф и число мест целиком");
+    }
+    if (!Number.isInteger(extra) || extra < 1) throw new BadRequestException("Укажите, сколько мест добавить");
+    if (sub.plan.maxUsers !== null && sub.seats + extra > sub.plan.maxUsers) throw new BadRequestException(`На тарифе ${sub.plan.name} — не больше ${sub.plan.maxUsers} пользователей`);
+    return { sub, plan: sub.plan, amount: prorateSeats(sub.plan, sub.interval, extra, sub.currentPeriodEnd, now), days: daysLeft(sub.currentPeriodEnd, now) };
+  }
+
+  async buySeats(extra: number, email: string) {
+    const workspaceId = this.ws;
+    const { sub, plan, amount, days } = await this.seatsPurchase(workspaceId, extra);
+    const payment = await this.db.payment.create({
+      data: { workspaceId, kind: "SEATS", planId: plan.id, interval: sub.interval, seats: extra, amount, orderId: this.newOrderId() },
+    });
+    try {
+      const init = await this.provider.init({
+        orderId: payment.orderId,
+        amount,
+        description: `Plano, тариф ${plan.name}: +${extra} польз. на ${days} дн.`,
+        customerKey: workspaceId,
+        recurrent: false,
+        email,
+      });
+      await this.db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: init.providerPaymentId, paymentUrl: init.paymentUrl } });
+      return { paymentUrl: init.paymentUrl };
+    } catch (e) {
+      await this.db.payment.update({ where: { id: payment.id }, data: { status: "FAILED", failReason: "Не удалось создать платёж" } });
+      throw e;
+    }
+  }
+
   async checkout(planId: string, interval: BillingInterval, seatsWanted: number | undefined, email: string) {
     const workspaceId = this.ws;
     const { plan, seats } = await this.purchase(workspaceId, planId, seatsWanted);
@@ -272,11 +308,13 @@ export class BillingService {
   // details, and marks it paid when the money arrives (markInvoicePaid).
   // A newer request replaces an unpaid older one.
   async requestInvoice(
-    dto: { planId: string; interval: BillingInterval; seats?: number; payerName: string; payerInn: string; payerKpp?: string; payerAddress: string; payerEmail: string },
+    dto: { planId: string; interval: BillingInterval; seats?: number; addSeats?: number; payerName: string; payerInn: string; payerKpp?: string; payerAddress: string; payerEmail: string },
     requester: { email: string },
   ) {
     const workspaceId = this.ws;
-    const { plan, seats } = await this.purchase(workspaceId, dto.planId, dto.seats);
+    const extra = dto.addSeats ? await this.seatsPurchase(workspaceId, dto.addSeats) : null;
+    const { plan, seats } = extra ? { plan: extra.plan, seats: dto.addSeats! } : await this.purchase(workspaceId, dto.planId, dto.seats);
+    const interval = extra ? extra.sub.interval : dto.interval;
     await this.db.payment.updateMany({
       where: { workspaceId, method: "INVOICE", status: "PENDING" },
       data: { status: "FAILED", failReason: "Заменён новым счётом" },
@@ -284,8 +322,8 @@ export class BillingService {
     const last = await this.db.payment.aggregate({ _max: { invoiceNumber: true } });
     const payment = await this.db.payment.create({
       data: {
-        workspaceId, kind: "INITIAL", method: "INVOICE", planId: plan.id, interval: dto.interval, seats,
-        amount: planAmount(plan, seats, dto.interval), orderId: this.newOrderId(),
+        workspaceId, kind: extra ? "SEATS" : "INITIAL", method: "INVOICE", planId: plan.id, interval, seats,
+        amount: extra ? extra.amount : planAmount(plan, seats, interval), orderId: this.newOrderId(),
         invoiceNumber: (last._max.invoiceNumber ?? 0) + 1,
         payerName: dto.payerName.trim(), payerInn: dto.payerInn.trim(), payerKpp: dto.payerKpp?.trim() || null,
         payerAddress: dto.payerAddress.trim(), payerEmail: dto.payerEmail.trim(),
@@ -293,15 +331,15 @@ export class BillingService {
       include: { workspace: { select: { name: true } } },
     });
     const amount = (payment.amount / 100).toLocaleString("ru-RU");
-    const period = dto.interval === "YEAR" ? "год" : "месяц";
+    const period = extra ? `доплата за ${extra.days} дн. до конца периода` : interval === "YEAR" ? "год" : "месяц";
     const pdf = await this.invoicePdfOf(payment).catch(() => null);
     const files = pdf ? [{ filename: pdf.filename, content: pdf.content }] : undefined;
-    await this.audit.record("billing.invoice", `Запрошен счёт №${payment.invoiceNumber}: тариф ${plan.name}, ${seats} польз., ${period}, ${amount} ₽`, payment.id);
+    await this.audit.record("billing.invoice", `Запрошен счёт №${payment.invoiceNumber}: тариф ${plan.name}, ${extra ? "+" : ""}${seats} польз., ${period}, ${amount} ₽`, payment.id);
 
     const details = [
       `Счёт №${payment.invoiceNumber} на ${amount} ₽`,
-      `Пространство: ${payment.workspace.name} (${workspaceId})`,
-      `Тариф ${plan.name}, ${seats} польз., ${period}`,
+      `Пространство: ${payment.workspace.name}, ID аккаунта ${workspaceId}`,
+      `Тариф ${plan.name}, ${extra ? "+" : ""}${seats} польз., ${period}`,
       "",
       `Плательщик: ${payment.payerName}`,
       `ИНН ${payment.payerInn}${payment.payerKpp ? `, КПП ${payment.payerKpp}` : ""}`,
@@ -329,11 +367,17 @@ export class BillingService {
     if (!seller) throw new HttpException("Реквизиты продавца не настроены: счёт в PDF пока недоступен, пришлём его на почту", HttpStatus.SERVICE_UNAVAILABLE);
     const plan = await this.db.plan.findUniqueOrThrow({ where: { id: p.planId } });
     const period = p.interval === "YEAR" ? "12 месяцев" : "1 месяц";
+    const sub = p.kind === "SEATS" ? await this.db.subscription.findUnique({ where: { workspaceId: p.workspaceId } }) : null;
+    const until = sub?.currentPeriodEnd?.toLocaleDateString("ru-RU", { timeZone: "Europe/Moscow" });
     const content = await renderInvoicePdf(seller, {
       number: p.invoiceNumber!,
+      workspaceId: p.workspaceId,
       date: p.createdAt,
       payer: { name: p.payerName ?? "", inn: p.payerInn ?? "", kpp: p.payerKpp, address: p.payerAddress ?? "" },
-      item: `Предоставление доступа к сервису Plano, тариф «${plan.name}», ${p.seats} ${plural(p.seats, "пользователь", "пользователя", "пользователей")}, ${period}`,
+      item:
+        p.kind === "SEATS"
+          ? `Дополнительные места в сервисе Plano, тариф «${plan.name}»: ${p.seats} ${plural(p.seats, "пользователь", "пользователя", "пользователей")}${until ? ` до ${until}` : ""}`
+          : `Предоставление доступа к сервису Plano, тариф «${plan.name}», ${p.seats} ${plural(p.seats, "пользователь", "пользователя", "пользователей")}, ${period}`,
       amount: p.amount,
     });
     return { filename: `Plano-schet-${p.invoiceNumber}.pdf`, content };
@@ -411,6 +455,15 @@ export class BillingService {
     this.forgetSeats(payment.workspaceId);
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId: payment.workspaceId } });
     const now = new Date();
+    if (payment.kind === "SEATS") {
+      // Same period, more seats.
+      const seats = (sub.seats ?? 0) + payment.seats;
+      await this.db.subscription.update({ where: { workspaceId: payment.workspaceId }, data: { seats } });
+      await runInWorkspace(payment.workspaceId, () =>
+        this.audit.record("billing.seats", `Докуплено мест: ${payment.seats}, теперь ${seats}. Оплачено ${(payment.amount / 100).toLocaleString("ru-RU")} ₽`, payment.id),
+      );
+      return;
+    }
     // Paying the same plan, period and seats before it ends extends it from
     // the current end; any change (plan, period, seats) starts a new period now.
     const prolong =

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Copy, Plus, X } from "lucide-react";
 import type { SettingsDto, UserDto } from "@amo-kanban/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
@@ -55,6 +55,28 @@ function WorkspaceSection({ settings, canEdit, onSaved }: { settings: SettingsDt
           </Button>
         )}
       </form>
+    </Card>
+  );
+}
+
+// The account ID: quoted in bank-transfer invoices and when writing to support.
+function AccountIdSection({ id }: { id: string }) {
+  return (
+    <Card title="ID аккаунта" description="Укажите его в назначении платежа при оплате по счёту и в обращениях в поддержку.">
+      <div className="flex items-center gap-2">
+        <code className="rounded-md border border-border bg-surface-soft px-2.5 py-1.5 font-mono text-sm">{id}</code>
+        <Button
+          variant="ghost"
+          onClick={() =>
+            navigator.clipboard
+              ?.writeText(id)
+              .then(() => toast("ID скопирован", "success"))
+              .catch(() => toast("Не удалось скопировать", "error"))
+          }
+        >
+          <Copy size={14} /> Скопировать
+        </Button>
+      </div>
     </Card>
   );
 }
@@ -218,6 +240,7 @@ export default function SettingsPage() {
         )}
         {settings && me ? (
           <>
+            {settings.id && <AccountIdSection id={settings.id} />}
             <WorkspaceSection key={`w-${settings.workspaceName}`} settings={settings} canEdit={canEdit} onSaved={publishSettings} />
             <PrefixSection key={`p-${settings.cardPrefix}`} settings={settings} canEdit={canEdit} onSaved={publishSettings} />
             <StagesSection key={`s-${settings.defaultColumns.join("|")}`} settings={settings} canEdit={canEdit} onSaved={publishSettings} />
