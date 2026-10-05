@@ -4,8 +4,6 @@ import { ArrowUpDown, Check, ListFilter, Search, X } from "lucide-react";
 import { CARD_PRIORITY_LABELS, type CardPriority, type UserDto, t } from "@plano/shared";
 import { activeFilterCount, type CardFilters, type DateFilter, type SortKey } from "@/lib/card-filters";
 import { Avatar } from "./avatar";
-import { typeStyle } from "./card-type-icon";
-import { useTaskTypes } from "@/lib/use-task-types";
 import { useLabels } from "./label-picker";
 import { LabelTag, MenuLabel, Popover, Segmented, inputClass } from "./ui";
 
@@ -55,7 +53,6 @@ export function BoardToolbar({
   const set = (patch: Partial<CardFilters>) => onChange({ ...filters, ...patch });
   const count = activeFilterCount(filters);
   const [labels] = useLabels();
-  const taskTypes = useTaskTypes();
 
   const chips = [
     ...filters.assigneeIds.map((id) => ({
@@ -67,11 +64,6 @@ export function BoardToolbar({
       key: `l-${id}`,
       label: labels.find((l) => l.id === id)?.name ?? t("boardToolbar.label"),
       remove: () => set({ labelIds: filters.labelIds.filter((v) => v !== id) }),
-    })),
-    ...filters.types.map((id) => ({
-      key: `t-${id}`,
-      label: taskTypes.find((x) => x.id === id)?.name ?? t("common.type"),
-      remove: () => set({ types: filters.types.filter((v) => v !== id) }),
     })),
     ...filters.priorities.map((p) => ({
       key: `p-${p}`,
@@ -137,15 +129,6 @@ export function BoardToolbar({
                   ))}
                 </>
               )}
-              <MenuLabel>{t("common.type")}</MenuLabel>
-              {taskTypes.map((x) => {
-                const { icon: Icon, color } = typeStyle(x);
-                return (
-                  <OptionRow key={x.id} on={filters.types.includes(x.id)} onClick={() => set({ types: toggle(filters.types, x.id) })}>
-                    <Icon size={14} strokeWidth={2} style={{ color }} /> {x.name}
-                  </OptionRow>
-                );
-              })}
               <MenuLabel>{t("common.priority")}</MenuLabel>
               {(Object.keys(CARD_PRIORITY_LABELS) as CardPriority[]).map((p) => (
                 <OptionRow key={p} on={filters.priorities.includes(p)} onClick={() => set({ priorities: toggle(filters.priorities, p) })}>
@@ -193,7 +176,7 @@ export function BoardToolbar({
           </span>
         ))}
         {chips.length > 0 && (
-          <button onClick={() => set({ assigneeIds: [], types: [], priorities: [], labelIds: [] })} className="text-xs text-ink-ghost hover:text-ink">
+          <button onClick={() => set({ assigneeIds: [], priorities: [], labelIds: [] })} className="text-xs text-ink-ghost hover:text-ink">
             
             {t("boardToolbar.reset")}
           </button>

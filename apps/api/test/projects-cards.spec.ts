@@ -98,7 +98,7 @@ describe("cards", () => {
     const c1 = (await A.post("/cards", { columnId: columns[0].id, title: "Первая", priority: "HIGH", assigneeIds: [a.userId] }).expect(201)).body;
     const c2 = (await A.post("/cards", { columnId: columns[0].id, title: "Вторая" }).expect(201)).body;
     expect([c1.number, c2.number]).toEqual([1, 2]);
-    expect(c1).toMatchObject({ priority: "HIGH", type: { name: "Задача" } });
+    expect(c1).toMatchObject({ priority: "HIGH" });
     expect(c2.position).toBeGreaterThan(c1.position);
 
     const upd = (await A.patch(`/cards/${c1.id}`, { title: "Переименована", description: "Описание", estimateHours: 5, dueDate: "2026-10-09", assigneeIds: [] }).expect(200)).body;

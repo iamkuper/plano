@@ -12,7 +12,7 @@ import { api, API_URL, setToken } from "@/lib/api";
 import { useDebounced, useRealtime } from "@/lib/realtime";
 import { onProjectsChanged } from "@/lib/projects-events";
 import { onToast } from "@/lib/toast";
-import { card, taskType } from "./fixtures";
+import { card } from "./fixtures";
 import { nav } from "./nav";
 
 vi.mock("socket.io-client", () => {
@@ -41,7 +41,7 @@ describe("priority badge", () => {
 
 describe("card tile", () => {
   const richCard = card({
-    title: "Подключить оплату", type: taskType({ id: "tt2", name: "Интеграция", color: "teal" }), priority: "HIGH", dueDate: "2000-01-01T00:00:00.000Z",
+    title: "Подключить оплату", priority: "HIGH", dueDate: "2000-01-01T00:00:00.000Z",
     assignees: [{ user: { id: "u1", name: "Иван" } }], labels: [{ label: { id: "l1", name: "Срочно", color: "red" } }],
     checklist: [{ id: "i1", text: "а", done: true }, { id: "i2", text: "б", done: false }],
     _count: { comments: 3, attachments: 2 }, recurringRuleId: "r1", unreadComments: 1,
@@ -49,7 +49,7 @@ describe("card tile", () => {
 
   it("shows the key, title, people, labels and every signal", () => {
     render(<CardTile card={richCard} onOpen={() => {}} showProject />);
-    for (const t of ["TSK-1", "Подключить оплату", "Срочно", "Интеграция", "Срочно", "1/2", "2", "3", "Проект"]) expect(screen.getAllByText(t).length).toBeGreaterThan(0);
+    for (const t of ["TSK-1", "Подключить оплату", "Срочно", "Срочно", "1/2", "2", "3", "Проект"]) expect(screen.getAllByText(t).length).toBeGreaterThan(0);
     expect(screen.getByTitle("Срок прошёл")).toHaveClass("text-danger");
     expect(screen.getByTitle("Повторяющаяся задача")).toBeInTheDocument();
     expect(screen.getByTitle("Новых сообщений: 1")).toBeInTheDocument();

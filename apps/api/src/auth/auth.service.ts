@@ -8,8 +8,7 @@ import { InvitationsService } from "../invitations/invitations.service";
 import { MailService } from "../mail/mail.service";
 import { appUrl, hashToken, newToken } from "./tokens";
 import { LoginDto } from "./dto/login.dto";
-import { randomUUID } from "crypto";
-import { DEFAULT_TEMPLATES, DEFAULT_TYPE_NAME, templateCreateData } from "../templates/default-template";
+import { DEFAULT_TEMPLATES, templateCreateData } from "../templates/default-template";
 import { RegisterDto } from "./dto/register.dto";
 import { TRIAL_DAYS } from "../billing/billing.service";
 import { currentLocale, t } from "@plano/shared";
@@ -38,7 +37,6 @@ export class AuthService {
       throw new ConflictException(t("common.thisEmailIsAlreadyRegistered"));
     }
     const locale = dto.locale ?? currentLocale();
-    const typeId = randomUUID();
     const user = await this.prisma.user.create({
       data: {
         email,
@@ -50,14 +48,13 @@ export class AuthService {
           create: {
             name: dto.workspaceName.trim(),
             defaultColumns: DEFAULT_TEMPLATES[locale].columns,
-            taskTypes: { create: { id: typeId, name: DEFAULT_TYPE_NAME[locale], isDefault: true } },
             subscription: { create: { planId: "PRO", status: "TRIALING", trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) } },
           },
         },
       },
     });
-    // Created after the workspace: the starter cards reference its default task type.
-    await this.prisma.template.create({ data: { workspaceId: user.workspaceId, ...templateCreateData(typeId, locale) } });
+    // Created after the workspace: the template needs its id.
+    await this.prisma.template.create({ data: { workspaceId: user.workspaceId, ...templateCreateData(locale) } });
     return this.issueToken(user.id, user.email);
   }
 

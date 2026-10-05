@@ -5,7 +5,6 @@ import { CARD_PRIORITY_LABELS, type CardPriority, type RecurrenceFrequency, type
 import { api, type RecurringInput } from "@/lib/api";
 import { describeRecurrence, weekdayNames } from "@/lib/recurrence";
 import { toast } from "@/lib/toast";
-import { useTaskTypes } from "@/lib/use-task-types";
 import { Avatar } from "./avatar";
 import { Button, Checkbox, Dialog, Field, Input, Select, Textarea } from "./ui";
 
@@ -34,8 +33,6 @@ export function RecurringDialog({
   const src = rule ?? prefill ?? {};
   const [title, setTitle] = useState(src.title ?? "");
   const [description, setDescription] = useState(src.description ?? "");
-  const taskTypes = useTaskTypes();
-  const [typeId, setTypeId] = useState<string>(src.typeId ?? "");
   const [priority, setPriority] = useState<CardPriority>(src.priority ?? "MEDIUM");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(src.assigneeIds ?? []);
   const [checklist, setChecklist] = useState((src.checklist ?? []).join("\n"));
@@ -59,7 +56,6 @@ export function RecurringDialog({
     const data: RecurringInput = {
       title: title.trim(),
       description: description.trim() || null,
-      typeId: typeId || undefined,
       priority,
       assigneeIds,
       estimateHours: src.estimateHours ?? null,
@@ -140,17 +136,6 @@ export function RecurringDialog({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t("common.type")}>
-            {(a) => (
-              <Select {...a} value={typeId || taskTypes.find((x) => x.isDefault)?.id || ""} onChange={(e) => setTypeId(e.target.value)}>
-                {taskTypes.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </Select>
-            )}
-          </Field>
           <Field label={t("common.priority")}>
             {(a) => (
               <Select {...a} value={priority} onChange={(e) => setPriority(e.target.value as CardPriority)}>

@@ -1,4 +1,3 @@
-import { defaultTaskTypeId } from "../task-types/default-type";
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
@@ -124,7 +123,6 @@ export class CardsService {
         columnId: dto.columnId,
         title: dto.title,
         description: dto.description,
-        typeId: dto.typeId ?? (await defaultTaskTypeId(this.prisma)),
         priority: dto.priority,
         dueDate: dto.dueDate,
         estimateHours: dto.estimateHours,

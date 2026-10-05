@@ -7,7 +7,7 @@ import { CardsList, CardsTable } from "@/components/cards-views";
 import { DEFAULT_FILTERS } from "@/lib/card-filters";
 import { api } from "@/lib/api";
 import { onToast } from "@/lib/toast";
-import { card, column, member, taskType, taskTypes, user } from "./fixtures";
+import { card, column, member, user } from "./fixtures";
 
 describe("board toolbar", () => {
   const users = [user(), member()];
@@ -29,9 +29,8 @@ describe("board toolbar", () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_FILTERS, q: "б" });
   });
 
-  it("filters by person, label, type and priority, and shows removable chips", async () => {
+  it("filters by person, label and priority, and shows removable chips", async () => {
     vi.spyOn(api, "labels").mockResolvedValue([{ id: "l1", name: "Срочно", color: "red" }]);
-    vi.spyOn(api, "taskTypes").mockResolvedValue(taskTypes());
     const onChange = vi.fn();
     const { rerender } = render(<BoardToolbar filters={DEFAULT_FILTERS} onChange={onChange} users={users} />);
     await userEvent.click(screen.getByRole("button", { name: /Фильтр/ }));
@@ -39,23 +38,20 @@ describe("board toolbar", () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_FILTERS, assigneeIds: ["u2"] });
     await userEvent.click(screen.getByRole("menuitemcheckbox", { name: /Срочно/ }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_FILTERS, labelIds: ["l1"] });
-    await userEvent.click(screen.getByRole("menuitemcheckbox", { name: /Ошибка/ }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_FILTERS, types: ["tt2"] });
     await userEvent.click(screen.getByRole("menuitemcheckbox", { name: "Высокий" }));
     expect(onChange).toHaveBeenLastCalledWith({ ...DEFAULT_FILTERS, priorities: ["HIGH"] });
 
-    const active = { ...DEFAULT_FILTERS, assigneeIds: ["u2"], labelIds: ["l1"], types: ["tt2"], priorities: ["HIGH" as const] };
+    const active = { ...DEFAULT_FILTERS, assigneeIds: ["u2"], labelIds: ["l1"], priorities: ["HIGH" as const] };
     rerender(<BoardToolbar filters={active} onChange={onChange} users={users} />);
     expect((await screen.findAllByText("Анна Смирнова")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Срочно").length).toBeGreaterThan(0);
     expect(screen.getByText("Приоритет высокий")).toBeInTheDocument();
     await userEvent.click(screen.getByLabelText("Убрать фильтр Анна Смирнова"));
     expect(onChange).toHaveBeenLastCalledWith({ ...active, assigneeIds: [] });
-    await userEvent.click(screen.getByLabelText("Убрать фильтр Ошибка"));
     await userEvent.click(screen.getByLabelText("Убрать фильтр Срочно"));
     await userEvent.click(screen.getByLabelText("Убрать фильтр Приоритет высокий"));
     await userEvent.click(screen.getByRole("button", { name: "Сбросить" }));
-    expect(onChange).toHaveBeenLastCalledWith({ ...active, assigneeIds: [], types: [], priorities: [], labelIds: [] });
+    expect(onChange).toHaveBeenLastCalledWith({ ...active, assigneeIds: [], priorities: [], labelIds: [] });
     // toggling off a chosen value
     await userEvent.click(screen.getByRole("button", { name: /Фильтр/ }));
     await userEvent.click(screen.getAllByRole("menuitemcheckbox", { name: /Анна Смирнова/ })[0]);
@@ -150,7 +146,7 @@ describe("table and list views", () => {
   const cols = [
     column({ id: "c1", title: "Бэклог", cards: [
       card({ id: "a", title: "Бриф", dueDate: "2000-01-01T00:00:00Z", assignees: [{ user: { id: "u1", name: "Иван" } }], priority: "HIGH", checklist: [{ id: "i", text: "x", done: true }, { id: "j", text: "y", done: false }] }),
-      card({ id: "b", number: 2, title: "План", dueDate: tomorrow, type: taskType({ id: "tt2", name: "Ошибка", color: "red" }), priority: "LOW" }),
+      card({ id: "b", number: 2, title: "План", dueDate: tomorrow, priority: "LOW" }),
     ] }),
     column({ id: "c2", title: "Готово", cards: [card({ id: "d", number: 3, title: "Сдано", columnId: "c2", checklist: [{ id: "k", text: "x", done: true }] })] }),
   ];

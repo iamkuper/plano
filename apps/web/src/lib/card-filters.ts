@@ -7,7 +7,6 @@ export interface CardFilters {
   date: DateFilter;
   assigneeIds: string[];
   // Task type ids.
-  types: string[];
   priorities: CardPriority[];
   labelIds: string[];
   // Free text over title, description and key.
@@ -15,12 +14,12 @@ export interface CardFilters {
   sort: SortKey;
 }
 
-export const DEFAULT_FILTERS: CardFilters = { date: "all", assigneeIds: [], types: [], priorities: [], labelIds: [], q: "", sort: "manual" };
+export const DEFAULT_FILTERS: CardFilters = { date: "all", assigneeIds: [], priorities: [], labelIds: [], q: "", sort: "manual" };
 
 // Filters other than the date chips and the sort (shown as a count on the
 // "Фильтры" button).
 export function activeFilterCount(f: CardFilters) {
-  return f.assigneeIds.length + f.types.length + f.priorities.length + f.labelIds.length;
+  return f.assigneeIds.length + f.priorities.length + f.labelIds.length;
 }
 
 // True when the visible order differs from the stored one, so the board
@@ -60,7 +59,6 @@ export function applyFilters(cards: CardTileDto[], f: CardFilters) {
       matchesText(c, f.q) &&
       (!f.labelIds.length || c.labels.some((l) => f.labelIds.includes(l.label.id))) &&
       (!f.assigneeIds.length || c.assignees.some((a) => f.assigneeIds.includes(a.user.id))) &&
-      (!f.types.length || f.types.includes(c.type.id)) &&
       (!f.priorities.length || f.priorities.includes(c.priority)),
   );
   switch (f.sort) {

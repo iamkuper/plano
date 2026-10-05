@@ -151,7 +151,7 @@ export class AgentRunner implements OnModuleInit {
       `Event: ${trigger}${actor ? ` By: ${actor.name}.` : ""}${event.text ? `\nMessage: ${clip(event.text, 1500)}` : ""}`,
       "",
       `Card ${key}: ${card.title}`,
-      `Project: ${card.project.title}; column: ${card.column.title}; type: ${card.type.name}; priority: ${card.priority}`,
+      `Project: ${card.project.title}; column: ${card.column.title}; priority: ${card.priority}`,
       `Start: ${day(card.startDate)}; due: ${day(card.dueDate)}; estimate: ${card.estimateHours ?? "—"} h`,
       `Assignees: ${card.assignees.map((a) => a.user.name).join(", ") || "—"}; labels: ${card.labels.map((l) => l.label.name).join(", ") || "—"}`,
       `Columns of the board: ${columns.map((c) => c.title).join(" | ")}`,

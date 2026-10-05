@@ -3,7 +3,6 @@
 import { CalendarDays, Check, CheckSquare, Flag, MessageSquare, Paperclip, Repeat } from "lucide-react";
 import { cardKey, type CardTileDto, t, intlTag } from "@plano/shared";
 import { AvatarStack } from "./avatar";
-import { typeStyle } from "./card-type-icon";
 import { LabelTag } from "./ui";
 
 export function formatDate(iso: string) {
@@ -34,7 +33,6 @@ export function CardTile({
   const dueToday = due && due.toDateString() === today.toDateString();
   const done = card.checklist.filter((i) => i.done).length;
   const total = card.checklist.length;
-  const { icon: TypeIcon, color } = typeStyle(card.type);
 
   return (
     <div
@@ -104,10 +102,6 @@ export function CardTile({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-faint">
-        <span className="flex items-center gap-1" title={t("common.type")}>
-          <TypeIcon size={13} strokeWidth={2} style={{ color }} />
-          {card.type.name}
-        </span>
         {card.priority === "HIGH" && (
           <span className="flex items-center gap-1 text-danger" title={t("cardTile.highPriority")}>
             <Flag size={12} strokeWidth={2} />  {t("cardTile.urgent")}

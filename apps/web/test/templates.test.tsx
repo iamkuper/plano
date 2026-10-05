@@ -13,8 +13,8 @@ const admin = () => vi.spyOn(api, "me").mockResolvedValue(user());
 const detail = {
   id: "t1", name: "Типовой", columns: ["Бэклог", "Готово"],
   cards: [
-    { id: "k1", title: "Бриф", typeId: "tt2", estimateHours: 3, checklist: ["встреча", "цели"], description: "Описание", position: 1 },
-    { id: "k2", title: "Запуск", typeId: "tt1", estimateHours: null, checklist: [], description: null, position: 2 },
+    { id: "k1", title: "Бриф", estimateHours: 3, checklist: ["встреча", "цели"], description: "Описание", position: 1 },
+    { id: "k2", title: "Запуск", estimateHours: null, checklist: [], description: null, position: 2 },
   ],
 };
 
@@ -53,14 +53,13 @@ describe("template editor", () => {
     await userEvent.click(screen.getByRole("button", { name: "Создать шаблон" }));
     expect(await screen.findByText("У каждой карточки должно быть название")).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText("Название"), "Бриф");
-    await userEvent.selectOptions(screen.getByLabelText("Тип"), "tt2");
     await userEvent.type(screen.getByLabelText("Оценка, ч"), "3");
     await userEvent.type(screen.getByLabelText("Описание"), " текст ");
     await userEvent.type(screen.getByLabelText("Новая подзадача"), "а{enter}{enter}б{enter}");
     await userEvent.click(screen.getByRole("button", { name: "Создать шаблон" }));
     await waitFor(() => expect(create).toHaveBeenCalledWith({
       name: "Магазин", columns: ["Бэклог", "В работе", "На проверке", "Готово", "Приёмка"],
-      cards: [{ title: "Бриф", typeId: "tt2", estimateHours: 3, description: "текст", checklist: ["а", "б"] }],
+      cards: [{ title: "Бриф", estimateHours: 3, description: "текст", checklist: ["а", "б"] }],
     }));
     expect(nav.router.replace).toHaveBeenCalledWith("/settings/templates/new1");
   });

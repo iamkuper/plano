@@ -202,8 +202,7 @@ describe("the scoped Prisma client", () => {
     const b = await register(t, "scF");
     const theirs = await makeProject(t, b.token, "Чужой", ["x"]);
     const run = <T>(fn: () => PromiseLike<T> | T) => within(a.workspaceId, fn);
-    const myType = await t.db.taskType.findFirstOrThrow({ where: { workspaceId: a.workspaceId } });
-    await expect(run(() => scoped.card.create({ data: { ...CARD_FIELDS, projectId: theirs.project.id, columnId: theirs.columns[0].id, title: "x", position: 1, typeId: myType.id } }))).rejects.toMatchObject({ code: "P2025" });
+    await expect(run(() => scoped.card.create({ data: { ...CARD_FIELDS, projectId: theirs.project.id, columnId: theirs.columns[0].id, title: "x", position: 1 } }))).rejects.toMatchObject({ code: "P2025" });
     await expect(run(() => scoped.checklistItem.create({ data: { cardId: theirs.cards[0].id, text: "x", position: 1 } }))).rejects.toMatchObject({ code: "P2025" });
     await expect(run(() => scoped.cardAssignee.createMany({ data: [{ cardId: theirs.cards[0].id, userId: a.userId }] }))).rejects.toMatchObject({ code: "P2025" });
     const mine = await makeProject(t, a.token, "Мой", ["m"]);

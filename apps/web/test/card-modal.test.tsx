@@ -5,7 +5,7 @@ import { CardModal } from "@/components/card-modal";
 import { api } from "@/lib/api";
 import * as apiModule from "@/lib/api";
 import { onToast } from "@/lib/toast";
-import { billing, cardDetail, member, plans, taskType, taskTypes, user } from "./fixtures";
+import { billing, cardDetail, member, plans, user } from "./fixtures";
 
 vi.mock("@/lib/api", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/api")>()), uploadAttachment: vi.fn() }));
 vi.mock("socket.io-client", () => ({ io: vi.fn(() => ({ connected: true, on: vi.fn(), off: vi.fn(), emit: vi.fn() })) }));
@@ -13,7 +13,7 @@ vi.mock("socket.io-client", () => ({ io: vi.fn(() => ({ connected: true, on: vi.
 const ago = (days: number, hours = 12) => new Date(Date.now() - days * 86_400_000 + (hours - 12) * 3_600_000).toISOString();
 const detail = (over: object = {}) =>
   cardDetail({
-    id: "c1", title: "Подключить оплату", description: "Описание задачи", estimateHours: 2, type: taskType({ id: "tt2", name: "Интеграция", color: "teal" }), priority: "HIGH",
+    id: "c1", title: "Подключить оплату", description: "Описание задачи", estimateHours: 2, priority: "HIGH",
     column: { id: "col1", title: "Бэклог" }, project: { id: "p1", title: "Сайт" },
     assignees: [{ user: { id: "u1", name: "Иван Петров" } }],
     checklist: [{ id: "i1", text: "Заявка", done: true, position: 1 } as never, { id: "i2", text: "Тест", done: false, position: 2 } as never],
@@ -50,7 +50,6 @@ function setup(cardOver: object = {}, opts: { admin?: boolean; plan?: "pro" | "b
     billing: vi.spyOn(api, "billing").mockResolvedValue(billing({ plan: opts.plan === "business" ? plans[2] : plans[1] })),
     markCardRead: vi.spyOn(api, "markCardRead").mockResolvedValue(undefined),
     labels: vi.spyOn(api, "labels").mockResolvedValue([]),
-    types: vi.spyOn(api, "taskTypes").mockResolvedValue(taskTypes()),
     fields: vi.spyOn(api, "fields").mockResolvedValue([]),
     updateCard: vi.spyOn(api, "updateCard").mockResolvedValue({} as never),
     moveCard: vi.spyOn(api, "moveCard").mockResolvedValue({} as never),
@@ -135,13 +134,11 @@ describe("card modal: editing fields", () => {
     await waitFor(() => expect(updateCard).toHaveBeenCalledWith("c1", { description: expect.stringContaining("Новое") }));
   });
 
-  it("moves the card between columns, and changes type, priority and dates", async () => {
+  it("moves the card between columns, and changes priority and dates", async () => {
     const { moveCard, updateCard } = setup({ dueDate: "2026-12-05T00:00:00.000Z" });
     await loaded();
     await userEvent.selectOptions(screen.getByLabelText("Статус"), "col2");
     await waitFor(() => expect(moveCard).toHaveBeenCalledWith("c1", "col2"));
-    await userEvent.selectOptions(screen.getByLabelText("Тип"), "tt2");
-    await waitFor(() => expect(updateCard).toHaveBeenCalledWith("c1", { typeId: "tt2" }));
     await userEvent.selectOptions(screen.getByLabelText("Приоритет"), "LOW");
     await waitFor(() => expect(updateCard).toHaveBeenCalledWith("c1", { priority: "LOW" }));
     fireEvent.change(screen.getByLabelText("Начало"), { target: { value: "2026-12-01" } });
@@ -189,7 +186,7 @@ describe("card modal: editing fields", () => {
     const { updateCard } = setup();
     updateCard.mockRejectedValue(new Error("Тариф закончился: данные доступны только для чтения"));
     await loaded();
-    await userEvent.selectOptions(screen.getByLabelText("Тип"), "tt2");
+    await userEvent.selectOptions(screen.getByLabelText("Приоритет"), "LOW");
     expect(await screen.findByText(/Тариф закончился/)).toBeInTheDocument();
   });
 });

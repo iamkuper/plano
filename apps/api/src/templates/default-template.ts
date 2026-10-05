@@ -14,7 +14,6 @@ interface StarterTemplate {
   cards: StarterCard[];
 }
 
-export const DEFAULT_TYPE_NAME: Record<Locale, string> = { ru: "Задача", en: "Task" };
 
 export const DEFAULT_TEMPLATES: Record<Locale, StarterTemplate> = {
   ru: {
@@ -34,7 +33,7 @@ export const DEFAULT_TEMPLATES: Record<Locale, StarterTemplate> = {
       {
         title: "Настроить пространство",
         description: "Название компании, префикс номеров карточек и этапы по умолчанию меняются в «Настройках».",
-        checklist: ["Открыть «Настройки»", "Задать название и префикс", "Настроить типы задач", "Добавить метки"],
+        checklist: ["Открыть «Настройки»", "Задать название и префикс", "Добавить метки"],
       },
       {
         title: "Пригласить команду",
@@ -76,7 +75,7 @@ export const DEFAULT_TEMPLATES: Record<Locale, StarterTemplate> = {
       {
         title: "Set up your workspace",
         description: "Company name, card key prefix and default stages are changed in Settings.",
-        checklist: ["Open Settings", "Set the name and prefix", "Configure task types", "Add labels"],
+        checklist: ["Open Settings", "Set the name and prefix", "Add labels"],
       },
       {
         title: "Invite your team",
@@ -105,8 +104,8 @@ export const DEFAULT_TEMPLATES: Record<Locale, StarterTemplate> = {
 
 export const defaultTemplateNames = () => Object.values(DEFAULT_TEMPLATES).map((t) => t.name);
 
-// Nested create input for Template: the cards get the workspace's default task type.
-export const templateCreateData = (typeId: string, locale: Locale = "ru") => {
+// Nested create input for Template.
+export const templateCreateData = (locale: Locale = "ru") => {
   const t = DEFAULT_TEMPLATES[locale];
   return {
     name: t.name,
@@ -117,7 +116,6 @@ export const templateCreateData = (typeId: string, locale: Locale = "ru") => {
         description: c.description,
         estimateHours: c.estimateHours,
         checklist: c.checklist,
-        typeId,
         position: i + 1,
       })),
     },

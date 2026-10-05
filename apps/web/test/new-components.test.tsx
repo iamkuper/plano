@@ -9,7 +9,7 @@ import { GanttChart } from "@/components/gantt-chart";
 import { DEFAULT_FILTERS } from "@/lib/card-filters";
 import { api, setToken } from "@/lib/api";
 import { onToast } from "@/lib/toast";
-import { card, cardDetail, column, onboarding, taskType } from "./fixtures";
+import { card, cardDetail, column, onboarding } from "./fixtures";
 import { nav } from "./nav";
 
 describe("onboarding", () => {
@@ -329,7 +329,7 @@ describe("gantt chart", () => {
   const cols = [
     column({ id: "c1", cards: [
       card({ id: "a", title: "Бриф", startDate: d(0), dueDate: d(3) }),
-      card({ id: "b", number: 2, title: "Реализация", startDate: d(5), dueDate: d(9), type: taskType({ id: "tt2", name: "Разработка", color: "teal" }) }),
+      card({ id: "b", number: 2, title: "Реализация", startDate: d(5), dueDate: d(9) }),
       card({ id: "x", number: 3, title: "Только срок", dueDate: d(12) }),
       card({ id: "n", number: 4, title: "Без дат" }),
     ] }),

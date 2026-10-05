@@ -8,15 +8,15 @@ import { onToast, toast } from "@/lib/toast";
 import { useFilters } from "@/lib/use-filters";
 import { useCardParam, useQueryParam } from "@/lib/use-card-param";
 import { imageToAvatarDataUrl } from "@/lib/image";
-import { card, taskType } from "./fixtures";
+import { card } from "./fixtures";
 import { nav } from "./nav";
 
 describe("card filters", () => {
   const today = new Date();
   const day = (offset: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + offset, 12).toISOString();
   const cards = [
-    card({ id: "a", title: "Бриф клиента", dueDate: day(-2), priority: "LOW", type: taskType({ id: "s" }), updatedAt: "2026-10-01T00:00:00Z" }),
-    card({ id: "b", number: 2, title: "Интеграция", description: "обмен данными", dueDate: day(0), priority: "HIGH", type: taskType({ id: "i" }), updatedAt: "2026-10-03T00:00:00Z", assignees: [{ user: { id: "u1", name: "И" } }], labels: [{ label: { id: "l1", name: "Срочно", color: "red" } }] }),
+    card({ id: "a", title: "Бриф клиента", dueDate: day(-2), priority: "LOW", updatedAt: "2026-10-01T00:00:00Z" }),
+    card({ id: "b", number: 2, title: "Интеграция", description: "обмен данными", dueDate: day(0), priority: "HIGH", updatedAt: "2026-10-03T00:00:00Z", assignees: [{ user: { id: "u1", name: "И" } }], labels: [{ label: { id: "l1", name: "Срочно", color: "red" } }] }),
     card({ id: "c", number: 3, title: "Обучение", dueDate: day(5), priority: "MEDIUM", updatedAt: "2026-10-02T00:00:00Z" }),
     card({ id: "d", number: 4, title: "Без срока", dueDate: null }),
   ];
@@ -34,16 +34,15 @@ describe("card filters", () => {
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, date: "week" }))).toEqual(["b", "c"]);
   });
 
-  it("filters by assignee, type, priority, label and free text (title, description, key)", () => {
+  it("filters by assignee, priority, label and free text (title, description, key)", () => {
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, assigneeIds: ["u1"] }))).toEqual(["b"]);
-    expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, types: ["s", "i"] }))).toEqual(["a", "b"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, priorities: ["LOW"] }))).toEqual(["a"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, labelIds: ["l1"] }))).toEqual(["b"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "бриф" }))).toEqual(["a"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "ОБМЕН" }))).toEqual(["b"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "TSK-3" }))).toEqual(["c"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "   " }))).toHaveLength(4);
-    expect(activeFilterCount({ ...DEFAULT_FILTERS, assigneeIds: ["u1"], labelIds: ["l1"], types: ["bug"], priorities: ["LOW"] })).toBe(4);
+    expect(activeFilterCount({ ...DEFAULT_FILTERS, assigneeIds: ["u1"], labelIds: ["l1"], priorities: ["LOW"] })).toBe(3);
     expect(isReordered({ ...DEFAULT_FILTERS, q: "x" })).toBe(true);
   });
 

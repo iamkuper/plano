@@ -45,7 +45,6 @@ export class ReportsController {
             id: true,
             number: true,
             title: true,
-            type: { select: { id: true, name: true, color: true } },
             project: { select: { id: true, title: true } },
           },
         },

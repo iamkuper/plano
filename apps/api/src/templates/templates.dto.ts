@@ -22,11 +22,6 @@ export class TemplateCardDto {
   @IsString()
   description?: string | null;
 
-  // Omitted = the workspace default type.
-  @IsOptional()
-  @IsString()
-  typeId?: string;
-
   @IsOptional()
   @IsInt()
   @Min(0)

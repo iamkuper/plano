@@ -3,7 +3,6 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Check } from "lucide-react";
 import { Avatar, AvatarStack, LetterMark } from "@/components/avatar";
-import { CardTypeIcon, CardTypeTag } from "@/components/card-type-icon";
 import { Toaster } from "@/components/toaster";
 import { HomeTabs, SettingsTabs, TabLinks } from "@/components/tab-links";
 import {
@@ -250,11 +249,6 @@ describe("avatars and tags", () => {
     expect(screen.getByTitle("А, Б, В, Г, Д")).toBeInTheDocument();
   });
 
-  it("card type markers name the type", () => {
-    render(<><CardTypeIcon type={{ id: "a", name: "Ошибка", color: "red" }} /><CardTypeTag type={{ id: "b", name: "Интеграция", color: null }} /></>);
-    expect(screen.getByTitle("Ошибка")).toBeInTheDocument();
-    expect(screen.getByText("Интеграция")).toBeInTheDocument();
-  });
 });
 
 describe("toaster", () => {

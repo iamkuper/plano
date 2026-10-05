@@ -6,7 +6,6 @@ import { cardKey, type ColumnDto, t, intlTag } from "@plano/shared";
 import { api } from "@/lib/api";
 import { applyFilters, type CardFilters } from "@/lib/card-filters";
 import { toast } from "@/lib/toast";
-import { typeStyle } from "./card-type-icon";
 
 const WEEKDAYS = [t("cardsCalendar.mon"), t("cardsCalendar.tue"), t("cardsCalendar.wed"), t("cardsCalendar.thu"), t("cardsCalendar.fri"), t("cardsCalendar.sat"), t("cardsCalendar.sun")];
 const MAX_PER_DAY = 3;
@@ -124,7 +123,6 @@ export function CardsCalendar({
                 </div>
                 <div className="space-y-0.5">
                   {shown.map((c) => {
-                    const { icon: Icon, color } = typeStyle(c.type);
                     const done = c.columnId === doneColumnId;
                     const overdue = !done && new Date(c.dueDate!) < new Date(new Date().toDateString());
                     return (
@@ -136,7 +134,6 @@ export function CardsCalendar({
                         title={`${cardKey(c)} ${c.title}`}
                         className={`flex w-full items-center gap-1.5 rounded-sm px-1 py-0.5 text-left text-xs hover:bg-surface-sunken ${done ? "text-ink-ghost line-through" : overdue ? "text-danger" : "text-ink"}`}
                       >
-                        <Icon size={12} strokeWidth={2} style={{ color }} className="shrink-0" />
                         <span className="truncate">{c.title}</span>
                       </button>
                     );

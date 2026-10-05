@@ -12,10 +12,6 @@ export class SaveRecurringDto {
   description?: string | null;
 
   @IsOptional()
-  @IsString()
-  typeId?: string;
-
-  @IsOptional()
   @IsEnum(CardPriority)
   priority?: CardPriority;
 

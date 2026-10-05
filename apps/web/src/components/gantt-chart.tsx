@@ -7,10 +7,11 @@ import { cardKey, type CardTileDto, type ColumnDto, t, intlTag } from "@plano/sh
 import { api } from "@/lib/api";
 import { applyFilters, type CardFilters } from "@/lib/card-filters";
 import { toast } from "@/lib/toast";
-import { typeStyle } from "./card-type-icon";
+import { color as tokens } from "@/design/tokens";
 import { Button, ConfirmDialog, EmptyState, Segmented, Skeleton } from "./ui";
 
 const DAY_MS = 86_400_000;
+const BAR = tokens.accent;
 const ROW = 34;
 const HEAD = 48;
 const LEFT = 260;
@@ -254,10 +255,8 @@ export function GanttChart({
               {/* task names */}
               <div className="sticky left-0 z-20 shrink-0 border-r border-border bg-surface" style={{ width: LEFT }}>
                 {rows.map((c) => {
-                  const { icon: Icon, color } = typeStyle(c.type);
                   return (
                     <button key={c.id} onClick={() => onOpenCard(c.id)} className="flex w-full items-center gap-2 border-b border-border px-3 text-left text-sm hover:bg-surface-soft" style={{ height: ROW }} title={c.title}>
-                      <Icon size={13} strokeWidth={2} style={{ color }} className="shrink-0" />
                       <span className="shrink-0 text-xs text-ink-ghost">{cardKey(c)}</span>
                       <span className={`truncate ${c.columnId === doneColumnId ? "text-ink-ghost line-through" : ""}`}>{c.title}</span>
                     </button>
@@ -311,7 +310,6 @@ export function GanttChart({
                 {rows.map((c, i) => {
                   const sp = live(c);
                   if (!sp) return null;
-                  const { color } = typeStyle(c.type);
                   const done = c.columnId === doneColumnId;
                   const overdue = !done && sp.e < today;
                   const left = x(sp.s);
@@ -322,7 +320,7 @@ export function GanttChart({
                       data-bar={c.id}
                       onPointerDown={(e) => startBar(e, c, "move")}
                       className="group/bar absolute z-20 flex cursor-grab items-center overflow-visible rounded-md active:cursor-grabbing"
-                      style={{ left, top: i * ROW + 6, width: Math.max(w, 6), height: ROW - 12, background: done ? `${color}55` : color, outline: overdue ? "2px solid #D23F3F" : undefined, outlineOffset: -1 }}
+                      style={{ left, top: i * ROW + 6, width: Math.max(w, 6), height: ROW - 12, background: done ? `${BAR}55` : BAR, outline: overdue ? "2px solid #D23F3F" : undefined, outlineOffset: -1 }}
                       title={`${cardKey(c)} ${c.title}: ${fromDay(sp.s)} – ${fromDay(sp.e)}`}
                     >
                       <span onPointerDown={(e) => startBar(e, c, "start")} className="absolute inset-y-0 left-0 w-1.5 cursor-ew-resize" />

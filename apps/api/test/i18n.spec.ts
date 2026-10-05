@@ -43,7 +43,6 @@ describe("account language", () => {
     const me = (await A.get("/users/me").expect(200)).body;
     expect(me.locale).toBe("en");
     expect((await A.get("/settings").expect(200)).body.defaultColumns).toEqual(["Backlog", "In progress", "In review", "Done"]);
-    expect((await A.get("/task-types")).body[0].name).toBe("Task");
   });
 
   it("changes in the profile and rejects unknown languages", async () => {

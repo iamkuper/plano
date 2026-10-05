@@ -47,7 +47,6 @@ export const SettingsTabs = () => (
       { href: "/settings", label: t("tabLinks.general"), exact: true },
       { href: "/settings/users", label: t("tabLinks.staffAndPermissions") },
       { href: "/settings/templates", label: t("common.templates") },
-      { href: "/settings/types", label: t("tabLinks.types") },
       { href: "/settings/agents", label: t("tabLinks.agents") },
       { href: "/settings/fields", label: t("tabLinks.fields") },
       { href: "/settings/audit", label: t("tabLinks.log") },

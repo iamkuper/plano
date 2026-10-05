@@ -13,10 +13,6 @@ export class UpdateCardDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
-  typeId?: string;
-
-  @IsOptional()
   @IsEnum(CardPriority)
   priority?: CardPriority;
 

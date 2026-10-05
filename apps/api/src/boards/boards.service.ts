@@ -8,7 +8,6 @@ export const cardTileInclude = {
   assignees: { select: { user: { select: { id: true, name: true, avatarUrl: true, kind: true } } } },
   labels: { select: { label: { select: { id: true, name: true, color: true } } } },
   project: { select: { id: true, title: true } },
-  type: { select: { id: true, name: true, color: true } },
   // Tiles show subtasks inline and let you tick them off on the board.
   checklist: { select: { id: true, text: true, done: true }, orderBy: { position: "asc" } },
   _count: { select: { comments: true, attachments: true } },

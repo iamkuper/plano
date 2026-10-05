@@ -7,8 +7,6 @@ import { t, type UserDto } from "@plano/shared";
 import { can } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { useSettings } from "@/lib/settings";
-import { typeStyle } from "@/components/card-type-icon";
-import { useTaskTypes } from "@/lib/use-task-types";
 import { Button, Card, ConfirmDialog, Field, IconButton, Input, PageHeader, Select, Textarea } from "@/components/ui";
 import { stageColor } from "@/design/tokens";
 import { api, type TemplateCardInput, type TemplateInput } from "@/lib/api";
@@ -136,8 +134,6 @@ function CardEditor({
   onRemove: () => void;
 }) {
   const [open, setOpen] = useState(!card.title);
-  const taskTypes = useTaskTypes();
-  const { icon: TypeIcon, color } = typeStyle(taskTypes.find((x) => x.id === card.typeId) ?? { color: null });
   const items = card.checklist.filter((i) => i.text.trim()).length;
   return (
     <div className="border-b border-border last:border-b-0">
@@ -145,7 +141,6 @@ function CardEditor({
         <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="grid size-6 place-items-center rounded text-ink-ghost hover:text-ink" aria-label={open ? t("settings.templates.id.collapse") : t("settings.templates.id.expand")}>
           <ChevronDown size={14} className={`transition-transform ${open ? "" : "-rotate-90"}`} />
         </button>
-        <TypeIcon size={14} strokeWidth={2} style={{ color }} className="shrink-0" />
         <button type="button" onClick={() => setOpen((o) => !o)} className="min-w-0 flex-1 truncate text-left text-base">
           {card.title || <span className="text-ink-ghost">{t("settings.templates.id.untitled")}</span>}
         </button>
@@ -168,20 +163,9 @@ function CardEditor({
         )}
       </div>
       {open && (
-        <div className="grid gap-3 px-11 pb-4 sm:grid-cols-[1fr_180px_120px]">
+        <div className="grid gap-3 px-11 pb-4 sm:grid-cols-[1fr_120px]">
           <Field label={t("common.name2")}>
             {(a) => <Input {...a} autoFocus={!card.title} disabled={readOnly} value={card.title} onChange={(e) => onChange({ title: e.target.value })} />}
-          </Field>
-          <Field label={t("common.type")}>
-            {(a) => (
-              <Select {...a} disabled={readOnly} value={card.typeId ?? taskTypes.find((x) => x.isDefault)?.id ?? ""} onChange={(e) => onChange({ typeId: e.target.value })}>
-                {taskTypes.map((x) => (
-                  <option key={x.id} value={x.id}>
-                    {x.name}
-                  </option>
-                ))}
-              </Select>
-            )}
           </Field>
           <Field label={t("common.estimateH")}>
             {(a) => (

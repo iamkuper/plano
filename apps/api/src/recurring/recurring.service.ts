@@ -1,4 +1,3 @@
-import { defaultTaskTypeId } from "../task-types/default-type";
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import type { RecurringRule } from "@prisma/client";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -45,7 +44,6 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
     const rule = {
       title: dto.title.trim(),
       description: dto.description?.trim() || null,
-      typeId: dto.typeId ?? (await defaultTaskTypeId(this.prisma)),
       priority: dto.priority ?? "MEDIUM",
       estimateHours: dto.estimateHours ?? null,
       assigneeIds: dto.assigneeIds ?? [],
@@ -99,7 +97,6 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
         columnId: column.id,
         title: rule.title,
         description: rule.description,
-        typeId: rule.typeId,
         priority: rule.priority,
         estimateHours: rule.estimateHours,
         dueDate: due,

@@ -43,7 +43,6 @@ export class ExportController {
         orderBy: [{ column: { position: "asc" } }, { position: "asc" }],
         include: {
           column: { select: { title: true } },
-          type: { select: { name: true } },
           assignees: { select: { user: { select: { name: true } } } },
           labels: { select: { label: { select: { name: true } } } },
           checklist: { select: { done: true } },
@@ -53,7 +52,7 @@ export class ExportController {
       }),
     ]);
 
-    const header = [t("api.export.key"), t("common.name2"), t("common.description"), t("common.column"), t("common.type"), t("common.priority"), t("common.assignees"), t("common.labels"), t("common.start2"), t("common.dueDate"), t("common.estimateH"), t("api.export.loggedMin"), t("common.subtasks"), t("common.created"), ...fields.map((f) => f.name)];
+    const header = [t("api.export.key"), t("common.name2"), t("common.description"), t("common.column"), t("common.priority"), t("common.assignees"), t("common.labels"), t("common.start2"), t("common.dueDate"), t("common.estimateH"), t("api.export.loggedMin"), t("common.subtasks"), t("common.created"), ...fields.map((f) => f.name)];
     const lines = [csvRow(header)];
     for (const c of cards) {
       const done = c.checklist.filter((i) => i.done).length;
@@ -63,7 +62,6 @@ export class ExportController {
           c.title,
           c.description,
           c.column.title,
-          c.type.name,
           CARD_PRIORITY_LABELS[c.priority],
           c.assignees.map((a) => a.user.name).join(", "),
           c.labels.map((l) => l.label.name).join(", "),

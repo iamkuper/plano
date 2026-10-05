@@ -15,10 +15,6 @@ export class CreateCardDto {
   description?: string;
 
   @IsOptional()
-  @IsString()
-  typeId?: string;
-
-  @IsOptional()
   @IsEnum(CardPriority)
   priority?: CardPriority;
 

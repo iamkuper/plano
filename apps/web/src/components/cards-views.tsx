@@ -3,7 +3,6 @@
 import { CalendarDays } from "lucide-react";
 import { cardKey, type CardTileDto, type ColumnDto, t } from "@plano/shared";
 import { AvatarStack } from "./avatar";
-import { CardTypeIcon, CardTypeTag } from "./card-type-icon";
 import { formatDate } from "./card-tile";
 import { PriorityBadge } from "./priority-badge";
 import { applyFilters, type CardFilters } from "@/lib/card-filters";
@@ -103,7 +102,6 @@ export function CardsTable({
               )}
               <td className={`${td} max-w-[420px]`}>
                 <div className="flex items-center gap-3">
-                  <CardTypeIcon type={card.type} size={22} />
                   <div className="min-w-0">
                     <div className="truncate font-medium">{card.title}</div>
                     <div className="text-xs text-ink-ghost">{cardKey(card)}</div>
@@ -167,7 +165,6 @@ export function CardsList({
                 <span className="w-16 shrink-0 text-xs text-ink-ghost">{cardKey(card)}</span>
                 <span className="min-w-0 flex-1 truncate text-base font-medium">{card.title}</span>
                 <span className="hidden shrink-0 items-center gap-1.5 md:flex">
-                  <CardTypeTag type={card.type} />
                   {card.priority !== "MEDIUM" && <PriorityBadge priority={card.priority} />}
                 </span>
                 <span className="hidden w-28 shrink-0 lg:block">

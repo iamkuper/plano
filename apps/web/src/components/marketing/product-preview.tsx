@@ -22,7 +22,7 @@ import {
   Table2,
   X,
 } from "lucide-react";
-import { forceLocale, setCardKeyPrefix, type CardTileDto, type ColumnDto, type Locale, type TaskTypeRefDto } from "@plano/shared";
+import { forceLocale, setCardKeyPrefix, type CardTileDto, type ColumnDto, type Locale } from "@plano/shared";
 import { makeTr, type Tr } from "@/lib/marketing";
 import { Avatar, LetterMark } from "@/components/avatar";
 import { ColumnShell, ProjectFunnel } from "@/components/board";
@@ -51,58 +51,46 @@ const DAY = 86_400_000;
 const today = new Date(new Date().toDateString()).getTime();
 const at = (days: number) => new Date(today + days * DAY).toISOString();
 
-// The demo shows a few task types a team might set up.
-const makeTypes = (tr: Tr) => ({
-  SETUP: { id: "setup", name: tr("mk.productPreview.setup"), color: "blue" },
-  INTEGRATION: { id: "integration", name: tr("mk.productPreview.integration"), color: "orange" },
-  WIDGET: { id: "widget", name: tr("mk.productPreview.development"), color: "teal" },
-  TRAINING: { id: "training", name: tr("mk.productPreview.training"), color: "green" },
-  BUG: { id: "bug", name: tr("mk.productPreview.bug"), color: "red" },
-  OTHER: { id: "task", name: tr("common.task"), color: null },
-}) satisfies Record<string, TaskTypeRefDto>;
-type TypeKey = "SETUP" | "INTEGRATION" | "WIDGET" | "TRAINING" | "BUG" | "OTHER";
-type Seed = [n: number, title: string, type: TypeKey, stage: number, who: number[], due: number, start: number, subtasks: [string, boolean][], comments: number, files: number, high?: boolean];
+type Seed = [n: number, title: string, stage: number, who: number[], due: number, start: number, subtasks: [string, boolean][], comments: number, files: number, high?: boolean];
 const makeSeeds = (tr: Tr): Seed[] => [
-  [21, tr("mk.productPreview.clientBriefAndRequirements"), "SETUP", 3, [0], -3, -6, [[tr("mk.productPreview.meetingWithTheClient"), true], [tr("mk.productPreview.goalsAndMetrics"), true], [tr("mk.productPreview.timelineAndBudget"), true]], 4, 2],
-  [22, tr("mk.productPreview.salesFunnelAndDealStages"), "SETUP", 2, [1], 1, -3, [[tr("mk.productPreview.dealStages"), true], [tr("mk.productPreview.cardFields"), true], [tr("mk.productPreview.managerPermissions"), false]], 2, 0],
-  [27, tr("mk.productPreview.septemberReport"), "OTHER", 2, [0], 0, -1, [], 1, 1],
-  [23, tr("mk.productPreview.websiteIntegrationLeadForm"), "INTEGRATION", 1, [3, 1], 4, -1, [[tr("mk.productPreview.leadForm"), true], [tr("mk.productPreview.webhook"), false], [tr("mk.productPreview.testWithSampleData"), false]], 6, 1, true],
-  [24, tr("mk.productPreview.telephonyAndCallRecording"), "INTEGRATION", 1, [1], 5, 1, [[tr("mk.productPreview.connectANumber"), false], [tr("mk.productPreview.callScripts"), false]], 1, 0],
-  [26, tr("mk.productPreview.newLeadNotificationsDonT"), "BUG", 0, [3], -1, -2, [[tr("mk.productPreview.reproduce"), false]], 3, 1, true],
-  [25, tr("mk.productPreview.salesTeamTraining"), "TRAINING", 0, [2], 9, 7, [[tr("mk.productPreview.slides"), false], [tr("mk.productPreview.webinarRecording"), false]], 0, 3],
-  [28, tr("mk.productPreview.priceCalculatorWidget"), "WIDGET", 0, [2, 0], 12, 8, [], 0, 0],
+  [21, tr("mk.productPreview.clientBriefAndRequirements"), 3, [0], -3, -6, [[tr("mk.productPreview.meetingWithTheClient"), true], [tr("mk.productPreview.goalsAndMetrics"), true], [tr("mk.productPreview.timelineAndBudget"), true]], 4, 2],
+  [22, tr("mk.productPreview.salesFunnelAndDealStages"), 2, [1], 1, -3, [[tr("mk.productPreview.dealStages"), true], [tr("mk.productPreview.cardFields"), true], [tr("mk.productPreview.managerPermissions"), false]], 2, 0],
+  [27, tr("mk.productPreview.septemberReport"), 2, [0], 0, -1, [], 1, 1],
+  [23, tr("mk.productPreview.websiteIntegrationLeadForm"), 1, [3, 1], 4, -1, [[tr("mk.productPreview.leadForm"), true], [tr("mk.productPreview.webhook"), false], [tr("mk.productPreview.testWithSampleData"), false]], 6, 1, true],
+  [24, tr("mk.productPreview.telephonyAndCallRecording"), 1, [1], 5, 1, [[tr("mk.productPreview.connectANumber"), false], [tr("mk.productPreview.callScripts"), false]], 1, 0],
+  [26, tr("mk.productPreview.newLeadNotificationsDonT"), 0, [3], -1, -2, [[tr("mk.productPreview.reproduce"), false]], 3, 1, true],
+  [25, tr("mk.productPreview.salesTeamTraining"), 0, [2], 9, 7, [[tr("mk.productPreview.slides"), false], [tr("mk.productPreview.webinarRecording"), false]], 0, 3],
+  [28, tr("mk.productPreview.priceCalculatorWidget"), 0, [2, 0], 12, 8, [], 0, 0],
 ];
 
 
-// Everything language-dependent in the demo: texts, people, stages, task types, cards.
+// Everything language-dependent in the demo: texts, people, stages, cards.
 interface World {
   tr: Tr;
   people: ReturnType<typeof makePeople>;
   stages: string[];
-  types: ReturnType<typeof makeTypes>;
   seeds: Seed[];
 }
 const makeWorld = (locale: Locale): World => {
   const tr = makeTr(locale);
-  return { tr, people: makePeople(tr), stages: makeStages(tr), types: makeTypes(tr), seeds: makeSeeds(tr) };
+  return { tr, people: makePeople(tr), stages: makeStages(tr), seeds: makeSeeds(tr) };
 };
 const WorldContext = createContext<World>(makeWorld("ru"));
 const useWorld = () => useContext(WorldContext);
 
-function makeColumns({ tr, people: PEOPLE, stages: STAGES, types: TYPES, seeds: SEEDS }: World): ColumnDto[] {
+function makeColumns({ tr, people: PEOPLE, stages: STAGES, seeds: SEEDS }: World): ColumnDto[] {
   return STAGES.map((title, i) => ({
     id: `col${i}`,
     title,
     position: i + 1,
     wipLimit: i === 1 ? 3 : null,
     color: null,
-    cards: SEEDS.filter((s) => s[3] === i).map(([n, cardTitle, type, , who, due, start, subtasks, comments, files, high], k) => ({
+    cards: SEEDS.filter((s) => s[2] === i).map(([n, cardTitle, , who, due, start, subtasks, comments, files, high], k) => ({
       id: `c${n}`,
       number: n,
       columnId: `col${i}`,
       title: cardTitle,
       description: null,
-      type: TYPES[type],
       priority: high ? "HIGH" : "MEDIUM",
       position: k + 1,
       dueDate: at(due),

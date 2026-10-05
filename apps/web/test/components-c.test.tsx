@@ -55,7 +55,7 @@ describe("project overview", () => {
 
 describe("recurring task dialog", () => {
   const users = [user(), member()];
-  const rule = { id: "r1", projectId: "p1", title: "Отчёт", description: "Описание", typeId: "tt2", priority: "HIGH" as const, estimateHours: 2, assigneeIds: ["u2"], checklist: ["а", "б"], frequency: "WEEKLY" as const, interval: 2, weekday: 3, monthDay: null, dueInDays: 4, nextRunAt: "2026-11-04T06:00:00.000Z", lastRunAt: null, active: true, createdAt: "" };
+  const rule = { id: "r1", projectId: "p1", title: "Отчёт", description: "Описание", priority: "HIGH" as const, estimateHours: 2, assigneeIds: ["u2"], checklist: ["а", "б"], frequency: "WEEKLY" as const, interval: 2, weekday: 3, monthDay: null, dueInDays: 4, nextRunAt: "2026-11-04T06:00:00.000Z", lastRunAt: null, active: true, createdAt: "" };
 
   it("creates a monthly rule with the form's values", async () => {
     const create = vi.spyOn(api, "createRecurring").mockResolvedValue(rule as never);
@@ -63,7 +63,6 @@ describe("recurring task dialog", () => {
     const onClose = vi.fn();
     render(<RecurringDialog projectId="p1" users={users} onClose={onClose} onSaved={onSaved} />);
     await userEvent.type(screen.getByLabelText("Название задачи"), "  Ежемесячный отчёт ");
-    await userEvent.selectOptions(screen.getByLabelText("Тип"), "tt2");
     await userEvent.selectOptions(screen.getByLabelText("Приоритет"), "HIGH");
     await userEvent.click(screen.getByRole("checkbox", { name: "Анна Смирнова" }));
     await userEvent.type(screen.getByLabelText("Чек-лист"), "собрать{enter}  {enter}отправить");
@@ -74,7 +73,7 @@ describe("recurring task dialog", () => {
     await userEvent.click(screen.getByRole("button", { name: "Настроить повторение" }));
     await waitFor(() => expect(create).toHaveBeenCalled());
     expect(create).toHaveBeenCalledWith("p1", expect.objectContaining({
-      title: "Ежемесячный отчёт", typeId: "tt2", priority: "HIGH", assigneeIds: ["u2"], checklist: ["собрать", "отправить"],
+      title: "Ежемесячный отчёт", priority: "HIGH", assigneeIds: ["u2"], checklist: ["собрать", "отправить"],
       frequency: "MONTHLY", interval: 1, weekday: null, monthDay: 28, dueInDays: 3, startDate: "2026-11-01", description: null,
     }));
     expect(onSaved).toHaveBeenCalled();

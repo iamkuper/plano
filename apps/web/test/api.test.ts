@@ -54,7 +54,7 @@ describe("request wrapper", () => {
   });
 
   it("every endpoint helper builds a request without throwing", async () => {
-    vi.restoreAllMocks(); // drops the global taskTypes stub from setup
+    vi.restoreAllMocks();
     const f = reply(200, {});
     vi.stubGlobal("fetch", f);
     const skip = new Set(["login"]);

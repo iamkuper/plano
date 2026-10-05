@@ -5,11 +5,9 @@ import type {
   CardDetailDto,
   CardTileDto,
   CardPriority,
-  TaskTypeDto,
   AgentDto,
   AgentProvider,
   AgentRunDto,
-  TaskTypeRefDto,
   ChecklistItemDto,
   ColumnDto,
   CustomFieldDto,
@@ -151,7 +149,6 @@ export type BulkAction = "move" | "assign" | "unassign" | "priority" | "due" | "
 export interface RecurringInput {
   title: string;
   description?: string | null;
-  typeId?: string;
   priority?: CardPriority;
   estimateHours?: number | null;
   assigneeIds?: string[];
@@ -206,7 +203,6 @@ export interface AgentInput {
 export interface TemplateCardInput {
   title: string;
   description?: string | null;
-  typeId?: string;
   estimateHours?: number | null;
   checklist: string[];
 }
@@ -289,7 +285,6 @@ const del = (path: string) => apiFetch<void>(path, { method: "DELETE" });
 export interface CardPatch {
   title: string;
   description: string | null;
-  typeId: string;
   priority: CardPriority;
   startDate: string | null;
   dueDate: string | null;
@@ -359,10 +354,6 @@ export const api = {
   deleteAgent: (id: string) => del(`/agents/${id}`),
   agentRuns: (id: string) => apiFetch<AgentRunDto[]>(`/agents/${id}/runs`),
   testAgent: (data: { agentId?: string; provider: AgentProvider; model: string; baseUrl?: string | null; apiKey?: string }) => post<{ ok: true; reply: string }>("/agents/test", data),
-  taskTypes: () => apiFetch<TaskTypeDto[]>("/task-types"),
-  createTaskType: (name: string, color: LabelColor | null) => post<TaskTypeDto>("/task-types", { name, color }),
-  updateTaskType: (id: string, data: Partial<{ name: string; color: LabelColor | null; isDefault: boolean }>) => patch<TaskTypeDto>(`/task-types/${id}`, data),
-  deleteTaskType: (id: string) => del(`/task-types/${id}`),
   labels: () => apiFetch<LabelDto[]>("/labels"),
   createLabel: (name: string, color: LabelColor) => post<LabelDto>("/labels", { name, color }),
   updateLabel: (id: string, data: Partial<{ name: string; color: LabelColor }>) => patch<LabelDto>(`/labels/${id}`, data),

@@ -7,20 +7,6 @@ export type UserRole = "ADMIN" | "MEMBER";
 export type UserKind = "HUMAN" | "AGENT";
 export type ProjectStatus = "ACTIVE" | "ON_HOLD" | "DONE" | "ARCHIVED";
 export type CardPriority = "LOW" | "MEDIUM" | "HIGH";
-// Task type: configured per workspace (settings → task types); every
-// workspace has at least one, marked as default.
-export interface TaskTypeRefDto {
-  id: string;
-  name: string;
-  color: string | null;
-}
-
-export interface TaskTypeDto extends TaskTypeRefDto {
-  position: number;
-  isDefault: boolean;
-  cardCount: number;
-}
-
 export type Locale = "ru" | "en";
 export const LOCALES: readonly Locale[] = ["ru", "en"];
 export const DEFAULT_LOCALE: Locale = "ru";
@@ -54,7 +40,6 @@ export const PERMISSIONS = [
   { key: "templates.manage", get label() { return t("shared.createAndEditTemplates"); } },
   { key: "labels.manage", get label() { return t("shared.editAndDeleteLabels"); }, get hint() { return t("shared.anyEmployeeCanCreateAnd"); } },
   { key: "fields.manage", get label() { return t("shared.configureCustomCardFields"); } },
-  { key: "types.manage", get label() { return t("shared.configureTaskTypes"); } },
   { key: "agents.manage", get label() { return t("shared.manageAiAgents"); }, get hint() { return t("shared.manageAiAgentsHint"); } },
   { key: "audit.view", get label() { return t("shared.viewTheActivityLog"); } },
   { key: "billing.manage", get label() { return t("shared.manageThePlanAndBilling"); } },
@@ -154,7 +139,6 @@ export interface CardTileDto {
   columnId: string;
   title: string;
   description: string | null;
-  type: TaskTypeRefDto;
   priority: CardPriority;
   position: number;
   startDate: string | null;
@@ -251,7 +235,6 @@ export interface RecurringRuleDto {
   projectId: string;
   title: string;
   description: string | null;
-  typeId: string;
   priority: CardPriority;
   estimateHours: number | null;
   assigneeIds: string[];
@@ -302,7 +285,6 @@ export interface CardDetailDto extends Omit<CardTileDto, "checklist"> {
 export const CARD_FIELD_LABELS: Record<string, string> = lazyLabels({
   title: "shared.title",
   description: "shared.description",
-  typeId: "shared.type",
   priority: "shared.priority",
   startDate: "shared.start",
   dueDate: "shared.dueDate",

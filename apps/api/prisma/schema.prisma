@@ -74,7 +74,6 @@ model Workspace {
   invitations  Invitation[]
   labels       Label[]
   customFields CustomField[]
-  taskTypes    TaskType[]
   agentRuns    AgentRun[]
   auditLog     AuditLog[]
 }
@@ -181,8 +180,6 @@ model Card {
   column          Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
   title           String
   description     String?
-  typeId          String
-  type            TaskType       @relation(fields: [typeId], references: [id], onDelete: Restrict)
   priority        CardPriority   @default(MEDIUM)
   position        Float
   startDate       DateTime?
@@ -262,29 +259,6 @@ model TimeEntry {
   @@index([userId, date])
 }
 
-// Project templates: board stages + starter cards.
-// Task type: a workspace-level classifier of cards. Every workspace has at
-// least one (the default, "Задача"); more are configured in settings.
-model TaskType {
-  id          String    @id @default(cuid())
-  workspaceId String
-  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name        String
-  // Hex colour of the marker; null = neutral grey.
-  color       String?
-  position    Int       @default(0)
-  // Cards without an explicit type get this one. Exactly one per workspace.
-  isDefault   Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-
-  cards          Card[]
-  templateCards  TemplateCard[]
-  recurringRules RecurringRule[]
-
-  @@unique([workspaceId, name])
-  @@index([workspaceId])
-}
-
 model Template {
   id          String    @id @default(cuid())
   workspaceId String
@@ -305,8 +279,6 @@ model TemplateCard {
   template      Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
   title         String
   description   String?
-  typeId        String
-  type          TaskType @relation(fields: [typeId], references: [id], onDelete: Restrict)
   estimateHours Int?
   // Checklist item texts, in order.
   checklist     String[]
@@ -401,8 +373,6 @@ model RecurringRule {
   project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title         String
   description   String?
-  typeId        String
-  type          TaskType            @relation(fields: [typeId], references: [id], onDelete: Restrict)
   priority      CardPriority        @default(MEDIUM)
   estimateHours Int?
   assigneeIds   String[]
