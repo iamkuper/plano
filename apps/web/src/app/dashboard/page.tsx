@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, CheckCircle2 } from "lucide-react";
-import { cardKey, type CardTileDto, type TeamBoardColumnDto, type UserDto, type UserRefDto } from "@plano/shared";
+import { cardKey, type CardTileDto, type TeamBoardColumnDto, type UserDto, type UserRefDto, t, intlTag } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Avatar, LetterMark } from "@/components/avatar";
 import { CardModal } from "@/components/card-modal";
@@ -40,8 +40,8 @@ function weekRange(): [string, string] {
 function formatHours(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (!h) return `${m} мин`;
-  return m ? `${h} ч ${m} мин` : `${h} ч`;
+  if (!h) return t("common.min", { m });
+  return m ? t("common.hMin", { h, m }) : t("common.h", { h });
 }
 
 function bucketOf(due: string | null, [, sunday]: [string, string]): Bucket {
@@ -54,13 +54,13 @@ function bucketOf(due: string | null, [, sunday]: [string, string]): Bucket {
 }
 
 const BUCKETS: { key: Bucket; label: string }[] = [
-  { key: "overdue", label: "Просрочено" },
-  { key: "today", label: "Сегодня" },
-  { key: "week", label: "На этой неделе" },
-  { key: "later", label: "Позже и без срока" },
+  { key: "overdue", label: t("common.overdue") },
+  { key: "today", label: t("common.today") },
+  { key: "week", label: t("dashboard.thisWeek") },
+  { key: "later", label: t("dashboard.laterAndNoDueDate") },
 ];
 
-const dueLabel = (due: string) => new Date(due).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+const dueLabel = (due: string) => new Date(due).toLocaleDateString(intlTag(), { day: "numeric", month: "short" });
 
 // Open tasks of one person, flattened from the team board. The last column is "done".
 function openTasks(columns: TeamBoardColumnDto[]): Task[] {
@@ -147,23 +147,24 @@ function Dashboard() {
 
   return (
     <>
-      <PageHeader title="Главная" meta={<HomeTabs />} subtitle={me ? `Здравствуйте, ${me.name.split(" ")[0]}` : undefined} />
+      <PageHeader title={t("common.home")} meta={<HomeTabs />} subtitle={me ? t("dashboard.hello", { value: me.name.split(" ")[0] }) : undefined} />
       <div className="space-y-4 py-5">
         <Onboarding />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <Kpi label="Мои открытые" value={loading ? "…" : tasks.length} />
-          <Kpi label="Просрочено" value={loading ? "…" : overdue} tone={overdue ? "danger" : undefined} />
-          <Kpi label="Срок на неделе" value={loading ? "…" : grouped.get("today")!.length + grouped.get("week")!.length} />
-          <Kpi label="Моё время" value={loading ? "…" : formatHours(myMinutes)} hint="за эту неделю" />
-          <Kpi label="Время команды" value={loading ? "…" : formatHours(teamMinutes)} hint="за эту неделю" />
+          <Kpi label={t("dashboard.myOpenTasks")} value={loading ? "…" : tasks.length} />
+          <Kpi label={t("common.overdue")} value={loading ? "…" : overdue} tone={overdue ? "danger" : undefined} />
+          <Kpi label={t("dashboard.dueThisWeek")} value={loading ? "…" : grouped.get("today")!.length + grouped.get("week")!.length} />
+          <Kpi label={t("dashboard.myTime")} value={loading ? "…" : formatHours(myMinutes)} hint={t("dashboard.thisWeek2")} />
+          <Kpi label={t("dashboard.teamTime")} value={loading ? "…" : formatHours(teamMinutes)} hint={t("dashboard.thisWeek2")} />
         </div>
 
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
           <Card
-            title="Мои задачи"
+            title={t("dashboard.myTasks")}
             action={
               <Link href="/team?mine=1" className="text-sm text-ink-faint hover:text-ink">
-                Доска →
+                
+                {t("dashboard.board")}
               </Link>
             }
             bodyClassName="pt-3"
@@ -175,8 +176,9 @@ function Dashboard() {
                 ))}
               </div>
             ) : tasks.length === 0 ? (
-              <EmptyState icon={CheckCircle2} title="Открытых задач нет">
-                Здесь появятся карточки, где вы исполнитель.
+              <EmptyState icon={CheckCircle2} title={t("dashboard.noOpenTasks")}>
+                
+                {t("dashboard.cardsWhereYouAreAn")}
               </EmptyState>
             ) : (
               BUCKETS.map(({ key, label }) => {
@@ -202,17 +204,18 @@ function Dashboard() {
 
           <div className="space-y-4">
             <Card
-              title="Время за неделю"
+              title={t("dashboard.timeThisWeek")}
               action={
                 <Link href="/reports/time" className="text-sm text-ink-faint hover:text-ink">
-                  Отчёт →
+                  
+                  {t("dashboard.report")}
                 </Link>
               }
             >
               {loading ? (
                 <Skeleton className="h-24" />
               ) : byPerson.length === 0 ? (
-                <p className="text-sm text-ink-faint">На этой неделе время ещё не списывали.</p>
+                <p className="text-sm text-ink-faint">{t("dashboard.noTimeHasBeenLogged")}</p>
               ) : (
                 <div className="space-y-2.5">
                   {byPerson.map((p) => (
@@ -230,11 +233,12 @@ function Dashboard() {
             </Card>
 
             <Card
-              title="Команда по этапам"
-              description={loading ? undefined : `${teamOpen} открытых карточек в активных проектах`}
+              title={t("dashboard.teamByStage")}
+              description={loading ? undefined : t("dashboard.openCardsInActiveProjects", { teamOpen })}
               action={
                 <Link href="/team" className="text-sm text-ink-faint hover:text-ink">
-                  Все →
+                  
+                  {t("dashboard.all")}
                 </Link>
               }
             >
@@ -259,7 +263,7 @@ function Dashboard() {
             </Card>
 
             {time && time.length > 0 && (
-              <Card title="Последние списания">
+              <Card title={t("dashboard.recentTimeEntries")}>
                 <div className="-mx-4 -mb-4">
                   {[...time]
                     .sort((a, b) => b.date.localeCompare(a.date))

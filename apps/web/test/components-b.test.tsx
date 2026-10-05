@@ -1,20 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { BoardToolbar, plural } from "@/components/board-toolbar";
+import { BoardToolbar } from "@/components/board-toolbar";
 import { BulkBar } from "@/components/bulk-bar";
 import { CardsList, CardsTable } from "@/components/cards-views";
 import { DEFAULT_FILTERS } from "@/lib/card-filters";
 import { api } from "@/lib/api";
 import { onToast } from "@/lib/toast";
 import { card, column, member, taskType, taskTypes, user } from "./fixtures";
-
-describe("plural", () => {
-  it("picks the Russian form", () => {
-    const f = (n: number) => plural(n, "карточка", "карточки", "карточек");
-    expect([1, 2, 5, 11, 12, 21, 22, 25, 111].map(f)).toEqual(["карточка", "карточки", "карточек", "карточек", "карточек", "карточка", "карточки", "карточек", "карточек"]);
-  });
-});
 
 describe("board toolbar", () => {
   const users = [user(), member()];

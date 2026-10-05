@@ -3,7 +3,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { currentWorkspaceId, changedFields } from "../prisma/tenant";
 import { UpdateSettingsDto } from "./settings.dto";
 import { AuditService } from "../audit/audit.service";
-
+import { t } from "@plano/shared";
 // Settings of the current workspace (name, card prefix, default stages).
 @Injectable()
 export class SettingsService {
@@ -30,7 +30,7 @@ export class SettingsService {
         defaultColumns: dto.defaultColumns?.map((c) => c.trim()).filter(Boolean),
       },
     });
-    await this.audit.record("settings.update", `Изменены настройки: ${changedFields(dto)}`);
+    await this.audit.record("settings.update", t("api.settings.settingsChanged", { changedFields: changedFields(dto) }));
     return this.get();
   }
 }

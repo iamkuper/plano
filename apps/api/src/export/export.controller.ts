@@ -1,6 +1,6 @@
 import { Controller, Get, Header, Module, NotFoundException, Param, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
-import { CARD_PRIORITY_LABELS } from "@plano/shared";
+import { CARD_PRIORITY_LABELS, t } from "@plano/shared";
 import { AuditService } from "../audit/audit.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { BillingService } from "../billing/billing.service";
@@ -34,7 +34,7 @@ export class ExportController {
   async projectCsv(@Param("projectId") projectId: string, @Res({ passthrough: true }) res: Response) {
     await this.billing.assertFeature("export");
     const project = await this.prisma.project.findUnique({ where: { id: projectId }, select: { title: true } });
-    if (!project) throw new NotFoundException("Проект не найден");
+    if (!project) throw new NotFoundException(t("common.projectNotFound"));
     const [workspace, fields, cards] = await Promise.all([
       this.prisma.workspace.findFirstOrThrow({ select: { cardPrefix: true } }),
       this.prisma.customField.findMany({ orderBy: [{ position: "asc" }, { createdAt: "asc" }] }),
@@ -53,7 +53,7 @@ export class ExportController {
       }),
     ]);
 
-    const header = ["Ключ", "Название", "Описание", "Колонка", "Тип", "Приоритет", "Исполнители", "Метки", "Начало", "Срок", "Оценка, ч", "Списано, мин", "Подзадачи", "Создана", ...fields.map((f) => f.name)];
+    const header = [t("api.export.key"), t("common.name2"), t("common.description"), t("common.column"), t("common.type"), t("common.priority"), t("common.assignees"), t("common.labels"), t("common.start2"), t("common.dueDate"), t("common.estimateH"), t("api.export.loggedMin"), t("common.subtasks"), t("common.created"), ...fields.map((f) => f.name)];
     const lines = [csvRow(header)];
     for (const c of cards) {
       const done = c.checklist.filter((i) => i.done).length;
@@ -75,14 +75,14 @@ export class ExportController {
           day(c.createdAt),
           ...fields.map((f) => {
             const v = c.fieldValues.find((x) => x.fieldId === f.id)?.value;
-            return typeof v === "boolean" ? (v ? "Да" : "Нет") : v;
+            return typeof v === "boolean" ? (v ? t("api.export.yes") : t("api.export.no")) : v;
           }),
         ]),
       );
     }
     const name = encodeURIComponent(`${project.title}.csv`);
     res.setHeader("Content-Disposition", `attachment; filename="export.csv"; filename*=UTF-8''${name}`);
-    await this.audit.record("export.project", `Экспорт проекта «${project.title}» в CSV (${cards.length} карточек)`, projectId);
+    await this.audit.record("export.project", t("api.export.projectExportedToCsvCards", { title: project.title, cards: cards.length }), projectId);
     return `﻿${lines.join("\r\n")}\r\n`;
   }
 }

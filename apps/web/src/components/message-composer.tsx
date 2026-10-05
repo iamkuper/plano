@@ -6,7 +6,7 @@ import type { AttachmentDto, UserRefDto } from "@plano/shared";
 import { toast } from "@/lib/toast";
 import { Avatar } from "./avatar";
 import { formatSize } from "./attachments";
-
+import { t } from "@plano/shared";
 type Pending = { key: string; name: string; size: number; progress: number; done?: AttachmentDto };
 
 // "@" + letters right before the caret → the mention being typed.
@@ -102,7 +102,7 @@ export function MessageComposer({
       }}
     >
       {suggestions.length > 0 && (
-        <div role="listbox" aria-label="Упомянуть" className="animate-dialog-in absolute bottom-full left-3 right-3 mb-1 rounded-lg border border-border bg-surface p-1 shadow-raised">
+        <div role="listbox" aria-label={t("messageComposer.mention")} className="animate-dialog-in absolute bottom-full left-3 right-3 mb-1 rounded-lg border border-border bg-surface p-1 shadow-raised">
           {suggestions.map((u, i) => (
             <button
               key={u.id}
@@ -127,7 +127,7 @@ export function MessageComposer({
               <span className="shrink-0 text-ink-ghost">{p.done ? formatSize(p.size) : `${p.progress}%`}</span>
               <button
                 type="button"
-                aria-label={`Убрать ${p.name}`}
+                aria-label={t("messageComposer.remove", { name: p.name })}
                 onClick={() => setPending((list) => list.filter((x) => x.key !== p.key))}
                 className="grid size-4 shrink-0 place-items-center rounded-sm text-ink-ghost hover:text-ink"
               >
@@ -143,8 +143,8 @@ export function MessageComposer({
           <>
             <button
               type="button"
-              title="Прикрепить файл"
-              aria-label="Прикрепить файл"
+              title={t("common.attachAFile")}
+              aria-label={t("common.attachAFile")}
               onClick={() => fileRef.current?.click()}
               className="grid size-8 shrink-0 place-items-center rounded-full text-ink-ghost transition-colors hover:bg-surface-soft hover:text-ink"
             >
@@ -164,10 +164,10 @@ export function MessageComposer({
         )}
         <textarea
           ref={ref}
-          aria-label="Сообщение"
+          aria-label={t("messageComposer.message")}
           rows={1}
           className="max-h-32 min-h-[28px] flex-1 resize-none bg-transparent py-1 text-base leading-5 outline-none placeholder:text-ink-ghost"
-          placeholder="Сообщение, @ — упомянуть"
+          placeholder={t("messageComposer.messageToMention")}
           value={text}
           onChange={(e) => {
             setText(e.target.value);
@@ -209,14 +209,14 @@ export function MessageComposer({
         />
         <button
           disabled={(!text.trim() && !pending.some((p) => p.done)) || uploading}
-          title="Отправить (Enter)"
-          aria-label="Отправить"
+          title={t("messageComposer.sendEnter")}
+          aria-label={t("messageComposer.send")}
           className="grid size-8 shrink-0 place-items-center rounded-full bg-accent text-white transition-colors hover:bg-accent-hover disabled:bg-surface-sunken disabled:text-ink-ghost"
         >
           <SendHorizontal size={15} strokeWidth={2} />
         </button>
       </div>
-      <p className="mt-1.5 px-1 text-xs text-ink-ghost">Enter — отправить, Shift+Enter — новая строка, @ — упомянуть{onUpload ? ", скриншот можно вставить" : ""}</p>
+      <p className="mt-1.5 px-1 text-xs text-ink-ghost">{t("messageComposer.enterSendShiftEnterNew", { value: onUpload ? t("messageComposer.pasteScreenshot") : "" })}</p>
     </form>
   );
 }

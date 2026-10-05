@@ -7,7 +7,7 @@ import { forwardRef, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, ChevronRight, Loader2, MoreHorizontal, X, type LucideIcon } from "lucide-react";
 import { labelColor, statusColor as STATUS_COLORS } from "@/design/tokens";
-
+import { t } from "@plano/shared";
 /* ───────────────────────────── Actions ───────────────────────────── */
 
 export type ButtonVariant = "primary" | "accent" | "outline" | "subtle" | "ghost" | "danger";
@@ -172,7 +172,7 @@ export function PageHeader({
 }) {
   return (
     <header className="sticky top-0 z-20 -mx-6 mb-0 flex h-12 shrink-0 items-center gap-3 border-b border-border bg-bg px-6">
-      <nav aria-label="Навигационная цепочка" className="flex min-w-0 items-center gap-1.5 text-sm">
+      <nav aria-label={t("ui.breadcrumbs")} className="flex min-w-0 items-center gap-1.5 text-sm">
         {crumbs.map((c, i) => (
           <span key={i} className="flex min-w-0 items-center gap-1.5 text-ink-faint">
             {c.href ? (
@@ -282,7 +282,7 @@ export function Skeleton({ className = "" }: { className?: string }) {
 
 export function TableSkeleton({ rows = 6 }: { rows?: number }) {
   return (
-    <div className="rounded-lg border border-border" aria-busy="true" aria-label="Загрузка">
+    <div className="rounded-lg border border-border" aria-busy="true" aria-label={t("ui.loading")}>
       {Array.from({ length: rows }).map((_, i) => (
         <div key={i} className="flex h-11 items-center gap-3 border-b border-border px-4 last:border-b-0">
           <Skeleton className="size-5" />
@@ -424,7 +424,7 @@ export function Menu({
   const ref = useDismiss(open, () => setOpen(false));
   return (
     <div ref={ref} className={`relative ${className}`} onClick={(e) => e.stopPropagation()}>
-      <IconButton size="sm" onClick={() => setOpen((o) => !o)} title="Действия" aria-haspopup="menu" aria-expanded={open}>
+      <IconButton size="sm" onClick={() => setOpen((o) => !o)} title={t("ui.actions")} aria-haspopup="menu" aria-expanded={open}>
         <MoreHorizontal size={15} />
       </IconButton>
       {open && (
@@ -496,7 +496,7 @@ export function Dialog({
             <h2 className="text-md font-medium">{title}</h2>
             {description && <p className="mt-0.5 text-sm text-ink-faint">{description}</p>}
           </div>
-          <IconButton onClick={onClose} title="Закрыть">
+          <IconButton onClick={onClose} title={t("ui.close")}>
             <X size={16} />
           </IconButton>
         </div>
@@ -530,7 +530,8 @@ export function ConfirmDialog({
         {body && <div className="mt-1.5 text-sm text-ink-faint">{body}</div>}
         <div className="mt-5 flex justify-end gap-2">
           <Button autoFocus onClick={onClose}>
-            Отмена
+            
+            {t("common.cancel")}
           </Button>
           <Button
             variant="danger"

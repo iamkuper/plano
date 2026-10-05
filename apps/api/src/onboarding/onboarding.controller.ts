@@ -3,7 +3,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
 import { ProjectsModule } from "../projects/projects.module";
 import { OnboardingService } from "./onboarding.service";
-
+import { t } from "@plano/shared";
 @Controller("onboarding")
 @UseGuards(JwtAuthGuard)
 export class OnboardingController {
@@ -35,7 +35,7 @@ export class OnboardingController {
   // Needs the right to create projects, like creating one by hand.
   @Post("sample-project")
   sample(@CurrentUser() user: AuthenticatedUser) {
-    if (user.role !== "ADMIN" && !user.permissions.includes("projects.create")) throw new ForbiddenException("Нет права создавать проекты");
+    if (user.role !== "ADMIN" && !user.permissions.includes("projects.create")) throw new ForbiddenException(t("api.onboarding.noPermissionToCreateProjects"));
     return this.onboarding.createSample();
   }
 }

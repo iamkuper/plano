@@ -8,6 +8,8 @@ import {
   type ColumnDto,
   type ProjectListItemDto,
   type ProjectStatus,
+  t,
+  intlTag,
 } from "@plano/shared";
 import { api } from "@/lib/api";
 import { notifyProjectsChanged } from "@/lib/projects-events";
@@ -50,32 +52,32 @@ export function ProjectOverview({
   return (
     <>
       <div className="mb-6 grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <Kpi label="Карточек" icon={Layers} value={String(cards.length)} hint={`в ${columns.length} колонках`} />
+        <Kpi label={t("common.cards")} icon={Layers} value={String(cards.length)} hint={t("projectOverview.inColumns", { columns: columns.length })} />
         <Kpi
-          label="Готово"
+          label={t("common.done")}
           icon={CheckCircle2}
           value={`${cards.length ? Math.round((doneCount / cards.length) * 100) : 0}%`}
-          hint={`${doneCount} из ${cards.length} в «${columns.at(-1)?.title ?? "—"}»`}
+          hint={t("projectOverview.ofIn", { doneCount, cards: cards.length, value: columns.at(-1)?.title ?? "—" })}
         />
         <Kpi
-          label="Просрочено"
+          label={t("common.overdue")}
           icon={AlertTriangle}
           value={String(overdue)}
           tone={overdue ? "danger" : undefined}
-          hint={overdue ? "срок уже прошёл" : "всё в срок"}
+          hint={overdue ? t("projectOverview.theDueDateHasPassed") : t("projectOverview.allOnTime")}
         />
         <Kpi
-          label="Списано часов"
+          label={t("projectOverview.hoursLogged")}
           icon={Clock}
           value={String(loggedHours)}
           tone={budget !== null && loggedHours > budget ? "danger" : undefined}
-          hint={budget !== null ? `из ${budget} ч бюджета` : "бюджет не задан"}
+          hint={budget !== null ? t("projectOverview.ofHBudget", { budget }) : t("projectOverview.noBudgetSet")}
         />
       </div>
 
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1fr_380px]">
         <div className="space-y-4">
-          <Card title="Карточки по статусам" description="Сколько задач на каждом этапе">
+          <Card title={t("projectOverview.cardsByStatus")} description={t("projectOverview.howManyTasksAreIn")}>
             <div className="space-y-3">
               {columns.map((col, i) => (
                 <div key={col.id} className="flex items-center gap-3 text-base">
@@ -91,11 +93,11 @@ export function ProjectOverview({
           </Card>
 
           {budget !== null && budget > 0 && (
-            <Card title="Бюджет часов" description="Списанное время по всем карточкам проекта">
+            <Card title={t("projectOverview.hoursBudget")} description={t("projectOverview.timeLoggedOnAllCards")}>
               <ShareBar value={loggedHours / budget} tone={loggedHours > budget ? "danger" : "success"} />
               <div className="mt-2 flex justify-between text-xs text-ink-faint">
-                <span>списано — {loggedHours} ч</span>
-                <span>{loggedHours <= budget ? `осталось — ${Math.round((budget - loggedHours) * 10) / 10} ч` : `перерасход — ${Math.round((loggedHours - budget) * 10) / 10} ч`}</span>
+                <span>{t("projectOverview.loggedH", { loggedHours })}</span>
+                <span>{loggedHours <= budget ? t("projectOverview.leftH", { value: Math.round((budget - loggedHours) * 10) / 10 }) : t("projectOverview.overByH", { value: Math.round((loggedHours - budget) * 10) / 10 })}</span>
               </div>
             </Card>
           )}
@@ -103,22 +105,23 @@ export function ProjectOverview({
 
         <div className="space-y-4">
           <Card
-            title="Параметры проекта"
+            title={t("projectOverview.projectDetails")}
             action={
               <Link href={`/projects/${project.id}/settings`} className="text-sm text-accent hover:underline">
-                Изменить
+                
+                {t("projectOverview.edit")}
               </Link>
             }
           >
             <dl className="grid grid-cols-[110px_1fr] gap-y-2 text-sm">
-              <dt className="text-ink-faint">Статус</dt>
+              <dt className="text-ink-faint">{t("common.status")}</dt>
               <dd>{PROJECT_STATUS_LABELS[project.status]}</dd>
-              <dt className="text-ink-faint">Старт</dt>
-              <dd>{project.startDate ? new Date(project.startDate).toLocaleDateString("ru-RU") : "—"}</dd>
-              <dt className="text-ink-faint">Дедлайн</dt>
-              <dd>{project.deadline ? new Date(project.deadline).toLocaleDateString("ru-RU") : "—"}</dd>
-              <dt className="text-ink-faint">Бюджет</dt>
-              <dd>{project.hoursBudget !== null ? `${project.hoursBudget} ч` : "—"}</dd>
+              <dt className="text-ink-faint">{t("common.start")}</dt>
+              <dd>{project.startDate ? new Date(project.startDate).toLocaleDateString(intlTag()) : "—"}</dd>
+              <dt className="text-ink-faint">{t("common.deadline")}</dt>
+              <dd>{project.deadline ? new Date(project.deadline).toLocaleDateString(intlTag()) : "—"}</dd>
+              <dt className="text-ink-faint">{t("projectOverview.budget")}</dt>
+              <dd>{project.hoursBudget !== null ? t("projectOverview.h", { hoursBudget: project.hoursBudget }) : "—"}</dd>
             </dl>
           </Card>
         </div>

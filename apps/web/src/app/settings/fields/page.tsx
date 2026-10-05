@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { CUSTOM_FIELD_TYPES, CUSTOM_FIELD_TYPE_LABELS, type BillingDto, type CustomFieldDto, type CustomFieldType } from "@plano/shared";
+import { CUSTOM_FIELD_TYPES, CUSTOM_FIELD_TYPE_LABELS, type BillingDto, type CustomFieldDto, type CustomFieldType, t } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Button, Card, ConfirmDialog, Dialog, Field, IconButton, Input, PageHeader, Select, Textarea } from "@/components/ui";
@@ -23,12 +23,12 @@ function FieldDialog({ field, onClose, onSaved }: { field?: CustomFieldDto; onCl
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return setError("Укажите название");
+    if (!name.trim()) return setError(t("common.enterAName2"));
     setBusy(true);
     try {
       if (field) await api.updateField(field.id, { name: name.trim(), ...(isSelect ? { options: parseOptions(options) } : {}) });
       else await api.createField({ name: name.trim(), type, ...(isSelect ? { options: parseOptions(options) } : {}) });
-      toast(field ? "Поле сохранено" : "Поле создано", "success");
+      toast(field ? t("settings.fields.fieldSaved") : t("settings.fields.fieldCreated"), "success");
       onSaved();
       onClose();
     } catch (err) {
@@ -39,12 +39,12 @@ function FieldDialog({ field, onClose, onSaved }: { field?: CustomFieldDto; onCl
   }
 
   return (
-    <Dialog title={field ? "Изменить поле" : "Новое поле"} onClose={onClose}>
+    <Dialog title={field ? t("settings.fields.editField") : t("settings.fields.newField")} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Название" error={error}>
+        <Field label={t("common.name2")} error={error}>
           {(a) => <Input {...a} autoFocus maxLength={40} invalid={!!error} value={name} onChange={(e) => setName(e.target.value)} />}
         </Field>
-        <Field label="Тип" hint={field ? "Тип нельзя поменять после создания" : undefined}>
+        <Field label={t("common.type")} hint={field ? t("settings.fields.theTypeCannotBeChanged") : undefined}>
           {(a) => (
             <Select {...a} disabled={!!field} value={type} onChange={(e) => setType(e.target.value as CustomFieldType)}>
               {CUSTOM_FIELD_TYPES.map((t) => (
@@ -56,16 +56,17 @@ function FieldDialog({ field, onClose, onSaved }: { field?: CustomFieldDto; onCl
           )}
         </Field>
         {isSelect && (
-          <Field label="Варианты" hint="Каждый вариант с новой строки">
+          <Field label={t("settings.fields.options")} hint={t("settings.fields.oneOptionPerLine")}>
             {(a) => <Textarea {...a} rows={5} value={options} onChange={(e) => setOptions(e.target.value)} />}
           </Field>
         )}
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={onClose}>
-            Отмена
+            
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" loading={busy}>
-            {field ? "Сохранить" : "Создать поле"}
+            {field ? t("common.save") : t("settings.fields.createField")}
           </Button>
         </div>
       </form>
@@ -94,12 +95,12 @@ export default function FieldsPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Настройки"
+        title={t("common.settings")}
         meta={<SettingsTabs />}
         actions={
           canManage && (
             <Button variant="primary" onClick={() => setEditing("new")}>
-              <Plus size={15} /> Новое поле
+              <Plus size={15} />  {t("settings.fields.newField")}
             </Button>
           )
         }
@@ -107,15 +108,15 @@ export default function FieldsPage() {
       <div className="w-full space-y-4 py-6">
         {billing && !available && (
           <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface-soft px-4 py-3 text-sm">
-            <span>Дополнительные поля карточек есть на тарифе Business. Уже заполненные значения остаются видны.</span>
+            <span>{t("settings.fields.customCardFieldsAreAvailable")}</span>
             <Link href="/settings/billing">
-              <Button>Тарифы</Button>
+              <Button>{t("settings.fields.plans")}</Button>
             </Link>
           </div>
         )}
-        <Card title="Дополнительные поля" description="Появляются в каждой карточке рядом со сроком и приоритетом. До 20 полей.">
+        <Card title={t("settings.fields.customFields")} description={t("settings.fields.theyAppearInEveryCard")}>
           {!fields ? null : fields.length === 0 ? (
-            <p className="text-sm text-ink-faint">Полей пока нет.{canManage ? " Добавьте, например, «Бюджет» или «Ссылка на договор»." : ""}</p>
+            <p className="text-sm text-ink-faint">{t("settings.fields.noFieldsYet", { value: canManage ? t("settings.fields.addHint") : "" })}</p>
           ) : (
             <ul className="divide-y divide-border">
               {fields.map((f) => (
@@ -129,10 +130,10 @@ export default function FieldsPage() {
                   </div>
                   {canManage && (
                     <>
-                      <IconButton aria-label={`Изменить поле ${f.name}`} onClick={() => setEditing(f)}>
+                      <IconButton aria-label={t("settings.fields.editField2", { name: f.name })} onClick={() => setEditing(f)}>
                         <Pencil size={15} />
                       </IconButton>
-                      <IconButton aria-label={`Удалить поле ${f.name}`} onClick={() => setRemoving(f)}>
+                      <IconButton aria-label={t("settings.fields.deleteField", { name: f.name })} onClick={() => setRemoving(f)}>
                         <Trash2 size={15} />
                       </IconButton>
                     </>
@@ -146,9 +147,9 @@ export default function FieldsPage() {
       {editing && <FieldDialog field={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} onSaved={load} />}
       {removing && (
         <ConfirmDialog
-          title={`Удалить поле «${removing.name}»?`}
-          body="Значения этого поля во всех карточках тоже удалятся."
-          confirmLabel="Удалить"
+          title={t("settings.fields.deleteField2", { name: removing.name })}
+          body={t("settings.fields.theValuesOfThisField")}
+          confirmLabel={t("common.remove")}
           onConfirm={async () => {
             await api.deleteField(removing.id).catch((e) => toast((e as Error).message, "error"));
             setRemoving(null);

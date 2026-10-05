@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
-import { cardKey, type CardTileDto } from "@plano/shared";
+import { cardKey, type CardTileDto, t } from "@plano/shared";
 import { api } from "@/lib/api";
 import { LetterMark } from "./avatar";
 
@@ -47,7 +47,7 @@ export function HeaderSearch() {
       <input
         ref={inputRef}
         className="h-8 w-full rounded-md border border-chrome-line bg-chrome-hover pl-8 pr-10 text-sm text-chrome-ink outline-none transition-colors placeholder:text-chrome-ink-faint hover:border-chrome-active focus:border-chrome-ink-faint focus:bg-chrome-active"
-        placeholder="Поиск"
+        placeholder={t("common.search")}
         value={q}
         onChange={(e) => {
           setQ(e.target.value);
@@ -69,7 +69,7 @@ export function HeaderSearch() {
       {open && q.trim() && (
         <div className="absolute left-0 top-full z-50 mt-1 w-[360px] overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-raised">
           {results.length === 0 ? (
-            <div className="px-3 py-4 text-center text-sm text-ink-faint">Ничего не найдено</div>
+            <div className="px-3 py-4 text-center text-sm text-ink-faint">{t("common.nothingFound")}</div>
           ) : (
             results.map((c) => (
               <button

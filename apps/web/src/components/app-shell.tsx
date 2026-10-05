@@ -27,7 +27,7 @@ import { HeaderSearch } from "./header-search";
 import { NotificationBell } from "./notification-bell";
 import { Toaster } from "./toaster";
 import { Popover, Tooltip } from "./ui";
-
+import { t } from "@plano/shared";
 const COLLAPSED_KEY = "plano.sidebar-collapsed";
 
 function NavItem({
@@ -154,13 +154,11 @@ function LockedBanner() {
   if (!locked) return null;
   return (
     <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-danger-soft px-6 py-2.5 text-sm text-danger">
-      <span>
-        Тариф закончился: данные доступны только для чтения.
-        {can("billing.manage") ? " Оплатите тариф, и работа продолжится." : " Попросите администратора оплатить тариф."}
-      </span>
+      <span> {t("appShell.thePlanHasEndedData", { value: can("billing.manage") ? t("appShell.payToContinue") : t("appShell.askAdminToPay") })} </span>
       {can("billing.manage") && pathname !== "/settings/billing" && (
         <Link href="/settings/billing" className="font-medium underline">
-          Оплатить тариф
+          
+          {t("appShell.payForThePlan")}
         </Link>
       )}
     </div>
@@ -242,8 +240,8 @@ function Shell({ children }: { children: React.ReactNode }) {
               <NotificationBell />
               <button
                 onClick={toggleCollapsed}
-                title="Свернуть меню  ["
-                aria-label="Свернуть меню"
+                title={t("appShell.collapseMenu")}
+                aria-label={t("appShell.collapseMenu2")}
                 className="grid size-7 place-items-center rounded-md text-chrome-ink-faint transition-colors hover:bg-chrome-hover hover:text-chrome-ink"
               >
                 <PanelLeftClose size={16} strokeWidth={1.75} />
@@ -255,19 +253,19 @@ function Shell({ children }: { children: React.ReactNode }) {
         {collapsed ? (
           <div className="mb-2 flex flex-col items-center gap-1">
             <NotificationBell compact />
-            <Tooltip label="Развернуть меню  [">
+            <Tooltip label={t("appShell.expandMenu")}>
               <button
                 onClick={toggleCollapsed}
-                aria-label="Развернуть меню"
+                aria-label={t("appShell.expandMenu2")}
                 className="grid size-[30px] place-items-center rounded-md text-chrome-ink-faint transition-colors hover:bg-chrome-hover hover:text-chrome-ink"
               >
                 <PanelLeftOpen size={16} strokeWidth={1.75} />
               </button>
             </Tooltip>
-            <Tooltip label="Поиск  ⌘K">
+            <Tooltip label={t("appShell.searchK")}>
               <button
                 onClick={toggleCollapsed}
-                aria-label="Поиск"
+                aria-label={t("common.search")}
                 className="grid size-[30px] place-items-center rounded-md text-chrome-ink-faint transition-colors hover:bg-chrome-hover hover:text-chrome-ink"
               >
                 <Search size={16} strokeWidth={1.75} />
@@ -286,7 +284,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavItem
             collapsed={collapsed}
             href="/dashboard"
-            label="Главная"
+            label={t("common.home")}
             icon={House}
             active={pathname === "/dashboard" || pathname === "/team" || pathname.startsWith("/reports")}
             count={urgent}
@@ -295,7 +293,7 @@ function Shell({ children }: { children: React.ReactNode }) {
           <NavItem
             collapsed={collapsed}
             href="/projects"
-            label="Проекты"
+            label={t("common.projects")}
             icon={FolderKanban}
             active={pathname === "/projects"}
           />
@@ -329,7 +327,8 @@ function Shell({ children }: { children: React.ReactNode }) {
                 aria-expanded={projectsOpen}
                 className="flex h-7 w-full items-center gap-1 rounded-md px-2 text-xs text-chrome-ink-faint transition-colors hover:text-chrome-ink"
               >
-                В работе
+                
+                {t("common.active")}
                 <ChevronDown
                   size={12}
                   className={`transition-transform ${projectsOpen ? "" : "-rotate-90"}`}
@@ -339,7 +338,8 @@ function Shell({ children }: { children: React.ReactNode }) {
                 <div className="flex flex-col gap-px">
                   {projects.length === 0 && (
                     <p className="px-2 py-1 text-xs text-chrome-ink-faint">
-                      Нет активных проектов
+                      
+                      {t("appShell.noActiveProjects")}
                     </p>
                   )}
                   {projects.map((p) => {
@@ -382,7 +382,7 @@ function Shell({ children }: { children: React.ReactNode }) {
               <button
                 onClick={toggle}
                 aria-expanded={open}
-                aria-label="Меню пользователя"
+                aria-label={t("appShell.userMenu")}
                 className={`flex h-9 min-w-0 items-center gap-2 rounded-md px-1.5 text-chrome-ink transition-colors hover:bg-chrome-hover ${collapsed ? "" : "w-full"}`}
               >
                 <Avatar user={user} size={22} />
@@ -418,7 +418,7 @@ function Shell({ children }: { children: React.ReactNode }) {
                   href="/settings"
                   className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-ink transition-colors hover:bg-surface-soft"
                 >
-                  <Settings size={15} strokeWidth={1.75} className="text-ink-ghost" /> Настройки
+                  <Settings size={15} strokeWidth={1.75} className="text-ink-ghost" />  {t("common.settings")}
                 </Link>
                 <Link
                   href="/profile"
@@ -429,7 +429,8 @@ function Shell({ children }: { children: React.ReactNode }) {
                     strokeWidth={1.75}
                     className="text-ink-ghost"
                   />{" "}
-                  Профиль
+                  
+                  {t("common.profile")}
                 </Link>
                 <button
                   onClick={() => {
@@ -443,7 +444,8 @@ function Shell({ children }: { children: React.ReactNode }) {
                     strokeWidth={1.75}
                     className="text-ink-ghost"
                   />{" "}
-                  Выйти
+                  
+                  {t("appShell.signOut")}
                 </button>
               </div>
             )}

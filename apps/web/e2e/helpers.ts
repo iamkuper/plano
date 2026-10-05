@@ -21,12 +21,12 @@ async function call<T = any>(path: string, token: string | null, method = "GET",
 export interface Account { token: string; email: string; password: string; company: string; name: string }
 
 // Creates a workspace through the API (fast); the UI sign-up has its own test.
-export async function signUp(tag = "ws"): Promise<Account> {
-  const company = `Компания ${uid(tag)}`;
+export async function signUp(tag = "ws", locale: "ru" | "en" = "ru"): Promise<Account> {
+  const company = `${locale === "en" ? "Company" : "Компания"} ${uid(tag)}`;
   const email = `${uid(tag)}@e2e.test`;
-  const name = "Админ Тестов";
+  const name = locale === "en" ? "Test Admin" : "Админ Тестов";
   const password = "password-123";
-  const res = await call<{ accessToken: string }>("/auth/register", null, "POST", { workspaceName: company, name, email, password });
+  const res = await call<{ accessToken: string }>("/auth/register", null, "POST", { workspaceName: company, name, email, password, locale });
   return { token: res.accessToken, email, password, company, name };
 }
 

@@ -6,7 +6,7 @@ import type { TemplateListItemDto } from "@plano/shared";
 import { api } from "@/lib/api";
 import { notifyProjectsChanged } from "@/lib/projects-events";
 import { Button, Dialog, Field, Input, Select } from "./ui";
-
+import { t } from "@plano/shared";
 export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [templates, setTemplates] = useState<TemplateListItemDto[]>([]);
@@ -27,7 +27,7 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
     e.preventDefault();
     setError(null);
     if (!title.trim()) {
-      setError("Укажите название проекта");
+      setError(t("common.enterAProjectName"));
       return;
     }
     setBusy(true);
@@ -48,32 +48,32 @@ export function NewProjectDialog({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Dialog title="Новый проект" onClose={onClose}>
+    <Dialog title={t("common.newProject")} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Название">
+        <Field label={t("common.name2")}>
           {(a) => (
-            <Input {...a} autoFocus placeholder="Например, «Запуск сайта»" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <Input {...a} autoFocus placeholder={t("newProjectDialog.forExampleWebsiteLaunch")} value={title} onChange={(e) => setTitle(e.target.value)} />
           )}
         </Field>
-        <Field label="Шаблон">
+        <Field label={t("newProjectDialog.template")}>
           {(a) => (
             <Select {...a} value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
-              <option value="">Без шаблона</option>
-              {templates.map((t) => (
-                <option key={t.id} value={t.id}>{t.name} ({t._count.cards} карточек)</option>
+              <option value="">{t("newProjectDialog.noTemplate")}</option>
+              {templates.map((tpl) => (
+                <option key={tpl.id} value={tpl.id}>{t("newProjectDialog.cards", { name: tpl.name, cards: tpl._count.cards })}</option>
               ))}
             </Select>
           )}
         </Field>
-        <Field label="Дедлайн">
+        <Field label={t("common.deadline")}>
           {(a) => (
             <Input {...a} type="date" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           )}
         </Field>
         {error && <p className="text-base text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" variant="outline" onClick={onClose}>Отмена</Button>
-          <Button variant="primary" disabled={busy}>Создать проект</Button>
+          <Button type="button" variant="outline" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" disabled={busy}>{t("common.createProject")}</Button>
         </div>
       </form>
     </Dialog>

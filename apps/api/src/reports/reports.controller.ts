@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { can } from "@plano/shared";
+import { can, t } from "@plano/shared";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { BillingService } from "../billing/billing.service";
@@ -28,8 +28,8 @@ export class ReportsController {
     await this.billing.assertFeature("time");
     // Without "time.viewAll" a member sees only their own entries.
     if (!can(user, "time.viewAll")) userId = user.userId;
-    if (!DAY.test(from ?? "") || !DAY.test(to ?? "")) throw new BadRequestException("Укажите период: from и to в формате ГГГГ-ММ-ДД");
-    if (from > to) throw new BadRequestException("Начало периода позже конца");
+    if (!DAY.test(from ?? "") || !DAY.test(to ?? "")) throw new BadRequestException(t("api.reports.specifyThePeriodFromAnd"));
+    if (from > to) throw new BadRequestException(t("api.reports.theStartOfThePeriod"));
     return this.prisma.timeEntry.findMany({
       where: {
         date: { gte: new Date(`${from}T00:00:00Z`), lte: new Date(`${to}T00:00:00Z`) },

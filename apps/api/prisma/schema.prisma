@@ -69,6 +69,8 @@ model User {
   roleId       String?
   customRole   Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
   isActive     Boolean  @default(true)
+  // UI and email language.
+  locale       String   @default("ru")
   // Mail copies of notifications (assignments, mentions, due dates).
   emailNotifications Boolean @default(true)
   // Onboarding: the welcome dialog was shown / the checklist was closed.

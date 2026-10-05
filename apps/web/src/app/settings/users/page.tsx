@@ -9,7 +9,7 @@ import { Avatar } from "@/components/avatar";
 import { Badge, Button, Dialog, Field, PageHeader, Panel, td, th, tr, TableSkeleton, Input, Select } from "@/components/ui";
 import { api, type InvitationDto } from "@/lib/api";
 import { toast } from "@/lib/toast";
-
+import { t, intlTag } from "@plano/shared";
 // One select for both kinds of role: "ADMIN" (built in) or a custom role id.
 const ADMIN = "ADMIN";
 const roleValue = (u: Pick<UserDto, "role" | "roleId">) => (u.role === "ADMIN" ? ADMIN : (u.roleId ?? ""));
@@ -20,8 +20,8 @@ const rolePatch = (value: string): { role: UserRole; roleId?: string } =>
 function RoleOptions({ roles, withMember }: { roles: RoleDto[]; withMember?: boolean }) {
   return (
     <>
-      {withMember && <option value={MEMBER}>Участник без дополнительных прав</option>}
-      <option value={ADMIN}>Администратор</option>
+      {withMember && <option value={MEMBER}>{t("settings.users.aMemberWithoutExtraPermissions")}</option>}
+      <option value={ADMIN}>{t("common.administrator")}</option>
       {roles.map((r) => (
         <option key={r.id} value={r.id}>
           {r.name}
@@ -54,21 +54,21 @@ function InviteDialog({ roles, onClose, onInvited }: { roles: RoleDto[]; onClose
 
   if (result) {
     return (
-      <Dialog title="Приглашение создано" description={result.emailSent ? `Письмо отправлено на ${result.email}` : "Письмо не отправлено: почта на сервере не настроена. Передайте ссылку сами"} onClose={onClose}>
+      <Dialog title={t("settings.users.invitationCreated")} description={result.emailSent ? t("settings.users.anEmailWasSentTo", { email: result.email }) : t("settings.users.noEmailWasSentMail")} onClose={onClose}>
         <div className="space-y-4">
-          <Field label="Ссылка-приглашение" hint="Действует 7 дней, срабатывает один раз">
+          <Field label={t("settings.users.invitationLink")} hint={t("settings.users.validFor7DaysWorks")}>
             {(a) => <Input {...a} readOnly value={result.link} onFocus={(e) => e.currentTarget.select()} />}
           </Field>
           <div className="flex justify-end gap-2">
             <Button
               onClick={async () => {
                 await navigator.clipboard?.writeText(result.link).catch(() => {});
-                toast("Ссылка скопирована", "success");
+                toast(t("common.linkCopied"), "success");
               }}
             >
-              <Copy size={15} /> Скопировать
+              <Copy size={15} />  {t("settings.users.copy")}
             </Button>
-            <Button variant="primary" onClick={onClose}>Готово</Button>
+            <Button variant="primary" onClick={onClose}>{t("common.done")}</Button>
           </div>
         </div>
       </Dialog>
@@ -76,12 +76,12 @@ function InviteDialog({ roles, onClose, onInvited }: { roles: RoleDto[]; onClose
   }
 
   return (
-    <Dialog title="Пригласить сотрудника" description="Человек получит ссылку, по которой сам задаст имя и пароль" onClose={onClose}>
+    <Dialog title={t("settings.users.inviteAColleague")} description={t("settings.users.theyWillGetALink")} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Почта" error={error}>
+        <Field label={t("common.email")} error={error}>
           {(a) => <Input {...a} type="email" invalid={!!error} value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />}
         </Field>
-        <Field label="Роль">
+        <Field label={t("settings.users.role")}>
           {(a) => (
             <Select {...a} value={role} onChange={(e) => setRole(e.target.value)}>
               <RoleOptions roles={roles} withMember />
@@ -89,8 +89,8 @@ function InviteDialog({ roles, onClose, onInvited }: { roles: RoleDto[]; onClose
           )}
         </Field>
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" onClick={onClose}>Отмена</Button>
-          <Button variant="primary" loading={busy}>Пригласить</Button>
+          <Button type="button" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary" loading={busy}>{t("common.invite")}</Button>
         </div>
       </form>
     </Dialog>
@@ -117,30 +117,30 @@ function NewUserDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onClos
   }
 
   return (
-    <Dialog title="Новый сотрудник" onClose={onClose}>
+    <Dialog title={t("settings.users.newEmployee")} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Имя">
+        <Field label={t("common.name")}>
           {(a) => (
             <Input {...a} value={name} onChange={(e) => setName(e.target.value)} autoFocus />
           )}
         </Field>
-        <Field label="Почта для входа">
+        <Field label={t("common.signInEmail")}>
           {(a) => (
             <Input {...a} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
           )}
         </Field>
-        <Field label="Временный пароль">
+        <Field label={t("settings.users.temporaryPassword")}>
           {(a) => (
             <Input {...a}
             
               type="text"
-              placeholder="от 8 символов"
+              placeholder={t("common.atLeast8Characters")}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />
           )}
         </Field>
-        <Field label="Роль">
+        <Field label={t("settings.users.role")}>
           {(a) => (
             <Select {...a} value={role} onChange={(e) => setRole(e.target.value)}>
               <RoleOptions roles={roles} withMember />
@@ -149,8 +149,8 @@ function NewUserDialog({ roles, onClose, onCreated }: { roles: RoleDto[]; onClos
         </Field>
         {error && <p className="text-base text-danger">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
-          <Button type="button" onClick={onClose}>Отмена</Button>
-          <Button variant="primary">Добавить</Button>
+          <Button type="button" onClick={onClose}>{t("common.cancel")}</Button>
+          <Button variant="primary">{t("common.add")}</Button>
         </div>
       </form>
     </Dialog>
@@ -163,17 +163,17 @@ function ResetPasswordDialog({ user, onClose }: { user: UserDto; onClose: () => 
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
-    <Dialog title="Новый пароль" description={`Для ${user.name}, ${user.email}`} onClose={onClose}>
+    <Dialog title={t("common.newPassword")} description={t("settings.users.for", { name: user.name, email: user.email })} onClose={onClose}>
       <form
         className="space-y-4"
         onSubmit={async (e) => {
           e.preventDefault();
-          if (password.length < 8) return setError("Не короче 8 символов");
+          if (password.length < 8) return setError(t("common.atLeast8Characters2"));
           setBusy(true);
           try {
             await api.resetUserPassword(user.id, password);
             await navigator.clipboard?.writeText(password).catch(() => {});
-            toast("Пароль изменён и скопирован — передайте его сотруднику", "success");
+            toast(t("settings.users.passwordChangedAndCopiedPass"), "success");
             onClose();
           } catch (err) {
             setError((err as Error).message);
@@ -182,15 +182,17 @@ function ResetPasswordDialog({ user, onClose }: { user: UserDto; onClose: () => 
           }
         }}
       >
-        <Field label="Временный пароль" hint="Сотрудник сможет сменить его в разделе «Профиль»" error={error}>
+        <Field label={t("settings.users.temporaryPassword")} hint={t("settings.users.theyCanChangeItIn")} error={error}>
           {(a) => <Input {...a} invalid={!!error} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="off" />}
         </Field>
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={onClose}>
-            Отмена
+            
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" loading={busy}>
-            Сохранить пароль
+            
+            {t("common.savePassword")}
           </Button>
         </div>
       </form>
@@ -236,16 +238,16 @@ export default function UsersPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Настройки"
+        title={t("common.settings")}
         meta={<SettingsTabs />}
         actions={
           isAdmin && (
             <div className="flex gap-2">
               <Button onClick={() => setCreating(true)}>
-                <Plus size={15} /> Новый сотрудник
+                <Plus size={15} />  {t("settings.users.newEmployee")}
               </Button>
               <Button variant="primary" onClick={() => setInviting(true)}>
-                <Mail size={15} /> Пригласить
+                <Mail size={15} />  {t("common.invite")}
               </Button>
             </div>
           )
@@ -259,9 +261,9 @@ export default function UsersPage() {
         <table className="w-full border-collapse">
           <thead className="border-b border-border">
             <tr>
-              <th className={th}>Сотрудник</th>
-              <th className={th}>Роль</th>
-              <th className={th}>Статус</th>
+              <th className={th}>{t("common.employee")}</th>
+              <th className={th}>{t("settings.users.role")}</th>
+              <th className={th}>{t("common.status")}</th>
               {isAdmin && <th className={th} />}
             </tr>
           </thead>
@@ -274,7 +276,7 @@ export default function UsersPage() {
                     <div>
                       <div className="font-medium">
                         {u.name}
-                        {u.id === me?.id && <span className="ml-1.5 text-xs font-normal text-ink-faint">(вы)</span>}
+                        {u.id === me?.id && <span className="ml-1.5 text-xs font-normal text-ink-faint">{t("settings.users.you")}</span>}
                       </div>
                       <div className="text-xs text-ink-faint">{u.email}</div>
                     </div>
@@ -283,12 +285,12 @@ export default function UsersPage() {
                 <td className={td}>
                   {isAdmin && u.id !== me?.id ? (
                     <Select
-                      aria-label={`Роль: ${u.name}`}
+                      aria-label={t("settings.users.role2", { name: u.name })}
                       className="h-8 w-44"
                       value={roleValue(u)}
                       onChange={(e) => update(u.id, rolePatch(e.target.value))}
                     >
-                      {!roleValue(u) && <option value="">Без роли</option>}
+                      {!roleValue(u) && <option value="">{t("common.noRole")}</option>}
                       <RoleOptions roles={roles} />
                     </Select>
                   ) : (
@@ -296,17 +298,18 @@ export default function UsersPage() {
                   )}
                 </td>
                 <td className={td}>
-                  <Badge tone={u.isActive ? "success" : "default"}>{u.isActive ? "Активен" : "Отключён"}</Badge>
+                  <Badge tone={u.isActive ? "success" : "default"}>{u.isActive ? t("settings.users.active") : t("settings.users.deactivated")}</Badge>
                 </td>
                 {isAdmin && (
                   <td className={`${td} text-right`}>
                     {u.id !== me?.id && (
                       <div className="flex justify-end gap-1">
                         <Button size="sm" variant="ghost" onClick={() => setResetting(u)}>
-                          Сбросить пароль
+                          
+                          {t("settings.users.resetPassword")}
                         </Button>
                         <Button size="sm" variant={u.isActive ? "ghost" : "outline"} onClick={() => update(u.id, { isActive: !u.isActive })}>
-                          {u.isActive ? "Отключить" : "Включить"}
+                          {u.isActive ? t("common.turnOff") : t("common.resume")}
                         </Button>
                       </div>
                     )}
@@ -320,16 +323,16 @@ export default function UsersPage() {
       )}
       {isAdmin && invitations.length > 0 && (
         <Panel className="mb-5 overflow-hidden">
-          <div className="border-b border-border px-4 py-2.5 text-sm font-medium">Приглашения</div>
+          <div className="border-b border-border px-4 py-2.5 text-sm font-medium">{t("settings.users.invitations")}</div>
           <table className="w-full border-collapse">
             <tbody>
               {invitations.map((i) => (
                 <tr key={i.id} className={tr}>
                   <td className={td}>{i.email}</td>
                   <td className={`${td} text-ink-faint`}>
-                    {i.role === "ADMIN" ? "Администратор" : (roles.find((r) => r.id === i.roleId)?.name ?? "Без роли")}
+                    {i.role === "ADMIN" ? t("common.administrator") : (roles.find((r) => r.id === i.roleId)?.name ?? t("common.noRole"))}
                   </td>
-                  <td className={`${td} text-ink-faint`}>до {new Date(i.expiresAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</td>
+                  <td className={`${td} text-ink-faint`}>{t("settings.users.until", { newDate: new Date(i.expiresAt).toLocaleDateString(intlTag(), { day: "numeric", month: "long" }) })}</td>
                   <td className={`${td} text-right`}>
                     <Button
                       size="sm"
@@ -339,7 +342,8 @@ export default function UsersPage() {
                         load();
                       }}
                     >
-                      Отозвать
+                      
+                      {t("settings.users.revoke")}
                     </Button>
                   </td>
                 </tr>

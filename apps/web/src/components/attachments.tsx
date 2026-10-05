@@ -4,13 +4,13 @@ import { FileArchive, FileImage, FileSpreadsheet, FileText, File as FileIcon, Tr
 import type { AttachmentDto } from "@plano/shared";
 import { fileUrl } from "@/lib/api";
 import { IconButton } from "./ui";
-
+import { t } from "@plano/shared";
 export const isImage = (a: { mime: string }) => /^image\/(png|jpe?g|gif|webp|avif)$/.test(a.mime);
 
 export function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} Б`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
-  return `${(bytes / 1024 / 1024).toFixed(1).replace(".", ",")} МБ`;
+  if (bytes < 1024) return t("attachments.b", { bytes });
+  if (bytes < 1024 * 1024) return t("attachments.kb", { round: Math.round(bytes / 1024) });
+  return t("attachments.mb", { toFixed: (bytes / 1024 / 1024).toFixed(1).replace(".", ",") });
 }
 
 function iconFor(a: { mime: string; name: string }): LucideIcon {
@@ -50,14 +50,14 @@ export function AttachmentGrid({
                 <span className="block truncate text-sm">{a.name}</span>
                 <span className="block text-xs text-ink-ghost">
                   {formatSize(a.size)}
-                  {a.commentId ? ", из обсуждения" : ""}
+                  {a.commentId ? t("attachments.fromTheDiscussion") : ""}
                 </span>
               </span>
             </a>
             {canDelete(a) && (
               <IconButton
                 size="sm"
-                title="Удалить файл"
+                title={t("attachments.deleteFile")}
                 onClick={() => onDelete(a)}
                 className="absolute right-1 top-1 bg-surface/90 opacity-0 shadow-card group-hover:opacity-100 focus:opacity-100"
               >

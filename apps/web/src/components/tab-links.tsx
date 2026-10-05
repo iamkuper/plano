@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-
+import { t } from "@plano/shared";
 // Route-backed tabs shown next to a page title (Главная, Настройки).
 // `exact` tabs match only their own path, the rest also match sub-paths.
 export function TabLinks({ tabs, label }: { tabs: { href: string; label: string; exact?: boolean }[]; label: string }) {
@@ -31,27 +31,27 @@ export function TabLinks({ tabs, label }: { tabs: { href: string; label: string;
 
 export const HomeTabs = () => (
   <TabLinks
-    label="Разделы"
+    label={t("tabLinks.sections")}
     tabs={[
-      { href: "/dashboard", label: "Обзор" },
-      { href: "/team", label: "Задачи" },
-      { href: "/reports/time", label: "Время" },
+      { href: "/dashboard", label: t("common.overview") },
+      { href: "/team", label: t("tabLinks.tasks") },
+      { href: "/reports/time", label: t("tabLinks.time") },
     ]}
   />
 );
 
 export const SettingsTabs = () => (
   <TabLinks
-    label="Разделы настроек"
+    label={t("tabLinks.settingsSections")}
     tabs={[
-      { href: "/settings", label: "Общие", exact: true },
-      { href: "/settings/users", label: "Сотрудники" },
-      { href: "/settings/templates", label: "Шаблоны" },
-      { href: "/settings/roles", label: "Права" },
-      { href: "/settings/types", label: "Типы" },
-      { href: "/settings/fields", label: "Поля" },
-      { href: "/settings/audit", label: "Журнал" },
-      { href: "/settings/billing", label: "Тариф" },
+      { href: "/settings", label: t("tabLinks.general"), exact: true },
+      { href: "/settings/users", label: t("common.staff") },
+      { href: "/settings/templates", label: t("common.templates") },
+      { href: "/settings/roles", label: t("tabLinks.permissions") },
+      { href: "/settings/types", label: t("tabLinks.types") },
+      { href: "/settings/fields", label: t("tabLinks.fields") },
+      { href: "/settings/audit", label: t("tabLinks.log") },
+      { href: "/settings/billing", label: t("common.plan") },
     ]}
   />
 );

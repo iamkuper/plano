@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { api, setToken } from "@/lib/api";
+import { resetBrowserLocale } from "@plano/shared";
 import { taskTypes } from "./fixtures";
 import { afterEach, beforeEach, vi } from "vitest";
 
@@ -11,6 +12,7 @@ beforeEach(() => {
     throw new Error(`Unexpected request in a test: ${url}`);
   }));
   localStorage.clear();
+  resetBrowserLocale(); // the UI language follows the (Russian) browser unless a test picks one
   setToken(null); // drops every per-account cache between tests
   // Task types are read by every card form; tests that care override this.
   vi.spyOn(api, "taskTypes").mockResolvedValue(taskTypes());
@@ -43,3 +45,6 @@ vi.mock("next/navigation", () => ({
   useParams: () => nav.params,
 }));
 beforeEach(() => nav.reset());
+
+// The suite reads Russian texts: pretend the browser is Russian.
+Object.defineProperty(window.navigator, "language", { value: "ru-RU", configurable: true });

@@ -7,6 +7,8 @@ import {
   cardKey,
   type UserDto,
   type UserRefDto,
+  t,
+  intlTag,
 } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { HomeTabs } from "@/components/tab-links";
@@ -74,27 +76,27 @@ const hours = (minutes: number) => Math.round((minutes / 60) * 10) / 10;
 function formatHours(minutes: number) {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  if (!h) return `${m} мин`;
-  return m ? `${h} ч ${m} мин` : `${h} ч`;
+  if (!h) return t("common.min", { m });
+  return m ? t("common.hMin", { h, m }) : t("common.h", { h });
 }
 
 const shortDate = (s: string) =>
-  new Date(s).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  new Date(s).toLocaleDateString(intlTag(), { day: "numeric", month: "short" });
 
 // CSV that Excel opens correctly: UTF-8 BOM, ";" separators, quoted cells.
 function downloadCsv(entries: Entry[], from: string, to: string) {
   const cell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
   const rows = [
     [
-      "Дата",
-      "Сотрудник",
-      "Проект",
-      "Карточка",
-      "Название карточки",
-      "Тип",
-      "Комментарий",
-      "Минуты",
-      "Часы",
+      t("common.date"),
+      t("common.employee"),
+      t("common.project"),
+      t("common.card"),
+      t("common.cardTitle"),
+      t("common.type"),
+      t("reports.time.comment"),
+      t("reports.time.minutes"),
+      t("reports.time.hours"),
     ],
     ...entries.map((e) => [
       e.date.slice(0, 10),
@@ -195,34 +197,34 @@ export default function TimeReportPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Главная"
+        title={t("common.home")}
         meta={<HomeTabs />}
         actions={
           <Button
             disabled={!entries?.length}
             onClick={() => {
               downloadCsv(entries!, from, to);
-              toast("Файл выгружен", "success");
+              toast(t("reports.time.fileExported"), "success");
             }}
           >
-            <Download size={15} /> Выгрузить в Excel
+            <Download size={15} />  {t("reports.time.exportToExcel")}
           </Button>
         }
       />
       <div className="flex flex-wrap items-center gap-2 py-2.5">
         <Segmented<Period>
-          label="Период"
+          label={t("reports.time.period")}
           value={period}
           onChange={(p) => {
             setPeriod(p);
             if (p !== "custom") setRange(range(p));
           }}
           options={[
-            { value: "week", label: "Эта неделя" },
-            { value: "lastWeek", label: "Прошлая" },
-            { value: "month", label: "Этот месяц" },
-            { value: "lastMonth", label: "Прошлый" },
-            { value: "custom", label: "Период" },
+            { value: "week", label: t("reports.time.thisWeek") },
+            { value: "lastWeek", label: t("reports.time.lastWeek") },
+            { value: "month", label: t("reports.time.thisMonth") },
+            { value: "lastMonth", label: t("reports.time.lastMonth") },
+            { value: "custom", label: t("reports.time.period") },
           ]}
         />
         {period === "custom" && (
@@ -230,7 +232,7 @@ export default function TimeReportPage() {
             <div className="w-40">
               <Input
                 type="date"
-                aria-label="С"
+                aria-label={t("reports.time.from")}
                 value={from}
                 max={to}
                 onChange={(e) => setRange([e.target.value, to])}
@@ -240,7 +242,7 @@ export default function TimeReportPage() {
             <div className="w-40">
               <Input
                 type="date"
-                aria-label="По"
+                aria-label={t("reports.time.to")}
                 value={to}
                 min={from}
                 onChange={(e) => setRange([from, e.target.value])}
@@ -250,25 +252,25 @@ export default function TimeReportPage() {
         )}
         <span aria-hidden className="mx-1 h-4 w-px bg-border" />
         <Segmented<GroupBy>
-          label="Группировка"
+          label={t("reports.time.groupBy")}
           value={groupBy}
           onChange={(g) => {
             setGroupBy(g);
             setOpen(new Set());
           }}
           options={[
-            { value: "user", label: "Сотрудники" },
-            { value: "project", label: "Проекты" },
+            { value: "user", label: t("common.staff") },
+            { value: "project", label: t("common.projects") },
           ]}
         />
         {viewAll && (
           <div className="ml-auto w-52">
             <Select
-              aria-label="Сотрудник"
+              aria-label={t("common.employee")}
               value={userId}
               onChange={(e) => setUserId(e.target.value)}
             >
-              <option value="">Все сотрудники</option>
+              <option value="">{t("reports.time.allEmployees")}</option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
                   {u.name}
@@ -282,13 +284,13 @@ export default function TimeReportPage() {
       <div className="space-y-4 pb-8 pt-3">
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Kpi
-            label="Всего"
+            label={t("reports.time.total")}
             value={entries ? formatHours(total) : "…"}
             hint={`${shortDate(from)} — ${shortDate(to)}`}
           />
-          <Kpi label="Записей" value={entries ? String(entries.length) : "…"} />
-          <Kpi label="Сотрудников" value={entries ? String(people) : "…"} />
-          <Kpi label="Проектов" value={entries ? String(projects) : "…"} />
+          <Kpi label={t("reports.time.entries")} value={entries ? String(entries.length) : "…"} />
+          <Kpi label={t("reports.time.employees")} value={entries ? String(people) : "…"} />
+          <Kpi label={t("reports.time.projects")} value={entries ? String(projects) : "…"} />
         </div>
 
         {error && (
@@ -298,8 +300,9 @@ export default function TimeReportPage() {
         )}
         {!entries && <TableSkeleton />}
         {entries && entries.length === 0 && !error && (
-          <EmptyState icon={Clock} title="За этот период время не списано">
-            Время списывается в карточке задачи, в разделе «Учёт времени».
+          <EmptyState icon={Clock} title={t("reports.time.noTimeWasLoggedIn")}>
+            
+            {t("reports.time.timeIsLoggedOnA")}
           </EmptyState>
         )}
 
@@ -337,9 +340,7 @@ export default function TimeReportPage() {
                           </span>
                         )}
                       </span>
-                      <span className="shrink-0 text-xs text-ink-ghost">
-                        {g.entries.length} зап.
-                      </span>
+                      <span className="shrink-0 text-xs text-ink-ghost"> {t("reports.time.entries2", { entries: g.entries.length })} </span>
                     </span>
                     <span className="flex items-center gap-2">
                       <span className="flex-1">

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { BoardDto, CardTileDto, ColumnDto } from "@plano/shared";
 import { api } from "./api";
 import { toast } from "./toast";
-
+import { t } from "@plano/shared";
 // Board data + optimistic card mutations shared by the kanban, table and
 // list views of a project.
 export function useBoard(projectId: string) {
@@ -48,9 +48,9 @@ export function useBoard(projectId: string) {
       patchCard(cardId, (c) => ({ ...c, checklist: [...c.checklist, { id: item.id, text: item.text, done: item.done }] }));
     },
     deleteCard(card: CardTileDto) {
-      if (!confirm(`Удалить карточку «${card.title}»?`)) return;
+      if (!confirm(t("lib.useBoard.deleteCard", { title: card.title }))) return;
       setColumns((cols) => cols.map((col) => ({ ...col, cards: col.cards.filter((c) => c.id !== card.id) })));
-      guard(api.deleteCard(card.id).then(() => toast("Карточка удалена", "success")));
+      guard(api.deleteCard(card.id).then(() => toast(t("lib.useBoard.cardDeleted"), "success")));
     },
     async addCard(columnId: string, title: string) {
       const card = await api.createCard(columnId, title);

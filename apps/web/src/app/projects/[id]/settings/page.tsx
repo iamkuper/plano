@@ -10,6 +10,8 @@ import {
   type ProjectStatus,
   type RecurringRuleDto,
   type UserDto,
+  t,
+  intlTag,
 } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Button, Card, ConfirmDialog, Field, IconButton, Input, PageHeader, Select } from "@/components/ui";
@@ -49,8 +51,8 @@ function DetailsSection({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.title.trim()) return setError("Укажите название проекта");
-    if (form.startDate && form.deadline && form.deadline < form.startDate) return setError("Дедлайн раньше даты старта");
+    if (!form.title.trim()) return setError(t("common.enterAProjectName"));
+    if (form.startDate && form.deadline && form.deadline < form.startDate) return setError(t("projects.id.settings.theDeadlineIsBeforeThe"));
     setError(null);
     setBusy(true);
     try {
@@ -63,7 +65,7 @@ function DetailsSection({
       });
       notifyProjectsChanged();
       onSaved();
-      toast("Проект сохранён", "success");
+      toast(t("projects.id.settings.projectSaved"), "success");
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -72,13 +74,13 @@ function DetailsSection({
   }
 
   return (
-    <Card title="Основное">
+    <Card title={t("common.general")}>
       <form onSubmit={submit} className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Field label="Название" error={error && !form.title.trim() ? error : null}>
+          <Field label={t("common.name2")} error={error && !form.title.trim() ? error : null}>
             {(a) => <Input {...a} value={form.title} onChange={set("title")} />}
           </Field>
-          <Field label="Статус">
+          <Field label={t("common.status")}>
             {(a) => (
               <Select {...a} value={form.status} onChange={set("status")}>
                 {Object.entries(PROJECT_STATUS_LABELS).map(([value, label]) => (
@@ -89,21 +91,23 @@ function DetailsSection({
               </Select>
             )}
           </Field>
-          <Field label="Бюджет, часов" hint="Сравнивается со списанным временем по карточкам">
-            {(a) => <Input {...a} type="number" min={0} placeholder="Не задан" value={form.hoursBudget} onChange={set("hoursBudget")} />}
+          <Field label={t("projects.id.settings.budgetHours")} hint={t("projects.id.settings.comparedWithTheTimeLogged")}>
+            {(a) => <Input {...a} type="number" min={0} placeholder={t("projects.id.settings.notSet")} value={form.hoursBudget} onChange={set("hoursBudget")} />}
           </Field>
-          <Field label="Старт">{(a) => <Input {...a} type="date" value={form.startDate} onChange={set("startDate")} />}</Field>
-          <Field label="Дедлайн">{(a) => <Input {...a} type="date" value={form.deadline} onChange={set("deadline")} />}</Field>
+          <Field label={t("common.start")}>{(a) => <Input {...a} type="date" value={form.startDate} onChange={set("startDate")} />}</Field>
+          <Field label={t("common.deadline")}>{(a) => <Input {...a} type="date" value={form.deadline} onChange={set("deadline")} />}</Field>
         </div>
         {error && form.title.trim() && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           {dirty && (
             <Button type="button" variant="ghost" onClick={() => setForm(initial)}>
-              Отменить изменения
+              
+              {t("common.discardChanges")}
             </Button>
           )}
           <Button variant="primary" loading={busy} disabled={!dirty}>
-            Сохранить
+            
+            {t("common.save")}
           </Button>
         </div>
       </form>
@@ -134,34 +138,34 @@ function StageRow({
     <div className="grid h-12 grid-cols-[4px_minmax(0,1fr)_120px_64px_auto] items-center gap-3 border-b border-border px-3 last:border-b-0">
       <span className="h-6 rounded-full" style={{ background: stageColor(index, count) }} />
       <Input
-        aria-label={`Название этапа ${index + 1}`}
+        aria-label={t("projects.id.settings.stageName", { value: index + 1 })}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => (title.trim() ? title.trim() !== column.title && onRename(title.trim()) : setTitle(column.title))}
         onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
       />
       <Input
-        aria-label={`Лимит карточек этапа ${column.title}`}
+        aria-label={t("projects.id.settings.cardLimitOfStage", { title: column.title })}
         type="number"
         min={1}
-        placeholder="Без лимита"
+        placeholder={t("projects.id.settings.noLimit")}
         defaultValue={column.wipLimit ?? ""}
         onBlur={(e) => {
           const v = e.target.value === "" ? null : Math.max(1, Math.round(Number(e.target.value)));
           if (v !== column.wipLimit) onLimit(v);
         }}
       />
-      <span className="text-right text-xs text-ink-ghost">{cards} карт.</span>
+      <span className="text-right text-xs text-ink-ghost">{t("projects.id.settings.cards", { cards })}</span>
       <div className="flex items-center">
-        <IconButton size="sm" title="Выше" disabled={index === 0} onClick={() => onMove(-1)}>
+        <IconButton size="sm" title={t("common.up")} disabled={index === 0} onClick={() => onMove(-1)}>
           <ArrowUp size={14} />
         </IconButton>
-        <IconButton size="sm" title="Ниже" disabled={index === count - 1} onClick={() => onMove(1)}>
+        <IconButton size="sm" title={t("common.down")} disabled={index === count - 1} onClick={() => onMove(1)}>
           <ArrowDown size={14} />
         </IconButton>
         <IconButton
           size="sm"
-          title={cards ? "Сначала перенесите карточки из этапа" : count <= 1 ? "Нужен хотя бы один этап" : "Удалить этап"}
+          title={cards ? t("projects.id.settings.moveTheCardsOutOf") : count <= 1 ? t("common.atLeastOneStageIs") : t("projects.id.settings.deleteStage")}
           disabled={cards > 0 || count <= 1}
           onClick={onDelete}
         >
@@ -194,16 +198,16 @@ function StagesSection({ boardId, columns, reload }: { boardId: string; columns:
 
   return (
     <Card
-      title="Этапы доски"
-      description="Колонки канбана слева направо. Первый этап — новые задачи, последний — готовые."
+      title={t("projects.id.settings.boardStages")}
+      description={t("projects.id.settings.kanbanColumnsFromLeftTo")}
       bodyClassName="p-4 pt-3"
     >
       <div className="overflow-hidden rounded-lg border border-border">
         <div className="grid h-8 grid-cols-[4px_minmax(0,1fr)_120px_64px_auto] items-center gap-3 border-b border-border bg-surface-soft px-3 text-xs text-ink-ghost">
           <span />
-          <span>Этап</span>
-          <span>Лимит</span>
-          <span className="text-right">Сейчас</span>
+          <span>{t("projects.id.settings.stage")}</span>
+          <span>{t("projects.id.settings.limit")}</span>
+          <span className="text-right">{t("projects.id.settings.now")}</span>
           <span className="w-[84px]" />
         </div>
         {columns.map((col, i) => (
@@ -212,10 +216,10 @@ function StagesSection({ boardId, columns, reload }: { boardId: string; columns:
             column={col}
             index={i}
             count={columns.length}
-            onRename={(title) => guard(api.updateColumn(col.id, { title }), "Этап переименован")}
+            onRename={(title) => guard(api.updateColumn(col.id, { title }), t("projects.id.settings.stageRenamed"))}
             onLimit={(wipLimit) => guard(api.updateColumn(col.id, { wipLimit }))}
             onMove={(dir) => move(i, dir)}
-            onDelete={() => guard(api.deleteColumn(col.id), `Этап «${col.title}» удалён`)}
+            onDelete={() => guard(api.deleteColumn(col.id), t("projects.id.settings.stageDeleted", { title: col.title }))}
           />
         ))}
       </div>
@@ -224,15 +228,15 @@ function StagesSection({ boardId, columns, reload }: { boardId: string; columns:
         onSubmit={(e) => {
           e.preventDefault();
           if (!newTitle.trim()) return;
-          guard(api.addColumn(boardId, newTitle.trim()), "Этап добавлен");
+          guard(api.addColumn(boardId, newTitle.trim()), t("projects.id.settings.stageAdded"));
           setNewTitle("");
         }}
       >
         <div className="flex-1">
-          <Input aria-label="Новый этап" placeholder="Новый этап, например «Тестирование»" value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
+          <Input aria-label={t("common.newStage")} placeholder={t("projects.id.settings.newStageForExampleTesting")} value={newTitle} onChange={(e) => setNewTitle(e.target.value)} />
         </div>
         <Button type="submit" disabled={!newTitle.trim()}>
-          <Plus size={15} /> Добавить этап
+          <Plus size={15} />  {t("common.addStage")}
         </Button>
       </form>
     </Card>
@@ -262,18 +266,19 @@ function RecurringSection({ projectId, users }: { projectId: string; users: User
 
   return (
     <Card
-      title="Повторяющиеся задачи"
-      description="Карточки создаются сами в первом этапе доски, в 9:00 в день повтора."
+      title={t("common.recurringTasks")}
+      description={t("projects.id.settings.cardsAreCreatedAutomaticallyIn")}
       bodyClassName="p-4 pt-3"
       action={
         <Button size="sm" onClick={() => setEditing("new")}>
-          <Plus size={14} /> Новое правило
+          <Plus size={14} />  {t("projects.id.settings.newRule")}
         </Button>
       }
     >
       {rules && rules.length === 0 && (
         <p className="rounded-lg border border-dashed border-border-strong px-4 py-5 text-center text-sm text-ink-faint">
-          Правил нет. Повторение можно настроить и из карточки: меню «⋯» → «Сделать повторяющейся».
+          
+          {t("projects.id.settings.noRulesRepeatingCanAlso")}
         </p>
       )}
       {rules && rules.length > 0 && (
@@ -286,8 +291,8 @@ function RecurringSection({ projectId, users }: { projectId: string; users: User
                 <span className="block truncate text-xs text-ink-faint">
                   {describeRecurrence(r)}
                   {r.active
-                    ? `, следующая ${new Date(r.nextRunAt).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}`
-                    : ", на паузе"}
+                    ? t("projects.id.settings.nextOn", { newDate: new Date(r.nextRunAt).toLocaleDateString(intlTag(), { day: "numeric", month: "long" }) })
+                    : t("projects.id.settings.paused")}
                 </span>
               </button>
               <span className="flex shrink-0">
@@ -298,13 +303,14 @@ function RecurringSection({ projectId, users }: { projectId: string; users: User
                 ))}
               </span>
               <div className="flex shrink-0 items-center gap-1">
-                <Button size="sm" variant="ghost" onClick={() => act(api.runRecurring(r.id), `Карточка «${r.title}» создана`)}>
-                  Создать сейчас
+                <Button size="sm" variant="ghost" onClick={() => act(api.runRecurring(r.id), t("projects.id.settings.cardCreated", { title: r.title }))}>
+                  
+                  {t("projects.id.settings.createNow")}
                 </Button>
-                <Button size="sm" variant="ghost" onClick={() => act(api.toggleRecurring(r.id, !r.active), r.active ? "Правило на паузе" : "Правило снова работает")}>
-                  {r.active ? "Пауза" : "Включить"}
+                <Button size="sm" variant="ghost" onClick={() => act(api.toggleRecurring(r.id, !r.active), r.active ? t("projects.id.settings.rulePaused") : t("projects.id.settings.ruleIsActiveAgain"))}>
+                  {r.active ? t("projects.id.settings.pause") : t("common.resume")}
                 </Button>
-                <IconButton size="sm" title="Удалить правило" onClick={() => setDeleting(r)}>
+                <IconButton size="sm" title={t("projects.id.settings.deleteRule")} onClick={() => setDeleting(r)}>
                   <Trash2 size={14} />
                 </IconButton>
               </div>
@@ -323,13 +329,13 @@ function RecurringSection({ projectId, users }: { projectId: string; users: User
       )}
       {deleting && (
         <ConfirmDialog
-          title={`Удалить правило «${deleting.title}»?`}
-          body="Новые карточки перестанут создаваться. Уже созданные останутся на доске."
-          confirmLabel="Удалить правило"
+          title={t("projects.id.settings.deleteRule2", { title: deleting.title })}
+          body={t("projects.id.settings.newCardsWillStopBeing")}
+          confirmLabel={t("projects.id.settings.deleteRule")}
           onClose={() => setDeleting(null)}
           onConfirm={async () => {
             setDeleting(null);
-            await act(api.deleteRecurring(deleting.id), "Правило удалено");
+            await act(api.deleteRecurring(deleting.id), t("projects.id.settings.ruleDeleted"));
           }}
         />
       )}
@@ -342,7 +348,7 @@ function SaveAsTemplateSection({ project }: { project: ProjectWithBoard }) {
   const [name, setName] = useState(project.title);
   const [busy, setBusy] = useState(false);
   return (
-    <Card title="Сохранить как шаблон" description="Этапы и карточки проекта (названия, типы, оценки, чек-листы) станут шаблоном для новых проектов.">
+    <Card title={t("projects.id.settings.saveAsTemplate")} description={t("projects.id.settings.theProjectSStagesAnd")}>
       <form
         className="flex items-end gap-2"
         onSubmit={async (e) => {
@@ -351,7 +357,7 @@ function SaveAsTemplateSection({ project }: { project: ProjectWithBoard }) {
           setBusy(true);
           try {
             const { id } = await api.templateFromProject(project.id, name.trim());
-            toast("Шаблон создан", "success");
+            toast(t("common.templateCreated"), "success");
             router.push(`/settings/templates/${id}`);
           } catch (err) {
             toast((err as Error).message, "error");
@@ -361,10 +367,11 @@ function SaveAsTemplateSection({ project }: { project: ProjectWithBoard }) {
         }}
       >
         <div className="flex-1">
-          <Field label="Название шаблона">{(a) => <Input {...a} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
+          <Field label={t("common.templateName")}>{(a) => <Input {...a} value={name} onChange={(e) => setName(e.target.value)} />}</Field>
         </div>
         <Button loading={busy} disabled={!name.trim()}>
-          Создать шаблон
+          
+          {t("common.createTemplate")}
         </Button>
       </form>
     </Card>
@@ -377,40 +384,41 @@ function DangerSection({ project, canDelete, onArchive }: { project: ProjectWith
   const archived = project.status === "ARCHIVED";
 
   return (
-    <Card title="Архив и удаление">
+    <Card title={t("projects.id.settings.archiveAndDeletion")}>
       <div className="divide-y divide-border">
         <div className="flex items-center justify-between gap-4 pb-4">
           <div>
-            <div className="text-sm font-medium">{archived ? "Вернуть из архива" : "Перенести в архив"}</div>
+            <div className="text-sm font-medium">{archived ? t("projects.id.settings.restoreFromArchive") : t("projects.id.settings.moveToArchive")}</div>
             <p className="text-sm text-ink-faint">
-              {archived ? "Проект снова появится в списке «В работе»." : "Проект пропадёт из меню и общей доски, данные сохранятся."}
+              {archived ? t("projects.id.settings.theProjectWillAppearIn") : t("projects.id.settings.theProjectWillDisappearFrom")}
             </p>
           </div>
-          <Button onClick={onArchive}>{archived ? "Вернуть" : "В архив"}</Button>
+          <Button onClick={onArchive}>{archived ? t("projects.id.settings.restore") : t("projects.id.settings.archive")}</Button>
         </div>
         <div className="flex items-center justify-between gap-4 pt-4">
           <div>
-            <div className="text-sm font-medium">Удалить проект</div>
+            <div className="text-sm font-medium">{t("projects.id.settings.deleteProject")}</div>
             <p className="text-sm text-ink-faint">
-              {canDelete ? "Доска, карточки, комментарии и время удалятся без возможности восстановления." : "Нет права удалять проекты. Его выдаёт администратор."}
+              {canDelete ? t("projects.id.settings.theBoardCardsCommentsAnd") : t("projects.id.settings.youAreNotAllowedTo")}
             </p>
           </div>
           <Button variant="outline" className="text-danger" disabled={!canDelete} onClick={() => setConfirming(true)}>
-            Удалить проект
+            
+            {t("projects.id.settings.deleteProject")}
           </Button>
         </div>
       </div>
       {confirming && (
         <ConfirmDialog
-          title={`Удалить проект «${project.title}»?`}
-          body={`Удалятся доска и все карточки с комментариями и записями времени. Отменить это нельзя.`}
-          confirmLabel="Удалить проект"
+          title={t("projects.id.settings.deleteProject2", { title: project.title })}
+          body={t("projects.id.settings.theBoardAndAllCards")}
+          confirmLabel={t("projects.id.settings.deleteProject")}
           onClose={() => setConfirming(false)}
           onConfirm={async () => {
             try {
               await api.deleteProject(project.id);
               notifyProjectsChanged();
-              toast("Проект удалён", "success");
+              toast(t("projects.id.settings.projectDeleted"), "success");
               router.replace("/projects");
             } catch (e) {
               toast((e as Error).message, "error");
@@ -448,15 +456,16 @@ export default function ProjectSettingsPage({ params }: { params: { id: string }
     <AppShell>
       <PageHeader
         crumbs={[
-          { label: "Проекты", href: "/projects" },
+          { label: t("common.projects"), href: "/projects" },
           ...(project ? [{ label: project.title, href: `/projects/${project.id}` }] : []),
         ]}
-        title="Настройки проекта"
+        title={t("common.projectSettings")}
       />
       <div className="w-full space-y-4 py-6">
         {me && !allowed("projects.edit") && (
           <p className="rounded-lg border border-border bg-surface-soft px-4 py-3 text-sm text-ink-faint">
-            Менять проект может сотрудник с правом «Менять проекты». Права выдаёт администратор в настройках.
+            
+            {t("projects.id.settings.projectsCanBeChangedBy")}
           </p>
         )}
         {project ? (
@@ -472,7 +481,7 @@ export default function ProjectSettingsPage({ params }: { params: { id: string }
                 const status: ProjectStatus = project.status === "ARCHIVED" ? "ACTIVE" : "ARCHIVED";
                 await api.updateProject(project.id, { status });
                 notifyProjectsChanged();
-                toast(status === "ARCHIVED" ? "Проект в архиве" : "Проект возвращён в работу", "success");
+                toast(status === "ARCHIVED" ? t("projects.id.settings.projectArchived") : t("projects.id.settings.projectReturnedToWork"), "success");
                 loadProject();
               }}
             />

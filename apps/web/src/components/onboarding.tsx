@@ -7,7 +7,7 @@ import { Check, Rocket, X } from "lucide-react";
 import { api, type OnboardingDto } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { Button, Card, Dialog } from "./ui";
-
+import { t } from "@plano/shared";
 // First-run help on the home page: a welcome dialog once, then a checklist
 // that ticks itself as the person does the real things. Both can be closed
 // for good; "Показать начало работы" in the profile brings the checklist back.
@@ -40,7 +40,7 @@ export function Onboarding() {
     try {
       const { id } = await api.createSampleProject();
       await api.onboardingWelcomeSeen().catch(() => {});
-      toast("Пример проекта создан", "success");
+      toast(t("onboarding.sampleProjectCreated"), "success");
       router.push(`/projects/${id}`);
     } catch (e) {
       toast((e as Error).message, "error");
@@ -52,8 +52,8 @@ export function Onboarding() {
     <>
       {!data.welcomeSeen && (
         <Dialog
-          title={owner ? "Добро пожаловать в Plano" : "Добро пожаловать в команду"}
-          description={owner ? "Пройдём первые шаги за пару минут или сразу посмотрим готовый пример." : "Здесь вы увидите задачи команды и сможете обсуждать их в карточках."}
+          title={owner ? t("onboarding.welcomeToPlano") : t("onboarding.welcomeToTheTeam")}
+          description={owner ? t("onboarding.letSGoThroughThe") : t("onboarding.hereYouWillSeeThe")}
           onClose={() => {
             api.onboardingWelcomeSeen().catch(() => {});
             setData({ ...data, welcomeSeen: true });
@@ -69,10 +69,11 @@ export function Onboarding() {
               ))}
             </ul>
             <div className="flex flex-wrap justify-end gap-2 pt-1">
-              <Button onClick={close}>Не нужно, закрыть</Button>
+              <Button onClick={close}>{t("onboarding.noNeedClose")}</Button>
               {owner && (
                 <Button loading={busy} onClick={sample}>
-                  Создать пример проекта
+                  
+                  {t("onboarding.createASampleProject")}
                 </Button>
               )}
               <Button
@@ -82,7 +83,8 @@ export function Onboarding() {
                   setData({ ...data, welcomeSeen: true });
                 }}
               >
-                Начать
+                
+                {t("onboarding.getStarted")}
               </Button>
             </div>
           </div>
@@ -90,15 +92,15 @@ export function Onboarding() {
       )}
 
       <Card
-        title={allDone ? "Всё готово" : "Начало работы"}
-        description={allDone ? "Основные шаги пройдены. Подсказки можно скрыть." : `Выполнено ${data.completed} из ${data.steps.length}`}
+        title={allDone ? t("onboarding.allDone") : t("common.gettingStarted")}
+        description={allDone ? t("onboarding.theMainStepsAreComplete") : t("onboarding.completedOf", { completed: data.completed, steps: data.steps.length })}
         action={
-          <button onClick={close} aria-label="Скрыть начало работы" title="Скрыть" className="grid size-7 place-items-center rounded-md text-ink-ghost hover:bg-surface-sunken hover:text-ink">
+          <button onClick={close} aria-label={t("onboarding.hideGettingStarted")} title={t("onboarding.hide")} className="grid size-7 place-items-center rounded-md text-ink-ghost hover:bg-surface-sunken hover:text-ink">
             <X size={16} strokeWidth={1.75} />
           </button>
         }
       >
-        <div className="mb-3 h-1 rounded-full bg-surface-sunken" role="progressbar" aria-label="Прогресс" aria-valuenow={data.completed} aria-valuemax={data.steps.length}>
+        <div className="mb-3 h-1 rounded-full bg-surface-sunken" role="progressbar" aria-label={t("onboarding.progress")} aria-valuenow={data.completed} aria-valuemax={data.steps.length}>
           <div className="h-1 rounded-full bg-accent transition-all" style={{ width: `${(data.completed / data.steps.length) * 100}%` }} />
         </div>
         <ol className="divide-y divide-border">
@@ -122,7 +124,7 @@ export function Onboarding() {
         {allDone && (
           <div className="mt-3 flex justify-end">
             <Button variant="primary" onClick={close}>
-              <Rocket size={15} /> Готово, скрыть
+              <Rocket size={15} />  {t("onboarding.doneHide")}
             </Button>
           </div>
         )}

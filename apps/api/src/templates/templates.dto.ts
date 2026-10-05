@@ -11,10 +11,10 @@ import {
   MinLength,
   ValidateNested,
 } from "class-validator";
-
+import { t } from "@plano/shared";
 export class TemplateCardDto {
   @IsString()
-  @MinLength(1, { message: "У карточки шаблона должно быть название" })
+  @MinLength(1, { message: () => t("api.templates.aTemplateCardMustHave") })
   @MaxLength(200)
   title!: string;
 
@@ -40,12 +40,12 @@ export class TemplateCardDto {
 // The whole template in one payload: saving replaces its cards.
 export class SaveTemplateDto {
   @IsString()
-  @MinLength(1, { message: "Укажите название шаблона" })
+  @MinLength(1, { message: () => t("common.enterATemplateName") })
   @MaxLength(80)
   name!: string;
 
   @IsArray()
-  @ArrayMinSize(1, { message: "Нужен хотя бы один этап" })
+  @ArrayMinSize(1, { message: () => t("common.atLeastOneStageIs") })
   @ArrayMaxSize(12)
   @IsString({ each: true })
   columns!: string[];

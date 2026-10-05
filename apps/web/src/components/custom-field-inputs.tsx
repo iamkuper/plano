@@ -5,7 +5,7 @@ import type { CardDetailDto, CustomFieldDto, CustomFieldValue } from "@plano/sha
 import { api, onSessionChange } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { Checkbox, Field, Input, Select } from "./ui";
-
+import { t } from "@plano/shared";
 let cache: Promise<CustomFieldDto[]> | null = null;
 onSessionChange(() => (cache = null));
 const loadFields = () => (cache ??= api.fields().catch((e) => ((cache = null), Promise.reject(e))));
@@ -47,7 +47,7 @@ export function CustomFieldInputs({ card, canEdit, onChanged }: { card: CardDeta
                 case "SELECT":
                   return (
                     <Select {...a} disabled={!canEdit} value={typeof value === "string" ? value : ""} onChange={(e) => set(f, e.target.value || null)}>
-                      <option value="">Не выбрано</option>
+                      <option value="">{t("customFieldInputs.notSelected")}</option>
                       {f.options.map((o) => (
                         <option key={o} value={o}>
                           {o}

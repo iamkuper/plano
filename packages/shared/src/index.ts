@@ -1,3 +1,4 @@
+import { lazyLabels, t } from "./i18n";
 // Types shared between api and web. Kept as plain string unions (not Prisma
 // enums) so the web app doesn't depend on @prisma/client.
 
@@ -41,17 +42,17 @@ export interface SettingsDto {
 }
 
 export const PERMISSIONS = [
-  { key: "projects.create", label: "Создавать проекты" },
-  { key: "projects.edit", label: "Менять проекты", hint: "Название, сроки, статус, этапы доски, повторяющиеся задачи" },
-  { key: "projects.delete", label: "Удалять проекты" },
-  { key: "cards.delete", label: "Удалять карточки" },
-  { key: "templates.manage", label: "Создавать и менять шаблоны" },
-  { key: "labels.manage", label: "Менять и удалять метки", hint: "Создавать и назначать метки может любой сотрудник" },
-  { key: "fields.manage", label: "Настраивать дополнительные поля карточек" },
-  { key: "types.manage", label: "Настраивать типы задач" },
-  { key: "audit.view", label: "Смотреть журнал действий" },
-  { key: "billing.manage", label: "Управлять тарифом и оплатой" },
-  { key: "time.viewAll", label: "Видеть время всех сотрудников", hint: "Без этого права в отчёте видно только своё время" },
+  { key: "projects.create", get label() { return t("shared.createProjects"); } },
+  { key: "projects.edit", get label() { return t("shared.editProjects"); }, get hint() { return t("shared.nameDatesStatusBoardStages"); } },
+  { key: "projects.delete", get label() { return t("shared.deleteProjects"); } },
+  { key: "cards.delete", get label() { return t("shared.deleteCards"); } },
+  { key: "templates.manage", get label() { return t("shared.createAndEditTemplates"); } },
+  { key: "labels.manage", get label() { return t("shared.editAndDeleteLabels"); }, get hint() { return t("shared.anyEmployeeCanCreateAnd"); } },
+  { key: "fields.manage", get label() { return t("shared.configureCustomCardFields"); } },
+  { key: "types.manage", get label() { return t("shared.configureTaskTypes"); } },
+  { key: "audit.view", get label() { return t("shared.viewTheActivityLog"); } },
+  { key: "billing.manage", get label() { return t("shared.manageThePlanAndBilling"); } },
+  { key: "time.viewAll", get label() { return t("shared.seeTheTimeOfAll"); }, get hint() { return t("shared.withoutThisPermissionTheReport"); } },
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number]["key"];
 
@@ -69,20 +70,19 @@ export function can(user: { role: UserRole; permissions?: string[] } | null | un
   return user.role === "ADMIN" || !!user.permissions?.includes(perm);
 }
 
-export const DEFAULT_COLUMNS = ["Бэклог", "В работе", "На проверке", "Готово"];
 
-export const CARD_PRIORITY_LABELS: Record<CardPriority, string> = {
-  HIGH: "Высокий",
-  MEDIUM: "Средний",
-  LOW: "Низкий",
-};
+export const CARD_PRIORITY_LABELS: Record<CardPriority, string> = lazyLabels({
+  HIGH: "shared.high",
+  MEDIUM: "shared.medium",
+  LOW: "shared.low",
+});
 
-export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = {
-  ACTIVE: "В работе",
-  ON_HOLD: "На паузе",
-  DONE: "Завершён",
-  ARCHIVED: "В архиве",
-};
+export const PROJECT_STATUS_LABELS: Record<ProjectStatus, string> = lazyLabels({
+  ACTIVE: "common.active",
+  ON_HOLD: "common.onHold",
+  DONE: "shared.completed",
+  ARCHIVED: "shared.archived",
+});
 
 export interface UserDto {
   id: string;
@@ -96,6 +96,7 @@ export interface UserDto {
   isActive: boolean;
   avatarUrl?: string | null;
   emailNotifications?: boolean;
+  locale?: Locale;
 }
 
 export interface UserRefDto {
@@ -254,13 +255,13 @@ export interface RecurringRuleDto {
 export const CUSTOM_FIELD_TYPES = ["TEXT", "NUMBER", "DATE", "SELECT", "CHECKBOX"] as const;
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number];
 
-export const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = {
-  TEXT: "Текст",
-  NUMBER: "Число",
-  DATE: "Дата",
-  SELECT: "Список",
-  CHECKBOX: "Флажок",
-};
+export const CUSTOM_FIELD_TYPE_LABELS: Record<CustomFieldType, string> = lazyLabels({
+  TEXT: "shared.text",
+  NUMBER: "shared.number",
+  DATE: "common.date",
+  SELECT: "common.list",
+  CHECKBOX: "shared.checkbox",
+});
 
 export interface CustomFieldDto {
   id: string;
@@ -284,17 +285,17 @@ export interface CardDetailDto extends Omit<CardTileDto, "checklist"> {
 }
 
 // Field names in ActivityLog "updated" payloads → human labels.
-export const CARD_FIELD_LABELS: Record<string, string> = {
-  title: "название",
-  description: "описание",
-  typeId: "тип",
-  priority: "приоритет",
-  startDate: "начало",
-  dueDate: "срок",
-  estimateHours: "оценку",
-  assigneeIds: "исполнителей",
-  labelIds: "метки",
-};
+export const CARD_FIELD_LABELS: Record<string, string> = lazyLabels({
+  title: "shared.title",
+  description: "shared.description",
+  typeId: "shared.type",
+  priority: "shared.priority",
+  startDate: "shared.start",
+  dueDate: "shared.dueDate",
+  estimateHours: "shared.estimate",
+  assigneeIds: "shared.assignees",
+  labelIds: "shared.labels",
+});
 
 export type NotificationType = "ASSIGNED" | "MENTIONED" | "COMMENTED" | "DUE_SOON" | "OVERDUE";
 
@@ -384,3 +385,5 @@ export function planAmount(plan: Pick<PlanDto, "priceKopecks">, seats: number, i
 export function formatRub(kopecks: number) {
   return `${(kopecks / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} ₽`;
 }
+
+export * from "./i18n";

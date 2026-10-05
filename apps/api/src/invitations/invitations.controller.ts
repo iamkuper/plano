@@ -6,9 +6,9 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { InvitationsService } from "./invitations.service";
-
+import { t } from "@plano/shared";
 class InviteDto {
-  @IsEmail({}, { message: "Укажите почту" })
+  @IsEmail({}, { message: () => t("common.enterAnEmail") })
   email!: string;
 
   @IsOptional()

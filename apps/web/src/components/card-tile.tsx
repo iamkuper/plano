@@ -1,13 +1,13 @@
 "use client";
 
 import { CalendarDays, Check, CheckSquare, Flag, MessageSquare, Paperclip, Repeat } from "lucide-react";
-import { cardKey, type CardTileDto } from "@plano/shared";
+import { cardKey, type CardTileDto, t, intlTag } from "@plano/shared";
 import { AvatarStack } from "./avatar";
 import { typeStyle } from "./card-type-icon";
 import { LabelTag } from "./ui";
 
 export function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  return new Date(iso).toLocaleDateString(intlTag(), { day: "numeric", month: "short" });
 }
 
 // Board card. Reading order: key + people → what to do → signals.
@@ -66,7 +66,7 @@ export function CardTile({
               type="button"
               role="checkbox"
               aria-checked={!!selected}
-              aria-label={`Выбрать ${cardKey(card)}`}
+              aria-label={t("common.select", { cardKey: cardKey(card) })}
               onClick={(e) => {
                 e.stopPropagation();
                 onToggleSelect();
@@ -81,7 +81,7 @@ export function CardTile({
         )}
         <span>{cardKey(card)}</span>
         {card.recurringRuleId && (
-          <span title="Повторяющаяся задача" className="text-ink-ghost">
+          <span title={t("common.recurringTask")} className="text-ink-ghost">
             <Repeat size={12} strokeWidth={2} />
           </span>
         )}
@@ -104,45 +104,45 @@ export function CardTile({
       )}
 
       <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-ink-faint">
-        <span className="flex items-center gap-1" title="Тип">
+        <span className="flex items-center gap-1" title={t("common.type")}>
           <TypeIcon size={13} strokeWidth={2} style={{ color }} />
           {card.type.name}
         </span>
         {card.priority === "HIGH" && (
-          <span className="flex items-center gap-1 text-danger" title="Высокий приоритет">
-            <Flag size={12} strokeWidth={2} /> Срочно
+          <span className="flex items-center gap-1 text-danger" title={t("cardTile.highPriority")}>
+            <Flag size={12} strokeWidth={2} />  {t("cardTile.urgent")}
           </span>
         )}
         {due && (
           <span
             className={`flex items-center gap-1 ${overdue ? "font-medium text-danger" : dueToday ? "font-medium text-warning" : ""}`}
-            title={overdue ? "Срок прошёл" : "Срок"}
+            title={overdue ? t("cardTile.overdue") : t("common.dueDate")}
           >
             <CalendarDays size={12} strokeWidth={2} />
-            {dueToday ? "Сегодня" : formatDate(card.dueDate!)}
+            {dueToday ? t("common.today") : formatDate(card.dueDate!)}
           </span>
         )}
         {total > 0 && (
-          <span className={`flex items-center gap-1 ${done === total ? "text-success" : ""}`} title="Подзадачи">
+          <span className={`flex items-center gap-1 ${done === total ? "text-success" : ""}`} title={t("common.subtasks")}>
             <CheckSquare size={12} strokeWidth={2} />
             {done}/{total}
           </span>
         )}
         {(card._count.attachments ?? 0) > 0 && (
-          <span className="flex items-center gap-1" title="Файлы">
+          <span className="flex items-center gap-1" title={t("common.files")}>
             <Paperclip size={12} strokeWidth={2} />
             {card._count.attachments}
           </span>
         )}
         {card._count.comments > 0 &&
           (card.unreadComments ? (
-            <span className="flex items-center gap-1 font-medium text-accent" title={`Новых сообщений: ${card.unreadComments}`}>
+            <span className="flex items-center gap-1 font-medium text-accent" title={t("cardTile.newMessages", { unreadComments: card.unreadComments })}>
               <MessageSquare size={12} strokeWidth={2} />
               {card._count.comments}
               <span aria-hidden className="size-1.5 rounded-full bg-accent" />
             </span>
           ) : (
-            <span className="flex items-center gap-1" title="Сообщения">
+            <span className="flex items-center gap-1" title={t("cardTile.messages")}>
               <MessageSquare size={12} strokeWidth={2} />
               {card._count.comments}
             </span>

@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { AuthCard } from "@/components/auth-card";
 import { Button } from "@/components/ui";
 import { api } from "@/lib/api";
-
+import { t } from "@plano/shared";
 // Stand-in for the bank's payment page while no T-Bank terminal is
 // configured (the API reports testMode). Never reached with a real terminal.
 function MockPay() {
@@ -24,10 +24,10 @@ function MockPay() {
   }
 
   return (
-    <AuthCard title="Тестовая оплата" subtitle="Страница заменяет форму банка. Деньги не списываются" onSubmit={(e) => e.preventDefault()}>
+    <AuthCard title={t("billing.mockPay.testPayment")} subtitle={t("billing.mockPay.thisPageStandsInFor")} onSubmit={(e) => e.preventDefault()}>
       {error && <p className="text-base text-danger">{error}</p>}
-      <Button variant="primary" className="w-full py-2.5" type="button" onClick={() => pay(true)}>Оплатить</Button>
-      <Button className="w-full py-2.5" type="button" onClick={() => pay(false)}>Отклонить платёж</Button>
+      <Button variant="primary" className="w-full py-2.5" type="button" onClick={() => pay(true)}>{t("billing.mockPay.pay")}</Button>
+      <Button className="w-full py-2.5" type="button" onClick={() => pay(false)}>{t("billing.mockPay.declinePayment")}</Button>
     </AuthCard>
   );
 }

@@ -3,7 +3,7 @@ import { Observable } from "rxjs";
 import type { AuthenticatedUser } from "../auth/current-user.decorator";
 import { allowedWhileLocked } from "../billing/subscription-state";
 import { runInWorkspace } from "./tenant";
-
+import { t } from "@plano/shared";
 // Runs the handler of every authenticated request inside the user's
 // workspace, and refuses writes once the workspace is locked (see
 // subscription-state.ts). Guards run before interceptors, so req.user is set.
@@ -16,7 +16,7 @@ export class TenantInterceptor implements NestInterceptor {
     // A lapsed workspace keeps read access and payment; everything else is refused.
     if (user.locked && !allowedWhileLocked(req.method, req.originalUrl ?? req.url ?? "")) {
       throw new HttpException(
-        { statusCode: 402, error: "Payment Required", code: "WORKSPACE_LOCKED", message: "Тариф закончился: данные доступны только для чтения. Оплатите тариф в разделе «Тариф и оплата», и всё заработает." },
+        { statusCode: 402, error: "Payment Required", code: "WORKSPACE_LOCKED", message: t("api.prisma.thePlanHasEndedData") },
         HttpStatus.PAYMENT_REQUIRED,
       );
     }

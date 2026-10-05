@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FolderKanban, Plus } from "lucide-react";
-import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type ProjectStatus } from "@plano/shared";
+import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type ProjectStatus, t, intlTag } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { LetterMark } from "@/components/avatar";
 import { NewProjectDialog } from "@/components/new-project-dialog";
@@ -23,7 +23,7 @@ type Filter = "" | ProjectStatus;
 function formatDeadline(iso: string) {
   const d = new Date(iso);
   const overdue = d < new Date(new Date().toDateString());
-  return { text: d.toLocaleDateString("ru-RU", { day: "numeric", month: "short", year: "numeric" }), overdue };
+  return { text: d.toLocaleDateString(intlTag(), { day: "numeric", month: "short", year: "numeric" }), overdue };
 }
 
 export default function ProjectsPage() {
@@ -44,24 +44,24 @@ export default function ProjectsPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Проекты"
+        title={t("common.projects")}
         actions={
           <>
             <Segmented<Filter>
-              label="Статус"
+              label={t("common.status")}
               value={filter}
               onChange={setFilter}
               options={[
-                { value: "ACTIVE", label: "В работе" },
-                { value: "ON_HOLD", label: "На паузе" },
-                { value: "DONE", label: "Завершённые" },
-                { value: "ARCHIVED", label: "Архив" },
-                { value: "", label: "Все" },
+                { value: "ACTIVE", label: t("common.active") },
+                { value: "ON_HOLD", label: t("common.onHold") },
+                { value: "DONE", label: t("projects.completed") },
+                { value: "ARCHIVED", label: t("projects.archive") },
+                { value: "", label: t("common.all") },
               ]}
             />
             {allowed("projects.create") && (
               <Button variant="primary" onClick={() => setCreating(true)}>
-                <Plus size={15} /> Новый проект
+                <Plus size={15} />  {t("common.newProject")}
               </Button>
             )}
           </>
@@ -73,25 +73,26 @@ export default function ProjectsPage() {
         {projects?.length === 0 && (
           <EmptyState
             icon={FolderKanban}
-            title={filter === "ACTIVE" ? "Нет проектов в работе" : "Здесь пусто"}
+            title={filter === "ACTIVE" ? t("projects.noActiveProjects") : t("projects.nothingHere")}
             action={
               allowed("projects.create") && (
                 <Button variant="primary" onClick={() => setCreating(true)}>
-                  <Plus size={15} /> Новый проект
+                  <Plus size={15} />  {t("common.newProject")}
                 </Button>
               )
             }
           >
-            Проект — отдельная доска задач. С шаблоном она сразу заполнится типовыми задачами.
+            
+            {t("projects.aProjectIsASeparate")}
           </EmptyState>
         )}
         {projects && projects.length > 0 && (
           <div className="overflow-hidden rounded-lg border border-border">
             <div className="grid h-9 grid-cols-[minmax(0,2fr)_120px_96px_140px] items-center gap-4 border-b border-border bg-surface-soft px-4 text-xs text-ink-ghost">
-              <span>Проект</span>
-              <span>Статус</span>
-              <span className="text-right">Карточек</span>
-              <span>Дедлайн</span>
+              <span>{t("common.project")}</span>
+              <span>{t("common.status")}</span>
+              <span className="text-right">{t("common.cards")}</span>
+              <span>{t("common.deadline")}</span>
             </div>
             {projects.map((p) => {
               const deadline = p.deadline ? formatDeadline(p.deadline) : null;

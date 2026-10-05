@@ -10,7 +10,7 @@ import { RealtimeService } from "../realtime/realtime.service";
 import { SaveRecurringDto } from "./recurring.dto";
 import { firstRun, nextRun } from "./schedule";
 import { BillingService } from "../billing/billing.service";
-
+import { t } from "@plano/shared";
 @Injectable()
 export class RecurringService implements OnModuleInit, OnModuleDestroy {
   private readonly log = new Logger(RecurringService.name);
@@ -79,7 +79,7 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
   // Create the card now without moving the schedule.
   async runNow(id: string) {
     const rule = await this.prisma.recurringRule.findUnique({ where: { id } });
-    if (!rule) throw new NotFoundException("Правило не найдено");
+    if (!rule) throw new NotFoundException(t("api.recurring.ruleNotFound"));
     return this.createCard(rule, new Date());
   }
 

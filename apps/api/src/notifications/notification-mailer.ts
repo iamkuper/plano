@@ -3,7 +3,8 @@ import type { NotificationType } from "@prisma/client";
 import { appUrl } from "../auth/tokens";
 import { MailService } from "../mail/mail.service";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
-
+import { t, intlTag } from "@plano/shared";
+import { asLocale, withLocale } from "../i18n/request-locale";
 export interface MailableNotification {
   userId: string;
   actorId?: string | null;
@@ -29,7 +30,7 @@ export class NotificationMailer {
     try {
       const users = await this.db.user.findMany({
         where: { id: { in: rows.map((r) => r.userId) }, isActive: true, emailNotifications: true },
-        select: { id: true, email: true },
+        select: { id: true, email: true, locale: true },
       });
       const cards = await this.db.card.findMany({
         where: { id: { in: rows.map((r) => r.cardId) } },
@@ -41,10 +42,13 @@ export class NotificationMailer {
         const card = cards.find((c) => c.id === row.cardId);
         if (!user || !card) continue;
         const key = `${card.workspace.cardPrefix}-${card.number}`;
-        const who = actors.find((a) => a.id === row.actorId)?.name ?? "Коллега";
         const link = `${appUrl()}/projects/${card.projectId}?card=${card.id}`;
-        const [subject, lead] = this.compose(row, who, key, card.title, card.dueDate);
-        await this.mail.send(user.email, subject, `${lead}\n\n${row.text ? `${row.text}\n\n` : ""}Открыть карточку: ${link}\n\nОтключить письма можно в профиле.`);
+        // Written in the recipient's language, whatever the sender uses.
+        await withLocale(asLocale(user.locale) ?? "ru", async () => {
+          const who = actors.find((a) => a.id === row.actorId)?.name ?? t("api.notifications.colleague");
+          const [subject, lead] = this.compose(row, who, key, card.title, card.dueDate);
+          await this.mail.send(user.email, subject, t("api.notifications.openTheCardYouCan", { lead, value: row.text ? `${row.text}\n\n` : "", link }));
+        });
       }
     } catch {
       // A mail problem must never break the action that caused it.
@@ -55,17 +59,17 @@ export class NotificationMailer {
     const name = `${key} «${title}»`;
     switch (row.type) {
       case "ASSIGNED":
-        return [`Вас назначили на ${key}`, `${who} назначил(а) вас на ${name}.`];
+        return [t("api.notifications.youWereAssignedTo", { key }), t("api.notifications.assignedYouTo", { who, name })];
       case "MENTIONED":
-        return [`Вас упомянули в ${key}`, `${who} упомянул(а) вас в ${name}.`];
+        return [t("api.notifications.youWereMentionedIn", { key }), t("api.notifications.mentionedYouIn", { who, name })];
       case "COMMENTED":
-        return [`Новое сообщение в ${key}`, `${who} написал(а) в ${name}.`];
+        return [t("api.notifications.newMessageIn", { key }), t("api.notifications.wroteIn", { who, name })];
       case "DUE_SOON": {
         const today = day(new Date()) === (dueDate ? day(dueDate) : "");
-        return [`Срок ${today ? "сегодня" : "завтра"}: ${key}`, `Срок задачи ${name}: ${today ? "сегодня" : "завтра"}.`];
+        return [t("api.notifications.due", { value: today ? t("api.notifications.today") : t("api.notifications.tomorrow"), key }), t("api.notifications.taskIsDue", { name, value: today ? t("api.notifications.today") : t("api.notifications.tomorrow") })];
       }
       case "OVERDUE":
-        return [`Срок истёк: ${key}`, `Срок задачи ${name} истёк${dueDate ? ` ${dueDate.toLocaleDateString("ru-RU", { day: "numeric", month: "long", timeZone: "UTC" })}` : ""}.`];
+        return [t("api.notifications.overdue", { key }), t("api.notifications.taskWasDue", { name, value: dueDate ? ` ${dueDate.toLocaleDateString(intlTag(), { day: "numeric", month: "long", timeZone: "UTC" })}` : "" })];
     }
   }
 }

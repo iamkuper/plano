@@ -2,7 +2,7 @@ import { randomBytes } from "crypto";
 import { UnauthorizedException } from "@nestjs/common";
 import type { ChargeResult, InitParams, InitResult, PaymentNotification, PaymentProvider } from "./payment-provider";
 import { tbankToken } from "./tbank.provider";
-
+import { t } from "@plano/shared";
 // Stand-in for T-Bank when no terminal is configured (local development):
 // the "bank page" is /billing/mock-pay in the web app, and notifications use
 // the same signed format as the real ones, so they take the same code path.
@@ -30,7 +30,7 @@ export class MockProvider implements PaymentProvider {
   }
 
   async charge(): Promise<ChargeResult> {
-    return this.chargeFails ? { confirmed: false, reason: "Недостаточно средств (тест)" } : { confirmed: true };
+    return this.chargeFails ? { confirmed: false, reason: t("api.billing.insufficientFundsTest") } : { confirmed: true };
   }
 
   parseNotification(body: Record<string, unknown>): PaymentNotification {
@@ -43,7 +43,7 @@ export class MockProvider implements PaymentProvider {
       amount: Number(body.Amount),
       rebillId: ok ? `mock-rebill-${String(body.OrderId).slice(-8)}` : undefined,
       cardMask: ok ? "430000******0777" : undefined,
-      reason: ok ? undefined : "Платёж отклонён (тест)",
+      reason: ok ? undefined : t("api.billing.paymentDeclinedTest"),
     };
   }
 }

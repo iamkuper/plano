@@ -1,6 +1,6 @@
 import { Body, ConflictException, Controller, Delete, Get, HttpCode, Module, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { IsIn, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
-import { LABEL_COLORS } from "@plano/shared";
+import { LABEL_COLORS, t } from "@plano/shared";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { PrismaService } from "../prisma/prisma.service";
@@ -9,23 +9,23 @@ import { AuditService } from "../audit/audit.service";
 
 class CreateLabelDto {
   @IsString()
-  @MinLength(1, { message: "Укажите название метки" })
-  @MaxLength(30, { message: "Название — до 30 символов" })
+  @MinLength(1, { message: () => t("api.labels.enterALabelName") })
+  @MaxLength(30, { message: () => t("common.nameMustBeUpTo2") })
   name!: string;
 
-  @IsIn(LABEL_COLORS, { message: "Неизвестный цвет" })
+  @IsIn(LABEL_COLORS, { message: () => t("common.unknownColour") })
   color!: string;
 }
 
 class UpdateLabelDto {
   @IsOptional()
   @IsString()
-  @MinLength(1, { message: "Укажите название метки" })
-  @MaxLength(30, { message: "Название — до 30 символов" })
+  @MinLength(1, { message: () => t("api.labels.enterALabelName") })
+  @MaxLength(30, { message: () => t("common.nameMustBeUpTo2") })
   name?: string;
 
   @IsOptional()
-  @IsIn(LABEL_COLORS, { message: "Неизвестный цвет" })
+  @IsIn(LABEL_COLORS, { message: () => t("common.unknownColour") })
   color?: string;
 }
 
@@ -65,13 +65,13 @@ export class LabelsController {
   async remove(@Param("id") id: string) {
     const label = await this.prisma.label.findUnique({ where: { id }, select: { name: true } });
     await this.prisma.label.delete({ where: { id } });
-    await this.audit.record("label.delete", `Удалена метка «${label?.name ?? id}»`, id);
+    await this.audit.record("label.delete", t("api.labels.labelDeleted", { id: label?.name ?? id }), id);
   }
 
   private async assertFree(name: string, exceptId?: string) {
     // Compared in JS: the database's case folding doesn't cover Cyrillic.
     const all = await this.prisma.label.findMany({ select: { id: true, name: true } });
-    if (all.some((l) => l.id !== exceptId && l.name.toLowerCase() === name.toLowerCase())) throw new ConflictException("Метка с таким названием уже есть");
+    if (all.some((l) => l.id !== exceptId && l.name.toLowerCase() === name.toLowerCase())) throw new ConflictException(t("api.labels.aLabelWithThisName"));
   }
 }
 

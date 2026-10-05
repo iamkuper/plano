@@ -4,7 +4,7 @@ import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { BillingService } from "../billing/billing.service";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
-
+import { t } from "@plano/shared";
 class AddDependencyDto {
   @IsString()
   dependsOnId!: string;
@@ -33,14 +33,14 @@ export class DependenciesController {
   @Post("cards/:id/dependencies")
   async add(@Param("id") id: string, @Body() dto: AddDependencyDto) {
     await this.billing.assertFeature("gantt");
-    if (id === dto.dependsOnId) throw new BadRequestException("Карточка не может зависеть от самой себя");
+    if (id === dto.dependsOnId) throw new BadRequestException(t("api.dependencies.aCardCannotDependOn"));
     const [card, other] = await Promise.all([
       this.prisma.card.findUnique({ where: { id }, select: { projectId: true } }),
       this.prisma.card.findUnique({ where: { id: dto.dependsOnId }, select: { projectId: true } }),
     ]);
-    if (!card || !other) throw new NotFoundException("Карточка не найдена");
-    if (card.projectId !== other.projectId) throw new BadRequestException("Связать можно только карточки одного проекта");
-    if (await this.reaches(dto.dependsOnId, id)) throw new BadRequestException("Такая связь создаст цикл: карточки зависели бы друг от друга");
+    if (!card || !other) throw new NotFoundException(t("common.cardNotFound"));
+    if (card.projectId !== other.projectId) throw new BadRequestException(t("api.dependencies.onlyCardsOfTheSame"));
+    if (await this.reaches(dto.dependsOnId, id)) throw new BadRequestException(t("api.dependencies.thisLinkWouldCreateA"));
     await this.prisma.cardDependency.upsert({
       where: { cardId_dependsOnId: { cardId: id, dependsOnId: dto.dependsOnId } },
       create: { cardId: id, dependsOnId: dto.dependsOnId },
@@ -55,7 +55,7 @@ export class DependenciesController {
   async remove(@Param("id") id: string, @Param("dependsOnId") dependsOnId: string) {
     await this.billing.assertFeature("gantt");
     const card = await this.prisma.card.findUnique({ where: { id }, select: { projectId: true } });
-    if (!card) throw new NotFoundException("Карточка не найдена");
+    if (!card) throw new NotFoundException(t("common.cardNotFound"));
     await this.prisma.cardDependency.deleteMany({ where: { cardId: id, dependsOnId } });
     this.realtime.boardChanged(card.projectId);
   }

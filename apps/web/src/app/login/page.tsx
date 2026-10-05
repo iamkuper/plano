@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { api, setToken } from "@/lib/api";
 import { AuthCard } from "@/components/auth-card";
 import { Button, Field, Input } from "@/components/ui";
-
+import { t } from "@plano/shared";
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -26,28 +26,31 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard title="Вход" subtitle="Канбан-доски для команды" onSubmit={submit}>
-      <Field label="Почта">
+    <AuthCard title={t("login.signIn")} subtitle={t("login.kanbanBoardsForYourTeam")} onSubmit={submit}>
+      <Field label={t("common.email")}>
         {(a) => (
           <Input {...a} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
         )}
       </Field>
-      <Field label="Пароль">
+      <Field label={t("common.password")}>
         {(a) => (
           <Input {...a} type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
         )}
       </Field>
       {error && <p className="text-base text-danger">{error}</p>}
-      <Button variant="primary" className="w-full py-2.5">Войти</Button>
+      <Button variant="primary" className="w-full py-2.5">{t("login.signIn2")}</Button>
       <p className="text-center text-xs text-ink-faint">
         <Link href="/forgot" className="font-medium text-accent hover:underline">
-          Забыли пароль?
+          
+          {t("login.forgotYourPassword")}
         </Link>
       </p>
       <p className="text-center text-xs text-ink-faint">
-        Нет аккаунта?{" "}
+        
+        {t("login.noAccount")}{" "}
         <Link href="/register" className="font-medium text-accent hover:underline">
-          Создать рабочее пространство
+          
+          {t("login.createAWorkspace")}
         </Link>
       </p>
     </AuthCard>

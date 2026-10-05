@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Pencil, Plus, Star, Trash2 } from "lucide-react";
-import { LABEL_COLORS, type LabelColor, type TaskTypeDto } from "@plano/shared";
+import { LABEL_COLORS, type LabelColor, type TaskTypeDto, t } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { CardTypeTag } from "@/components/card-type-icon";
 import { SettingsTabs } from "@/components/tab-links";
@@ -21,12 +21,12 @@ function TypeDialog({ type, onClose, onSaved }: { type?: TaskTypeDto; onClose: (
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return setError("Укажите название типа");
+    if (!name.trim()) return setError(t("common.enterATypeName"));
     setBusy(true);
     try {
       if (type) await api.updateTaskType(type.id, { name: name.trim(), color });
       else await api.createTaskType(name.trim(), color);
-      toast(type ? "Тип сохранён" : "Тип создан", "success");
+      toast(type ? t("settings.types.typeSaved") : t("settings.types.typeCreated"), "success");
       onSaved();
       onClose();
     } catch (err) {
@@ -37,19 +37,19 @@ function TypeDialog({ type, onClose, onSaved }: { type?: TaskTypeDto; onClose: (
   }
 
   return (
-    <Dialog title={type ? "Изменить тип задач" : "Новый тип задач"} onClose={onClose}>
+    <Dialog title={type ? t("settings.types.editTaskType") : t("settings.types.newTaskType")} onClose={onClose}>
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Название" error={error}>
+        <Field label={t("common.name2")} error={error}>
           {(a) => <Input {...a} autoFocus maxLength={30} invalid={!!error} value={name} onChange={(e) => setName(e.target.value)} />}
         </Field>
         <div>
-          <div className="mb-1.5 text-sm font-medium">Цвет</div>
-          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Цвет">
+          <div className="mb-1.5 text-sm font-medium">{t("settings.types.colour")}</div>
+          <div className="flex flex-wrap gap-2" role="radiogroup" aria-label={t("settings.types.colour")}>
             <button
               type="button"
               role="radio"
               aria-checked={color === null}
-              aria-label="Без цвета"
+              aria-label={t("settings.types.noColour")}
               onClick={() => setColor(null)}
               className={`size-6 rounded-full border-2 ${color === null ? "border-ink" : "border-transparent"}`}
               style={{ background: "#6C6E75" }}
@@ -70,10 +70,11 @@ function TypeDialog({ type, onClose, onSaved }: { type?: TaskTypeDto; onClose: (
         </div>
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={onClose}>
-            Отмена
+            
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" loading={busy}>
-            {type ? "Сохранить" : "Создать тип"}
+            {type ? t("common.save") : t("settings.types.createType")}
           </Button>
         </div>
       </form>
@@ -93,10 +94,10 @@ export default function TaskTypesPage() {
   }, []);
   useEffect(load, [load]);
 
-  async function makeDefault(t: TaskTypeDto) {
+  async function makeDefault(type: TaskTypeDto) {
     try {
-      await api.updateTaskType(t.id, { isDefault: true });
-      toast("Тип по умолчанию изменён", "success");
+      await api.updateTaskType(type.id, { isDefault: true });
+      toast(t("settings.types.defaultTypeChanged"), "success");
     } catch (e) {
       toast((e as Error).message, "error");
     }
@@ -106,36 +107,36 @@ export default function TaskTypesPage() {
   return (
     <AppShell>
       <PageHeader
-        title="Настройки"
+        title={t("common.settings")}
         meta={<SettingsTabs />}
         actions={
           canManage && (
             <Button variant="primary" onClick={() => setEditing("new")}>
-              <Plus size={15} /> Новый тип
+              <Plus size={15} />  {t("settings.types.newType")}
             </Button>
           )
         }
       />
       <div className="w-full space-y-4 py-6">
-        <Card title="Типы задач" description="Тип выбирается в карточке и работает как фильтр. Новые карточки получают тип по умолчанию.">
+        <Card title={t("settings.types.taskTypes")} description={t("settings.types.theTypeIsChosenIn")}>
           {!types ? null : (
             <ul className="divide-y divide-border">
-              {types.map((t) => (
-                <li key={t.id} className="flex items-center gap-3 py-2.5">
+              {types.map((type) => (
+                <li key={type.id} className="flex items-center gap-3 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <CardTypeTag type={t} />
+                    <CardTypeTag type={type} />
                   </div>
-                  {t.isDefault && <span className="text-sm text-ink-faint">По умолчанию</span>}
-                  <span className="w-24 text-right text-sm text-ink-faint">{t.cardCount} карт.</span>
+                  {type.isDefault && <span className="text-sm text-ink-faint">{t("settings.types.default")}</span>}
+                  <span className="w-24 text-right text-sm text-ink-faint">{t("settings.types.cards", { cardCount: type.cardCount })}</span>
                   {canManage && (
                     <>
-                      <IconButton aria-label={`Сделать «${t.name}» типом по умолчанию`} disabled={t.isDefault} onClick={() => makeDefault(t)}>
+                      <IconButton aria-label={t("settings.types.makeTheDefaultType", { name: type.name })} disabled={type.isDefault} onClick={() => makeDefault(type)}>
                         <Star size={15} />
                       </IconButton>
-                      <IconButton aria-label={`Изменить тип ${t.name}`} onClick={() => setEditing(t)}>
+                      <IconButton aria-label={t("settings.types.editType", { name: type.name })} onClick={() => setEditing(type)}>
                         <Pencil size={15} />
                       </IconButton>
-                      <IconButton aria-label={`Удалить тип ${t.name}`} disabled={t.isDefault} onClick={() => setRemoving(t)}>
+                      <IconButton aria-label={t("settings.types.deleteType", { name: type.name })} disabled={type.isDefault} onClick={() => setRemoving(type)}>
                         <Trash2 size={15} />
                       </IconButton>
                     </>
@@ -149,9 +150,9 @@ export default function TaskTypesPage() {
       {editing && <TypeDialog type={editing === "new" ? undefined : editing} onClose={() => setEditing(null)} onSaved={load} />}
       {removing && (
         <ConfirmDialog
-          title={`Удалить тип «${removing.name}»?`}
-          body="Карточки, шаблоны и повторяющиеся правила с этим типом перейдут на тип по умолчанию."
-          confirmLabel="Удалить"
+          title={t("settings.types.deleteType2", { name: removing.name })}
+          body={t("settings.types.cardsTemplatesAndRecurringRules")}
+          confirmLabel={t("common.remove")}
           onConfirm={async () => {
             await api.deleteTaskType(removing.id).catch((e) => toast((e as Error).message, "error"));
             setRemoving(null);

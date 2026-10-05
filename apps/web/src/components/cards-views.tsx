@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays } from "lucide-react";
-import { cardKey, type CardTileDto, type ColumnDto } from "@plano/shared";
+import { cardKey, type CardTileDto, type ColumnDto, t } from "@plano/shared";
 import { AvatarStack } from "./avatar";
 import { CardTypeIcon, CardTypeTag } from "./card-type-icon";
 import { formatDate } from "./card-tile";
@@ -68,24 +68,25 @@ export function CardsTable({
               <th className={`${th} w-10 pr-0`}>
                 <Checkbox
                   checked={allOn}
-                  label="Выбрать все"
+                  label={t("cardsViews.selectAll")}
                   onChange={(on) => onSelectAll?.(rows.map((r) => r.card.id), on)}
                 />
               </th>
             )}
-            <th className={th}>Задача</th>
-            <th className={th}>Статус</th>
-            <th className={th}>Приоритет</th>
-            <th className={th}>Исполнители</th>
-            <th className={th}>Срок</th>
-            <th className={th}>Подзадачи</th>
+            <th className={th}>{t("common.task")}</th>
+            <th className={th}>{t("common.status")}</th>
+            <th className={th}>{t("common.priority")}</th>
+            <th className={th}>{t("common.assignees")}</th>
+            <th className={th}>{t("common.dueDate")}</th>
+            <th className={th}>{t("common.subtasks")}</th>
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 && (
             <tr>
               <td colSpan={6} className="px-4 py-12 text-center text-base text-ink-faint">
-                Карточек пока нет
+                
+                {t("cardsViews.noCardsYet")}
               </td>
             </tr>
           )}
@@ -97,7 +98,7 @@ export function CardsTable({
             >
               {onToggleSelect && (
                 <td className={`${td} w-10 pr-0`} onClick={(e) => e.stopPropagation()}>
-                  <Checkbox checked={!!selected?.has(card.id)} label={`Выбрать ${cardKey(card)}`} onChange={() => onToggleSelect(card.id)} />
+                  <Checkbox checked={!!selected?.has(card.id)} label={t("common.select", { cardKey: cardKey(card) })} onChange={() => onToggleSelect(card.id)} />
                 </td>
               )}
               <td className={`${td} max-w-[420px]`}>
@@ -156,7 +157,7 @@ export function CardsList({
             <span className="text-xs text-ink-ghost">{col.cards.length}</span>
           </header>
           <div className="overflow-hidden rounded-lg border border-border bg-surface">
-            {col.cards.length === 0 && <div className="px-4 py-4 text-base text-ink-faint">Пусто</div>}
+            {col.cards.length === 0 && <div className="px-4 py-4 text-base text-ink-faint">{t("cardsViews.empty")}</div>}
             {col.cards.map((card) => (
               <button
                 key={card.id}

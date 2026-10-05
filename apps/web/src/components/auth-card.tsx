@@ -1,3 +1,5 @@
+import { LanguageSwitch } from "./locale-gate";
+
 export function AuthCard({
   title,
   subtitle,
@@ -18,6 +20,7 @@ export function AuthCard({
           <p className="mt-0.5 text-sm text-ink-faint">{subtitle}</p>
         </div>
         {children}
+        <LanguageSwitch />
       </form>
     </div>
   );

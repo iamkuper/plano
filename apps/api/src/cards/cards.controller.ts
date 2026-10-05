@@ -2,7 +2,7 @@ import { Body, Controller, ForbiddenException, Delete, Get, HttpCode, Param, Pat
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
-import { can } from "@plano/shared";
+import { can, t } from "@plano/shared";
 import { CardsService } from "./cards.service";
 import { CreateCardDto } from "./dto/create-card.dto";
 import { UpdateCardDto } from "./dto/update-card.dto";
@@ -30,7 +30,7 @@ export class CardsController {
   @Post("cards/bulk")
   bulk(@Body() dto: BulkCardsDto, @CurrentUser() user: AuthenticatedUser) {
     if (dto.action === "delete" && !can(user, "cards.delete")) {
-      throw new ForbiddenException("Нет права: «Удалять карточки». Его выдаёт администратор");
+      throw new ForbiddenException(t("api.cards.missingPermissionDeleteCardsAn"));
     }
     return this.cards.bulk(dto, user.userId);
   }

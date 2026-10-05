@@ -9,7 +9,7 @@ import type { useBoard } from "@/lib/use-board";
 import { CardTile } from "./card-tile";
 import { stageColor } from "@/design/tokens";
 import { Button, IconButton, Input, Menu, Skeleton } from "./ui";
-
+import { t } from "@plano/shared";
 // Fractional position for inserting a card at `index` among `cards` (which
 // must already exclude the card being moved).
 function positionAt(cards: CardTileDto[], index: number) {
@@ -36,9 +36,9 @@ function AddCardForm({ onAdd, onClose }: { onAdd: (title: string) => Promise<voi
       <textarea
         autoFocus
         rows={2}
-        aria-label="Название карточки"
+        aria-label={t("common.cardTitle")}
         className="w-full resize-none bg-transparent text-base outline-none placeholder:text-ink-ghost"
-        placeholder="Название карточки"
+        placeholder={t("common.cardTitle")}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onBlur={() => !title.trim() && onClose()}
@@ -50,7 +50,7 @@ function AddCardForm({ onAdd, onClose }: { onAdd: (title: string) => Promise<voi
           if (e.key === "Escape") onClose();
         }}
       />
-      <div className="mt-1 text-xs text-ink-ghost">Enter — создать, Esc — отмена</div>
+      <div className="mt-1 text-xs text-ink-ghost">{t("board.enterCreateEscCancel")}</div>
     </form>
   );
 }
@@ -76,19 +76,20 @@ function ColumnEditForm({
         onClose();
       }}
     >
-      <Input autoFocus aria-label="Название колонки" value={title} onChange={(e) => setTitle(e.target.value)} />
+      <Input autoFocus aria-label={t("board.columnName")} value={title} onChange={(e) => setTitle(e.target.value)} />
       <Input
         type="number"
         min={1}
-        aria-label="Лимит карточек"
-        placeholder="Лимит карточек, необязательно"
+        aria-label={t("board.cardLimit")}
+        placeholder={t("board.cardLimitOptional")}
         value={wip}
         onChange={(e) => setWip(e.target.value)}
       />
       <div className="flex gap-1.5">
-        <Button variant="primary" size="sm">Сохранить</Button>
+        <Button variant="primary" size="sm">{t("common.save")}</Button>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
-          Отмена
+          
+          {t("common.cancel")}
         </Button>
       </div>
     </form>
@@ -129,13 +130,13 @@ export function ColumnShell({
       <div aria-hidden className="h-[3px] shrink-0" style={{ background: color }} />
       <header className="flex h-10 shrink-0 items-center gap-2 pl-3 pr-1.5">
         <h3 className="truncate text-sm font-medium">{title}</h3>
-        <span className={`text-xs ${overLimit ? "font-medium text-danger" : "text-ink-ghost"}`} title={wipLimit != null ? `Лимит ${wipLimit}` : undefined}>
+        <span className={`text-xs ${overLimit ? "font-medium text-danger" : "text-ink-ghost"}`} title={wipLimit != null ? t("board.limit", { wipLimit }) : undefined}>
           {count}
-          {overLimit && ` из ${wipLimit}`}
+          {overLimit && t("board.of", { wipLimit })}
         </span>
         <div className="ml-auto flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover/lane:opacity-100">
           {onAdd && (
-            <IconButton size="sm" onClick={onAdd} title="Добавить карточку">
+            <IconButton size="sm" onClick={onAdd} title={t("board.addCard")}>
               <Plus size={15} />
             </IconButton>
           )}
@@ -166,8 +167,8 @@ function AddColumn({ onAdd }: { onAdd: (title: string) => void }) {
         >
           <Input
             autoFocus
-            aria-label="Название колонки"
-            placeholder="Название колонки"
+            aria-label={t("board.columnName")}
+            placeholder={t("board.columnName")}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onBlur={() => !title.trim() && setOpen(false)}
@@ -179,7 +180,7 @@ function AddColumn({ onAdd }: { onAdd: (title: string) => void }) {
           onClick={() => setOpen(true)}
           className="flex h-10 w-full items-center gap-2 rounded-lg px-3 text-sm text-ink-ghost transition-colors hover:bg-surface-soft hover:text-ink"
         >
-          <Plus size={15} /> Колонка
+          <Plus size={15} />  {t("common.column")}
         </button>
       )}
     </div>
@@ -201,9 +202,7 @@ export function ProjectFunnel({ columns }: { columns: ColumnDto[] }) {
           ) : null,
         )}
       </div>
-      <span className="text-xs text-ink-faint">
-        {done} из {total} готово
-      </span>
+      <span className="text-xs text-ink-faint"> {t("board.ofDone", { done, total })} </span>
     </div>
   );
 }
@@ -272,7 +271,7 @@ export function Board({
             wipLimit={column.wipLimit}
             highlighted={overColumn === column.id}
             onAdd={() => setAddingTo(column.id)}
-            menu={[{ label: "Переименовать и задать лимит", onClick: () => setEditing(column.id) }]}
+            menu={[{ label: t("board.renameAndSetALimit"), onClick: () => setEditing(column.id) }]}
             onDragOver={(e) => {
               e.preventDefault();
               if (overColumn !== column.id) setOverColumn(column.id);
@@ -330,7 +329,7 @@ export function Board({
 
 export function BoardSkeleton() {
   return (
-    <div className="-mx-6 flex gap-2 overflow-hidden px-6 pt-1" aria-busy="true" aria-label="Загрузка доски">
+    <div className="-mx-6 flex gap-2 overflow-hidden px-6 pt-1" aria-busy="true" aria-label={t("board.loadingTheBoard")}>
       {[4, 3, 2, 3].map((n, i) => (
         <div key={i} className="w-[288px] shrink-0 overflow-hidden rounded-lg bg-surface-soft">
           <div className="h-[3px] bg-surface-sunken" />

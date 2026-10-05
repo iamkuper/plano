@@ -3,7 +3,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { ProjectsService } from "../projects/projects.service";
 import { defaultTemplateNames } from "../templates/default-template";
-
+import { t } from "@plano/shared";
 export interface OnboardingStep {
   id: string;
   title: string;
@@ -50,19 +50,19 @@ export class OnboardingService {
     ]);
     const board = project ? `/projects/${project.id}` : "/projects";
     return [
-      { id: "project", title: "Создайте первый проект", description: "Проект — это одна работа со своей доской. Можно взять готовый шаблон или создать пример.", done: !!project, action: { label: "Создать проект", href: "/projects?new=1" } },
-      { id: "card", title: "Добавьте карточку", description: "Карточка — одна задача. Нажмите «+» в колонке доски и введите название.", done: cards > 0, action: { label: "Открыть доску", href: board } },
-      { id: "assign", title: "Назначьте исполнителя и срок", description: "Откройте карточку и выберите исполнителя и срок: они появятся в календаре и напоминаниях.", done: assigned > 0, action: { label: "Открыть доску", href: board } },
-      { id: "invite", title: "Пригласите коллегу", description: "Человек получит ссылку и сам задаст пароль. Роль можно выбрать сразу.", done: invites > 0 || users > 1, action: { label: "Пригласить", href: "/settings/users?invite=1" } },
-      { id: "message", title: "Напишите сообщение в карточке", description: "Обсуждение задачи живёт в карточке. Через @ можно упомянуть коллегу.", done: comments > 0, action: { label: "Открыть доску", href: board } },
+      { id: "project", title: t("api.onboarding.createYourFirstProject"), description: t("api.onboarding.aProjectIsOnePiece"), done: !!project, action: { label: t("common.createProject"), href: "/projects?new=1" } },
+      { id: "card", title: t("api.onboarding.addACard"), description: t("api.onboarding.aCardIsOneTask"), done: cards > 0, action: { label: t("api.onboarding.openTheBoard"), href: board } },
+      { id: "assign", title: t("api.onboarding.setAnAssigneeAndA"), description: t("api.onboarding.openACardAndChoose"), done: assigned > 0, action: { label: t("api.onboarding.openTheBoard"), href: board } },
+      { id: "invite", title: t("api.onboarding.inviteAColleague"), description: t("api.onboarding.theyGetALinkAnd"), done: invites > 0 || users > 1, action: { label: t("common.invite"), href: "/settings/users?invite=1" } },
+      { id: "message", title: t("api.onboarding.writeAMessageInA"), description: t("api.onboarding.theDiscussionOfATask"), done: comments > 0, action: { label: t("api.onboarding.openTheBoard"), href: board } },
     ];
   }
 
   private async memberSteps(userId: string): Promise<OnboardingStep[]> {
     const [opened, comments] = await Promise.all([this.prisma.cardRead.count({ where: { userId } }), this.prisma.comment.count({ where: { authorId: userId } })]);
     return [
-      { id: "open", title: "Откройте свою задачу", description: "На вкладке «Задачи» видны карточки всей команды. Нажмите на любую, чтобы открыть.", done: opened > 0, action: { label: "К задачам", href: "/team" } },
-      { id: "message", title: "Напишите сообщение", description: "Вопросы и договорённости по задаче пишите в карточке: их увидит вся команда.", done: comments > 0, action: { label: "К задачам", href: "/team" } },
+      { id: "open", title: t("api.onboarding.openYourTask"), description: t("api.onboarding.theTasksTabShowsThe"), done: opened > 0, action: { label: t("api.onboarding.goToTasks"), href: "/team" } },
+      { id: "message", title: t("api.onboarding.writeAMessage"), description: t("api.onboarding.writeQuestionsAndAgreementsAbout"), done: comments > 0, action: { label: t("api.onboarding.goToTasks"), href: "/team" } },
     ];
   }
 
@@ -84,7 +84,7 @@ export class OnboardingService {
     const template = await this.prisma.template.findFirst({ where: { name: { in: defaultTemplateNames() } } });
     const now = Date.now();
     const project = await this.projects.create({
-      title: "Знакомство с Plano",
+      title: t("api.onboarding.gettingStartedWithPlano"),
       templateId: template?.id,
       startDate: new Date(now),
       deadline: new Date(now + 30 * DAY),

@@ -65,7 +65,7 @@ test("sign out, forgot-password form and sign in again", async ({ page }) => {
 
   await page.goto("/forgot");
   await page.getByLabel("Почта").fill(acc.email);
-  await page.getByRole("button").last().click();
+  await page.getByRole("button", { name: "Отправить ссылку" }).click();
   await expect(page.getByText(/письм|ссылк/i).first()).toBeVisible();
 });
 

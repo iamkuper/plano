@@ -1,11 +1,11 @@
 import { IsEmail, IsIn, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
 
-import { LOCALES, type Locale } from "@plano/shared";
+import { LOCALES, type Locale, t } from "@plano/shared";
 
 export class RegisterDto {
   @IsString()
-  @MinLength(1, { message: "Укажите название компании" })
-  @MaxLength(40, { message: "Название — до 40 символов" })
+  @MinLength(1, { message: () => t("api.auth.enterTheCompanyName") })
+  @MaxLength(40, { message: () => t("common.nameMustBeUpTo") })
   workspaceName!: string;
 
   @IsEmail()

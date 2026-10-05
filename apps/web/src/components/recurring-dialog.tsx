@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { CARD_PRIORITY_LABELS, type CardPriority, type RecurrenceFrequency, type RecurringRuleDto, type UserDto } from "@plano/shared";
+import { CARD_PRIORITY_LABELS, type CardPriority, type RecurrenceFrequency, type RecurringRuleDto, type UserDto, t } from "@plano/shared";
 import { api, type RecurringInput } from "@/lib/api";
-import { WEEKDAYS, describeRecurrence } from "@/lib/recurrence";
+import { describeRecurrence, weekdayNames } from "@/lib/recurrence";
 import { toast } from "@/lib/toast";
 import { useTaskTypes } from "@/lib/use-task-types";
 import { Avatar } from "./avatar";
@@ -53,7 +53,7 @@ export function RecurringDialog({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return setError("Укажите название задачи");
+    if (!title.trim()) return setError(t("common.enterATaskName"));
     setError(null);
     setBusy(true);
     const data: RecurringInput = {
@@ -73,7 +73,7 @@ export function RecurringDialog({
     };
     try {
       const saved = rule ? await api.updateRecurring(rule.id, data) : await api.createRecurring(projectId, data);
-      toast(rule ? "Правило сохранено" : `Повторение настроено: ${summary.toLowerCase()}`, "success");
+      toast(rule ? t("recurringDialog.ruleSaved") : t("recurringDialog.repeatSetUp", { toLowerCase: summary.toLowerCase() }), "success");
       onSaved(saved);
       onClose();
     } catch (err) {
@@ -84,31 +84,31 @@ export function RecurringDialog({
   }
 
   return (
-    <Dialog title={rule ? "Повторяющаяся задача" : "Сделать повторяющейся"} description="Карточка будет создаваться в первом этапе доски в 9:00." onClose={onClose} width="max-w-2xl">
+    <Dialog title={rule ? t("common.recurringTask") : t("common.makeRecurring")} description={t("recurringDialog.theCardWillBeCreated")} onClose={onClose} width="max-w-2xl">
       <form onSubmit={submit} className="space-y-4">
-        <Field label="Название задачи" error={error && !title.trim() ? error : null}>
-          {(a) => <Input {...a} autoFocus={!title} value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Например, «Ежемесячный отчёт»" />}
+        <Field label={t("recurringDialog.taskName")} error={error && !title.trim() ? error : null}>
+          {(a) => <Input {...a} autoFocus={!title} value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("recurringDialog.forExampleMonthlyReport")} />}
         </Field>
 
         <div className="rounded-lg border border-border bg-surface-soft p-3">
           <div className="grid gap-3 sm:grid-cols-4">
-            <Field label="Повторять">
+            <Field label={t("recurringDialog.repeat")}>
               {(a) => (
                 <Select {...a} value={frequency} onChange={(e) => setFrequency(e.target.value as RecurrenceFrequency)}>
-                  <option value="DAILY">Ежедневно</option>
-                  <option value="WEEKLY">Еженедельно</option>
-                  <option value="MONTHLY">Ежемесячно</option>
+                  <option value="DAILY">{t("recurringDialog.daily")}</option>
+                  <option value="WEEKLY">{t("recurringDialog.weekly")}</option>
+                  <option value="MONTHLY">{t("recurringDialog.monthly")}</option>
                 </Select>
               )}
             </Field>
-            <Field label={frequency === "DAILY" ? "Каждые, дней" : frequency === "WEEKLY" ? "Каждые, недель" : "Каждые, месяцев"}>
+            <Field label={frequency === "DAILY" ? t("recurringDialog.everyDays") : frequency === "WEEKLY" ? t("recurringDialog.everyWeeks") : t("recurringDialog.everyMonths")}>
               {(a) => <Input {...a} type="number" min={1} max={52} value={interval} onChange={(e) => setInterval(e.target.value)} />}
             </Field>
             {frequency === "WEEKLY" && (
-              <Field label="День недели">
+              <Field label={t("recurringDialog.dayOfWeek")}>
                 {(a) => (
                   <Select {...a} value={weekday} onChange={(e) => setWeekday(e.target.value)}>
-                    {WEEKDAYS.map((d, i) => (
+                    {weekdayNames().map((d, i) => (
                       <option key={d} value={i + 1}>
                         {d[0].toUpperCase() + d.slice(1)}
                       </option>
@@ -118,16 +118,16 @@ export function RecurringDialog({
               </Field>
             )}
             {frequency === "MONTHLY" && (
-              <Field label="Число месяца" hint="31 → последний день месяца">
+              <Field label={t("recurringDialog.dayOfMonth")} hint={t("recurringDialog.31LastDayOfThe")}>
                 {(a) => <Input {...a} type="number" min={1} max={31} value={monthDay} onChange={(e) => setMonthDay(e.target.value)} />}
               </Field>
             )}
-            <Field label="Начиная с">{(a) => <Input {...a} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />}</Field>
+            <Field label={t("recurringDialog.startingFrom")}>{(a) => <Input {...a} type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />}</Field>
           </div>
           <p className="mt-2 text-sm text-ink-soft">
-            {summary}. Срок у карточки:{" "}
+            {summary}{t("recurringDialog.cardDueDate")}{" "}
             <input
-              aria-label="Срок через, дней"
+              aria-label={t("recurringDialog.dueInDays")}
               type="number"
               min={0}
               placeholder="—"
@@ -135,12 +135,12 @@ export function RecurringDialog({
               value={dueInDays}
               onChange={(e) => setDueInDays(e.target.value)}
             />
-            {dueInDays === "" ? "не ставить" : "дн. после создания"}
+            {dueInDays === "" ? t("recurringDialog.doNotSet") : t("recurringDialog.daysAfterCreation")}
           </p>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Тип">
+          <Field label={t("common.type")}>
             {(a) => (
               <Select {...a} value={typeId || taskTypes.find((x) => x.isDefault)?.id || ""} onChange={(e) => setTypeId(e.target.value)}>
                 {taskTypes.map((x) => (
@@ -151,7 +151,7 @@ export function RecurringDialog({
               </Select>
             )}
           </Field>
-          <Field label="Приоритет">
+          <Field label={t("common.priority")}>
             {(a) => (
               <Select {...a} value={priority} onChange={(e) => setPriority(e.target.value as CardPriority)}>
                 {Object.entries(CARD_PRIORITY_LABELS).map(([v, l]) => (
@@ -165,7 +165,7 @@ export function RecurringDialog({
         </div>
 
         <div>
-          <span className="mb-1.5 block text-sm font-medium text-ink-soft">Исполнители</span>
+          <span className="mb-1.5 block text-sm font-medium text-ink-soft">{t("common.assignees")}</span>
           <div className="flex flex-wrap gap-2">
             {users.map((u) => {
               const on = assigneeIds.includes(u.id);
@@ -180,8 +180,8 @@ export function RecurringDialog({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Описание">{(a) => <Textarea {...a} className="min-h-[88px]" value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
-          <Field label="Чек-лист" hint="Пункт на строку">
+          <Field label={t("common.description")}>{(a) => <Textarea {...a} className="min-h-[88px]" value={description} onChange={(e) => setDescription(e.target.value)} />}</Field>
+          <Field label={t("common.checklist")} hint={t("common.oneItemPerLine")}>
             {(a) => <Textarea {...a} className="min-h-[88px]" value={checklist} onChange={(e) => setChecklist(e.target.value)} />}
           </Field>
         </div>
@@ -189,10 +189,11 @@ export function RecurringDialog({
         {error && title.trim() && <p className="text-sm text-danger">{error}</p>}
         <div className="flex justify-end gap-2">
           <Button type="button" onClick={onClose}>
-            Отмена
+            
+            {t("common.cancel")}
           </Button>
           <Button variant="primary" loading={busy}>
-            {rule ? "Сохранить" : "Настроить повторение"}
+            {rule ? t("common.save") : t("recurringDialog.setUpRepeat")}
           </Button>
         </div>
       </form>

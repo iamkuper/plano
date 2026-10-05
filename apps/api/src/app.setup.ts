@@ -1,11 +1,13 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { json } from "express";
+import { localeMiddleware } from "./i18n/request-locale";
 import { PrismaExceptionFilter } from "./prisma/prisma-exception.filter";
 
 // Everything main.ts configures on the app, shared with the tests so they run
 // the same pipeline as production.
 export function configureApp(app: INestApplication) {
-  app.enableCors();
+  app.enableCors({ allowedHeaders: ["Content-Type", "Authorization", "X-Locale", "Accept-Language"] });
+  app.use(localeMiddleware);
   // Avatars are sent as data: URLs (≈30–200 KB after client-side resize).
   app.use(json({ limit: "2mb" }));
   app.useGlobalFilters(new PrismaExceptionFilter());

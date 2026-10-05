@@ -6,7 +6,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { FromProjectDto, SaveTemplateDto } from "./templates.dto";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { AuditService } from "../audit/audit.service";
-
+import { t } from "@plano/shared";
 const clean = (dto: SaveTemplateDto, defaultTypeId: string) => ({
   name: dto.name.trim(),
   columns: dto.columns.map((c) => c.trim()).filter(Boolean),
@@ -50,7 +50,7 @@ export class TemplatesController {
   async create(@Body() dto: SaveTemplateDto) {
     const { cards, ...data } = clean(dto, await defaultTaskTypeId(this.prisma));
     const template = await this.prisma.template.create({ data: { ...OWN_FIELDS, ...data, cards: { create: cards } } });
-    await this.audit.record("template.create", `Создан шаблон «${template.name}»`, template.id);
+    await this.audit.record("template.create", t("api.templates.templateCreated", { name: template.name }), template.id);
     return template;
   }
 
@@ -71,7 +71,7 @@ export class TemplatesController {
   async remove(@Param("id") id: string) {
     const template = await this.prisma.template.findUnique({ where: { id }, select: { name: true } });
     await this.prisma.template.delete({ where: { id } });
-    await this.audit.record("template.delete", `Удалён шаблон «${template?.name ?? id}»`, id);
+    await this.audit.record("template.delete", t("api.templates.templateDeleted", { id: template?.name ?? id }), id);
   }
 
   // Snapshot a project's stages and cards (titles, types, estimates,
@@ -88,7 +88,7 @@ export class TemplatesController {
         },
       },
     });
-    if (!board) throw new NotFoundException("Доска проекта не найдена");
+    if (!board) throw new NotFoundException(t("api.templates.projectBoardNotFound"));
     const cards = board.columns.flatMap((col) => col.cards);
     return this.prisma.template.create({
       data: {

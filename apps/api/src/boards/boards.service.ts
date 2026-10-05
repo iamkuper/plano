@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from "@nestjs/comm
 import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
-
+import { t } from "@plano/shared";
 // What a card looks like on a board: enough for the tile, not the full modal.
 export const cardTileInclude = {
   assignees: { select: { user: { select: { id: true, name: true, avatarUrl: true } } } },
@@ -56,7 +56,7 @@ export class BoardsService {
         },
       },
     });
-    if (!board) throw new NotFoundException("Доска не найдена");
+    if (!board) throw new NotFoundException(t("api.boards.boardNotFound"));
     const cards = await this.withUnread(userId, board.columns.flatMap((c) => c.cards));
     const byId = new Map(cards.map((c) => [c.id, c]));
     return { ...board, columns: board.columns.map((col) => ({ ...col, cards: col.cards.map((c) => byId.get(c.id)!) })) };
@@ -105,9 +105,9 @@ export class BoardsService {
       where: { id: columnId },
       include: { _count: { select: { cards: true } }, board: { include: { _count: { select: { columns: true } } } } },
     });
-    if (!column) throw new NotFoundException("Колонка не найдена");
-    if (column._count.cards > 0) throw new BadRequestException("Сначала перенесите карточки из этой колонки");
-    if (column.board._count.columns <= 1) throw new BadRequestException("На доске должна остаться хотя бы одна колонка");
+    if (!column) throw new NotFoundException(t("common.columnNotFound"));
+    if (column._count.cards > 0) throw new BadRequestException(t("api.boards.moveTheCardsOutOf"));
+    if (column.board._count.columns <= 1) throw new BadRequestException(t("api.boards.theBoardMustKeepAt"));
     await this.prisma.column.delete({ where: { id: columnId } });
     this.realtime.boardChanged(column.board.projectId);
   }

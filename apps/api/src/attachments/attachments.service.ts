@@ -8,7 +8,7 @@ import { PrismaService } from "../prisma/prisma.service";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import { BillingService } from "../billing/billing.service";
-
+import { t } from "@plano/shared";
 // Outside dist/ on purpose: the build wipes dist. The API runs from apps/api,
 // so the default is apps/api/uploads; override with UPLOAD_DIR in production.
 export const UPLOAD_DIR = resolve(process.env.UPLOAD_DIR ?? join(process.cwd(), "uploads"));
@@ -46,10 +46,10 @@ export class AttachmentsService {
 
   async add(cardId: string, userId: string, file: Express.Multer.File) {
     const card = await this.prisma.card.findUnique({ where: { id: cardId }, select: { id: true, projectId: true } });
-    if (!card) throw new NotFoundException("Карточка не найдена");
+    if (!card) throw new NotFoundException(t("common.cardNotFound"));
     await this.billing.assertWithin("storage", file.size);
     // Browsers send non-ASCII names as latin1 in multipart headers.
-    const name = Buffer.from(file.originalname, "latin1").toString("utf8").slice(0, 200) || "файл";
+    const name = Buffer.from(file.originalname, "latin1").toString("utf8").slice(0, 200) || t("api.attachments.file");
     const row = await this.prisma.attachment.create({
       data: { cardId, uploaderId: userId, name, mime: file.mimetype || "application/octet-stream", size: file.size, storageKey: file.filename },
     });
@@ -68,17 +68,17 @@ export class AttachmentsService {
     const expected = Buffer.from(sign(id, expires));
     const given = Buffer.from(String(sig ?? ""));
     if (!expires || expires < Date.now() || expected.length !== given.length || !timingSafeEqual(expected, given)) {
-      throw new ForbiddenException("Ссылка устарела — откройте карточку заново");
+      throw new ForbiddenException(t("api.attachments.theLinkHasExpiredOpen"));
     }
     const row = await this.system.attachment.findUnique({ where: { id } });
-    if (!row) throw new NotFoundException("Файл не найден");
+    if (!row) throw new NotFoundException(t("api.attachments.fileNotFound"));
     return { row, path: join(UPLOAD_DIR, row.storageKey) };
   }
 
   async remove(id: string, user: AuthenticatedUser) {
     const row = await this.prisma.attachment.findUnique({ where: { id }, include: { card: { select: { projectId: true } } } });
     if (!row) throw new NotFoundException();
-    if (row.uploaderId !== user.userId && user.role !== "ADMIN") throw new ForbiddenException("Удалить файл может тот, кто его загрузил, или администратор");
+    if (row.uploaderId !== user.userId && user.role !== "ADMIN") throw new ForbiddenException(t("api.attachments.aFileCanBeDeleted"));
     await this.prisma.attachment.delete({ where: { id } });
     await unlink(join(UPLOAD_DIR, row.storageKey)).catch(() => {});
     await this.realtime.cardChanged(row.cardId, row.card.projectId);
@@ -92,6 +92,6 @@ export class AttachmentsService {
   }
 
   static rejectEmpty(file?: Express.Multer.File) {
-    if (!file) throw new BadRequestException("Файл не получен");
+    if (!file) throw new BadRequestException(t("api.attachments.noFileReceived"));
   }
 }

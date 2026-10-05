@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChartGantt } from "lucide-react";
-import { cardKey, type CardTileDto, type ColumnDto } from "@plano/shared";
+import { cardKey, type CardTileDto, type ColumnDto, t, intlTag } from "@plano/shared";
 import { api } from "@/lib/api";
 import { applyFilters, type CardFilters } from "@/lib/card-filters";
 import { toast } from "@/lib/toast";
@@ -98,14 +98,15 @@ export function GanttChart({
     return (
       <EmptyState
         icon={ChartGantt}
-        title="Диаграмма Ганта есть на тарифе Business"
+        title={t("ganttChart.theGanttChartIsAvailable")}
         action={
           <Link href="/settings/billing">
-            <Button variant="primary">Посмотреть тарифы</Button>
+            <Button variant="primary">{t("common.viewPlans")}</Button>
           </Link>
         }
       >
-        Полосы по срокам задач, перенос и растягивание мышью, связи «сначала это, потом то».
+        
+        {t("ganttChart.barsFollowTaskDatesDrag")}
       </EmptyState>
     );
   }
@@ -186,7 +187,7 @@ export function GanttChart({
   const months: { label: string; from: number; days: number }[] = [];
   for (let d = origin; d < origin + total; d++) {
     const date = new Date(d * DAY_MS);
-    const name = date.toLocaleDateString("ru-RU", { month: "long", timeZone: "UTC" });
+    const name = date.toLocaleDateString(intlTag(), { month: "long", timeZone: "UTC" });
     const label = `${name[0].toUpperCase()}${name.slice(1)} ${date.getUTCFullYear()}`;
     const last = months[months.length - 1];
     if (last && last.label === label) last.days++;
@@ -216,19 +217,20 @@ export function GanttChart({
   return (
     <div className="py-3">
       <div className="mb-3 flex items-center gap-3">
-        <Segmented<Zoom> label="Масштаб" value={zoom} onChange={setZoom} options={[{ value: "day", label: "Дни" }, { value: "week", label: "Недели" }, { value: "month", label: "Месяцы" }]} />
-        <span className="text-xs text-ink-ghost">Тяните полосу, чтобы сдвинуть, края — чтобы растянуть. Точка справа соединяет с зависимой задачей</span>
+        <Segmented<Zoom> label={t("ganttChart.scale")} value={zoom} onChange={setZoom} options={[{ value: "day", label: t("ganttChart.days") }, { value: "week", label: t("ganttChart.weeks") }, { value: "month", label: t("ganttChart.months") }]} />
+        <span className="text-xs text-ink-ghost">{t("ganttChart.dragABarToMove")}</span>
       </div>
 
       {rows.length === 0 ? (
-        <p className="py-10 text-center text-sm text-ink-faint">Нет карточек для диаграммы</p>
+        <p className="py-10 text-center text-sm text-ink-faint">{t("ganttChart.noCardsForTheChart")}</p>
       ) : (
         <div className="max-h-[calc(100vh-230px)] overflow-auto rounded-lg border border-border bg-surface" onPointerLeave={() => undefined}>
           <div className="relative" style={{ width: LEFT + width, minHeight: HEAD + height }}>
             {/* header */}
             <div className="sticky top-0 z-30 flex border-b border-border bg-surface-soft" style={{ height: HEAD }}>
               <div className="sticky left-0 z-40 shrink-0 border-r border-border bg-surface-soft px-3 text-xs text-ink-faint" style={{ width: LEFT, lineHeight: `${HEAD}px` }}>
-                Задача
+                
+                {t("common.task")}
               </div>
               <div className="relative" style={{ width }}>
                 {months.map((m) => (
@@ -278,9 +280,9 @@ export function GanttChart({
                       const day = origin + Math.floor((e.clientX - e.currentTarget.getBoundingClientRect().left) / dayW);
                       save(c.id, { s: day, e: day });
                     }}
-                    title={spanOf(c) ? undefined : "Двойной щелчок — задать даты"}
+                    title={spanOf(c) ? undefined : t("ganttChart.doubleClickToSetDates")}
                   >
-                    {!spanOf(c) && <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-ghost">Без дат: двойной щелчок задаёт день</span>}
+                    {!spanOf(c) && <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-ink-ghost">{t("ganttChart.noDatesDoubleClickSets")}</span>}
                   </div>
                 ))}
                 <div className="pointer-events-none absolute top-0 z-10 w-px bg-danger" style={{ left: x(today) + dayW / 2, height }} />
@@ -295,7 +297,7 @@ export function GanttChart({
                     <g key={a.key} className={a.bad ? "text-danger" : "text-ink-faint"}>
                       <path d={a.d} fill="none" stroke="currentColor" strokeWidth={1.25} markerEnd="url(#gantt-arrow)" />
                       <path d={a.d} fill="none" stroke="transparent" strokeWidth={10} className="pointer-events-auto cursor-pointer" onClick={() => setRemoving(a.dep)}>
-                        <title>{a.bad ? "Зависимая задача начинается раньше. Нажмите, чтобы удалить связь" : "Нажмите, чтобы удалить связь"}</title>
+                        <title>{a.bad ? t("ganttChart.theDependentTaskStartsEarlier") : t("ganttChart.clickToRemoveTheLink")}</title>
                       </path>
                     </g>
                   ))}
@@ -328,7 +330,7 @@ export function GanttChart({
                       <span onPointerDown={(e) => startBar(e, c, "end")} className="absolute inset-y-0 right-0 w-1.5 cursor-ew-resize" />
                       <span
                         onPointerDown={(e) => startLink(e, c)}
-                        title="Потянуть на зависимую задачу"
+                        title={t("ganttChart.dragToADependentTask")}
                         className="absolute -right-3 top-1/2 size-2.5 -translate-y-1/2 cursor-crosshair rounded-full border border-ink-faint bg-surface opacity-0 transition-opacity group-hover/bar:opacity-100"
                       />
                     </div>
@@ -342,9 +344,9 @@ export function GanttChart({
 
       {removing && (
         <ConfirmDialog
-          title="Удалить связь?"
-          body="Задачи останутся, пропадёт только стрелка между ними."
-          confirmLabel="Удалить"
+          title={t("ganttChart.removeTheLink")}
+          body={t("ganttChart.theTasksStayOnlyThe")}
+          confirmLabel={t("common.remove")}
           onConfirm={async () => {
             await api.removeDependency(removing.cardId, removing.dependsOnId).catch((e) => toast((e as Error).message, "error"));
             setRemoving(null);

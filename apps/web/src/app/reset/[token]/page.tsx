@@ -7,7 +7,7 @@ import { api } from "@/lib/api";
 import { AuthCard } from "@/components/auth-card";
 import { Button, Field, Input } from "@/components/ui";
 import { toast } from "@/lib/toast";
-
+import { t } from "@plano/shared";
 export default function ResetPage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
@@ -19,7 +19,7 @@ export default function ResetPage() {
     setError(null);
     try {
       await api.resetPassword(token, password);
-      toast("Пароль изменён. Войдите с новым паролем", "success");
+      toast(t("reset.token.passwordChangedSignInWith"), "success");
       router.replace("/login");
     } catch (err) {
       setError((err as Error).message);
@@ -27,19 +27,20 @@ export default function ResetPage() {
   }
 
   return (
-    <AuthCard title="Новый пароль" subtitle="Придумайте пароль для входа" onSubmit={submit}>
-      <Field label="Пароль">
-        {(a) => <Input {...a} type="password" placeholder="от 8 символов" value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />}
+    <AuthCard title={t("common.newPassword")} subtitle={t("reset.token.chooseAPasswordForSigning")} onSubmit={submit}>
+      <Field label={t("common.password")}>
+        {(a) => <Input {...a} type="password" placeholder={t("common.atLeast8Characters")} value={password} onChange={(e) => setPassword(e.target.value)} autoFocus />}
       </Field>
       {error && (
         <p className="text-base text-danger">
           {error}{" "}
           <Link href="/forgot" className="font-medium underline">
-            Запросить заново
+            
+            {t("reset.token.requestAgain")}
           </Link>
         </p>
       )}
-      <Button variant="primary" className="w-full py-2.5">Сохранить пароль</Button>
+      <Button variant="primary" className="w-full py-2.5">{t("common.savePassword")}</Button>
     </AuthCard>
   );
 }

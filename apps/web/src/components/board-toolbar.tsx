@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUpDown, Check, ListFilter, Search, X } from "lucide-react";
-import { CARD_PRIORITY_LABELS, type CardPriority, type UserDto } from "@plano/shared";
+import { CARD_PRIORITY_LABELS, type CardPriority, type UserDto, t } from "@plano/shared";
 import { activeFilterCount, type CardFilters, type DateFilter, type SortKey } from "@/lib/card-filters";
 import { Avatar } from "./avatar";
 import { typeStyle } from "./card-type-icon";
@@ -10,10 +10,10 @@ import { useLabels } from "./label-picker";
 import { LabelTag, MenuLabel, Popover, Segmented, inputClass } from "./ui";
 
 const SORT_LABELS: Record<SortKey, string> = {
-  manual: "Вручную",
-  due: "По сроку",
-  priority: "По приоритету",
-  updated: "По изменению",
+  manual: t("boardToolbar.manual"),
+  due: t("boardToolbar.byDueDate"),
+  priority: t("boardToolbar.byPriority"),
+  updated: t("boardToolbar.byUpdate"),
 };
 
 function toggle<T>(list: T[], value: T) {
@@ -39,14 +39,6 @@ function OptionRow({ on, onClick, children }: { on: boolean; onClick: () => void
 const quietButton =
   "inline-flex h-7 items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 text-sm text-ink-faint transition-colors hover:bg-surface-soft hover:text-ink";
 
-export function plural(n: number, one: string, few: string, many: string) {
-  const m10 = n % 10;
-  const m100 = n % 100;
-  if (m10 === 1 && m100 !== 11) return one;
-  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return few;
-  return many;
-}
-
 // 48px row under the page header: date scope on the left, filter/sort and
 // result count on the right; active filters appear as removable chips.
 export function BoardToolbar({
@@ -68,22 +60,22 @@ export function BoardToolbar({
   const chips = [
     ...filters.assigneeIds.map((id) => ({
       key: `a-${id}`,
-      label: users.find((u) => u.id === id)?.name ?? "Исполнитель",
+      label: users.find((u) => u.id === id)?.name ?? t("common.assignee"),
       remove: () => set({ assigneeIds: filters.assigneeIds.filter((v) => v !== id) }),
     })),
     ...filters.labelIds.map((id) => ({
       key: `l-${id}`,
-      label: labels.find((l) => l.id === id)?.name ?? "Метка",
+      label: labels.find((l) => l.id === id)?.name ?? t("boardToolbar.label"),
       remove: () => set({ labelIds: filters.labelIds.filter((v) => v !== id) }),
     })),
-    ...filters.types.map((t) => ({
-      key: `t-${t}`,
-      label: taskTypes.find((x) => x.id === t)?.name ?? "Тип",
-      remove: () => set({ types: filters.types.filter((v) => v !== t) }),
+    ...filters.types.map((id) => ({
+      key: `t-${id}`,
+      label: taskTypes.find((x) => x.id === id)?.name ?? t("common.type"),
+      remove: () => set({ types: filters.types.filter((v) => v !== id) }),
     })),
     ...filters.priorities.map((p) => ({
       key: `p-${p}`,
-      label: `Приоритет ${CARD_PRIORITY_LABELS[p].toLowerCase()}`,
+      label: t("boardToolbar.priority", { toLowerCase: CARD_PRIORITY_LABELS[p].toLowerCase() }),
       remove: () => set({ priorities: filters.priorities.filter((v) => v !== p) }),
     })),
   ];
@@ -92,14 +84,14 @@ export function BoardToolbar({
     <div className="py-2.5">
       <div className="flex flex-wrap items-center gap-2">
         <Segmented<DateFilter>
-          label="Срок"
+          label={t("common.dueDate")}
           value={filters.date}
           onChange={(date) => set({ date })}
           options={[
-            { value: "all", label: "Все" },
-            { value: "today", label: "Сегодня" },
-            { value: "week", label: "7 дней" },
-            { value: "overdue", label: "Просрочено" },
+            { value: "all", label: t("common.all") },
+            { value: "today", label: t("common.today") },
+            { value: "week", label: t("boardToolbar.7Days") },
+            { value: "overdue", label: t("common.overdue") },
           ]}
         />
         <span aria-hidden className="mx-1 h-4 w-px bg-border" />
@@ -109,16 +101,16 @@ export function BoardToolbar({
             type="search"
             value={filters.q}
             onChange={(e) => set({ q: e.target.value })}
-            placeholder="Найти на доске"
-            aria-label="Найти карточку на доске"
+            placeholder={t("boardToolbar.searchTheBoard")}
+            aria-label={t("boardToolbar.findACardOnThe")}
             className={`${inputClass} h-7 w-44 pl-7`}
           />
         </div>
         <Popover
           align="left"
-          trigger={(open, t) => (
-            <button onClick={t} aria-expanded={open} className={`${quietButton} ${count ? "text-ink" : ""}`}>
-              <ListFilter size={15} strokeWidth={1.75} /> Фильтр
+          trigger={(open, toggleMenu) => (
+            <button onClick={toggleMenu} aria-expanded={open} className={`${quietButton} ${count ? "text-ink" : ""}`}>
+              <ListFilter size={15} strokeWidth={1.75} />  {t("boardToolbar.filter")}
               {count > 0 && <span className="text-xs text-accent">{count}</span>}
             </button>
           )}
@@ -127,7 +119,7 @@ export function BoardToolbar({
             <div role="menu" className="max-h-[420px] w-[240px] overflow-y-auto">
               {users.length > 0 && (
                 <>
-                  <MenuLabel>Исполнитель</MenuLabel>
+                  <MenuLabel>{t("common.assignee")}</MenuLabel>
                   {users.map((u) => (
                     <OptionRow key={u.id} on={filters.assigneeIds.includes(u.id)} onClick={() => set({ assigneeIds: toggle(filters.assigneeIds, u.id) })}>
                       <Avatar user={u} size={18} /> <span className="truncate">{u.name}</span>
@@ -137,7 +129,7 @@ export function BoardToolbar({
               )}
               {labels.length > 0 && (
                 <>
-                  <MenuLabel>Метка</MenuLabel>
+                  <MenuLabel>{t("boardToolbar.label")}</MenuLabel>
                   {labels.map((l) => (
                     <OptionRow key={l.id} on={filters.labelIds.includes(l.id)} onClick={() => set({ labelIds: toggle(filters.labelIds, l.id) })}>
                       <LabelTag label={l} />
@@ -145,16 +137,16 @@ export function BoardToolbar({
                   ))}
                 </>
               )}
-              <MenuLabel>Тип</MenuLabel>
-              {taskTypes.map((t) => {
-                const { icon: Icon, color } = typeStyle(t);
+              <MenuLabel>{t("common.type")}</MenuLabel>
+              {taskTypes.map((x) => {
+                const { icon: Icon, color } = typeStyle(x);
                 return (
-                  <OptionRow key={t.id} on={filters.types.includes(t.id)} onClick={() => set({ types: toggle(filters.types, t.id) })}>
-                    <Icon size={14} strokeWidth={2} style={{ color }} /> {t.name}
+                  <OptionRow key={x.id} on={filters.types.includes(x.id)} onClick={() => set({ types: toggle(filters.types, x.id) })}>
+                    <Icon size={14} strokeWidth={2} style={{ color }} /> {x.name}
                   </OptionRow>
                 );
               })}
-              <MenuLabel>Приоритет</MenuLabel>
+              <MenuLabel>{t("common.priority")}</MenuLabel>
               {(Object.keys(CARD_PRIORITY_LABELS) as CardPriority[]).map((p) => (
                 <OptionRow key={p} on={filters.priorities.includes(p)} onClick={() => set({ priorities: toggle(filters.priorities, p) })}>
                   {CARD_PRIORITY_LABELS[p]}
@@ -165,9 +157,9 @@ export function BoardToolbar({
         </Popover>
         <Popover
           align="left"
-          trigger={(open, t) => (
-            <button onClick={t} aria-expanded={open} className={`${quietButton} ${filters.sort !== "manual" ? "text-ink" : ""}`}>
-              <ArrowUpDown size={15} strokeWidth={1.75} /> {filters.sort === "manual" ? "Сортировка" : SORT_LABELS[filters.sort]}
+          trigger={(open, toggleMenu) => (
+            <button onClick={toggleMenu} aria-expanded={open} className={`${quietButton} ${filters.sort !== "manual" ? "text-ink" : ""}`}>
+              <ArrowUpDown size={15} strokeWidth={1.75} /> {filters.sort === "manual" ? t("boardToolbar.sort") : SORT_LABELS[filters.sort]}
             </button>
           )}
         >
@@ -195,20 +187,21 @@ export function BoardToolbar({
         {chips.map((c) => (
           <span key={c.key} className="inline-flex h-6 items-center gap-1 rounded-md border border-border pl-2 pr-0.5 text-xs text-ink-soft">
             {c.label}
-            <button onClick={c.remove} aria-label={`Убрать фильтр ${c.label}`} className="grid size-5 place-items-center rounded-sm text-ink-ghost hover:text-ink">
+            <button onClick={c.remove} aria-label={t("boardToolbar.removeFilter", { label: c.label })} className="grid size-5 place-items-center rounded-sm text-ink-ghost hover:text-ink">
               <X size={12} />
             </button>
           </span>
         ))}
         {chips.length > 0 && (
           <button onClick={() => set({ assigneeIds: [], types: [], priorities: [], labelIds: [] })} className="text-xs text-ink-ghost hover:text-ink">
-            Сбросить
+            
+            {t("boardToolbar.reset")}
           </button>
         )}
 
         {shown !== undefined && (
           <span className="ml-auto text-xs text-ink-ghost">
-            {shown} {plural(shown, "карточка", "карточки", "карточек")}
+            {t("plural.cards", { count: shown })}
           </span>
         )}
       </div>

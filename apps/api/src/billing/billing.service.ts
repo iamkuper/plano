@@ -1,7 +1,7 @@
 import { BadRequestException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { randomBytes } from "crypto";
 import type { Payment, Plan, Subscription } from "@prisma/client";
-import { planAmount, type BillingDto, type BillingInterval, type PlanDto, type PlanFeature } from "@plano/shared";
+import { planAmount, type BillingDto, type BillingInterval, type PlanDto, type PlanFeature, t, intlTag } from "@plano/shared";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { currentWorkspaceId, runInWorkspace } from "../prisma/tenant";
 import { PAYMENT_PROVIDER, type PaymentNotification, type PaymentProvider } from "./payment-provider";
@@ -39,7 +39,7 @@ export class BillingService {
 
   private get ws() {
     const id = currentWorkspaceId();
-    if (!id) throw new Error("Нет контекста рабочего пространства");
+    if (!id) throw new Error(t("api.billing.noWorkspaceContext"));
     return id;
   }
 
@@ -75,20 +75,20 @@ export class BillingService {
   async assertWithin(limit: Limit, bytes = 0) {
     const workspaceId = this.ws;
     const [plan, usage] = await Promise.all([this.effectivePlan(workspaceId), this.usage(workspaceId)]);
-    const hint = plan.id === "BUSINESS" ? "" : " Перейдите на более высокий тариф в разделе «Тариф и оплата».";
+    const hint = plan.id === "BUSINESS" ? "" : t("api.billing.switchToAHigherPlan");
     switch (limit) {
       case "users":
-        if (plan.maxUsers !== null && usage.users >= plan.maxUsers) this.deny(`На тарифе ${plan.name} — не больше ${plan.maxUsers} пользователей.${hint}`);
+        if (plan.maxUsers !== null && usage.users >= plan.maxUsers) this.deny(t("api.billing.thePlanAllowsAtMost", { name: plan.name, maxUsers: plan.maxUsers, hint }));
         break;
       case "projects":
-        if (plan.maxProjects !== null && usage.projects >= plan.maxProjects) this.deny(`На тарифе ${plan.name} — не больше ${plan.maxProjects} проектов.${hint}`);
+        if (plan.maxProjects !== null && usage.projects >= plan.maxProjects) this.deny(t("api.billing.thePlanAllowsAtMost2", { name: plan.name, maxProjects: plan.maxProjects, hint }));
         break;
       case "recurring":
-        if (plan.maxRecurring !== null && usage.recurring >= plan.maxRecurring) this.deny(`На тарифе ${plan.name} — не больше ${plan.maxRecurring} повторяющихся задач.${hint}`);
+        if (plan.maxRecurring !== null && usage.recurring >= plan.maxRecurring) this.deny(t("api.billing.thePlanAllowsAtMost3", { name: plan.name, maxRecurring: plan.maxRecurring, hint }));
         break;
       case "storage": {
         const limitMb = this.storageLimitMb(plan, usage.users);
-        if (usage.storageMb + bytes / 1024 / 1024 > limitMb) this.deny(`Место для файлов закончилось (${limitMb >= 1024 ? `${limitMb / 1024} ГБ` : `${limitMb} МБ`}).${hint}`);
+        if (usage.storageMb + bytes / 1024 / 1024 > limitMb) this.deny(t("api.billing.fileStorageIsFull", { value: limitMb >= 1024 ? t("common.gb", { value: limitMb / 1024 }) : t("api.billing.mb", { limitMb }), hint }));
         break;
       }
     }
@@ -98,7 +98,7 @@ export class BillingService {
     const plan = await this.effectivePlan(this.ws);
     if (!plan.features.includes(feature)) {
       const needed = await this.db.plan.findFirst({ where: { features: { has: feature } }, orderBy: { position: "asc" } });
-      this.deny(`Эта возможность доступна на тарифе ${needed?.name ?? "выше"}. Перейдите на него в разделе «Тариф и оплата».`);
+      this.deny(t("api.billing.thisFeatureIsAvailableOn", { value: needed?.name ?? t("api.billing.higher") }));
     }
   }
 
@@ -147,7 +147,7 @@ export class BillingService {
   async checkout(planId: string, interval: BillingInterval, email: string) {
     const workspaceId = this.ws;
     const plan = await this.db.plan.findUnique({ where: { id: planId } });
-    if (!plan || plan.priceKopecks <= 0) throw new BadRequestException("Выберите платный тариф");
+    if (!plan || plan.priceKopecks <= 0) throw new BadRequestException(t("common.chooseAPaidPlan"));
     const seats = await this.db.user.count({ where: { workspaceId, isActive: true } });
     const payment = await this.db.payment.create({
       data: {
@@ -159,7 +159,7 @@ export class BillingService {
       const init = await this.provider.init({
         orderId: payment.orderId,
         amount: payment.amount,
-        description: `Plano, тариф ${plan.name}: ${seats} польз., ${interval === "YEAR" ? "год" : "месяц"}`,
+        description: t("api.billing.planoPlanUsers", { name: plan.name, seats, value: interval === "YEAR" ? t("api.billing.year") : t("api.billing.month") }),
         customerKey: workspaceId,
         recurrent: true,
         email,
@@ -167,7 +167,7 @@ export class BillingService {
       await this.db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: init.providerPaymentId, paymentUrl: init.paymentUrl } });
       return { paymentUrl: init.paymentUrl };
     } catch (e) {
-      await this.db.payment.update({ where: { id: payment.id }, data: { status: "FAILED", failReason: "Не удалось создать платёж" } });
+      await this.db.payment.update({ where: { id: payment.id }, data: { status: "FAILED", failReason: t("api.billing.couldNotCreateThePayment") } });
       throw e;
     }
   }
@@ -175,9 +175,9 @@ export class BillingService {
   async setCancel(cancel: boolean) {
     const workspaceId = this.ws;
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId } });
-    if (sub.planId === "FREE") throw new BadRequestException("Платной подписки нет");
-    if (isLocked(sub)) throw new BadRequestException("Тариф уже закончился");
-    if (sub.status === "TRIALING") throw new BadRequestException("Пробный период закончится сам, списаний не будет");
+    if (sub.planId === "FREE") throw new BadRequestException(t("api.billing.thereIsNoPaidSubscription"));
+    if (isLocked(sub)) throw new BadRequestException(t("api.billing.thePlanHasAlreadyEnded"));
+    if (sub.status === "TRIALING") throw new BadRequestException(t("api.billing.theTrialWillEndBy"));
     await this.db.subscription.update({ where: { workspaceId }, data: { cancelAtPeriodEnd: cancel } });
   }
 
@@ -192,7 +192,7 @@ export class BillingService {
   // Idempotent: a payment settles once, repeated notifications do nothing.
   private async applyResult(n: PaymentNotification) {
     const payment = await this.db.payment.findUnique({ where: { orderId: n.orderId } });
-    if (!payment) throw new NotFoundException("Платёж не найден");
+    if (!payment) throw new NotFoundException(t("api.billing.paymentNotFound"));
     if (payment.status !== "PENDING") return;
     if (n.status === "FAILED") {
       await this.db.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED", failReason: n.reason } });
@@ -200,7 +200,7 @@ export class BillingService {
     }
     if (n.amount !== payment.amount) {
       this.log.error(`Amount mismatch for ${payment.orderId}: got ${n.amount}, expected ${payment.amount}`);
-      throw new BadRequestException("Сумма платежа не совпадает");
+      throw new BadRequestException(t("api.billing.thePaymentAmountDoesNot"));
     }
     const settled = await this.db.payment.updateMany({
       where: { id: payment.id, status: "PENDING" },
@@ -233,7 +233,7 @@ export class BillingService {
     });
     // Webhooks and the scheduler have no request, so enter the workspace.
     await runInWorkspace(payment.workspaceId, () =>
-      this.audit.record("billing.paid", `Оплачен тариф ${payment.planId}: ${(payment.amount / 100).toLocaleString("ru-RU")} ₽${payment.kind === "RENEWAL" ? " (продление)" : ""}`, payment.id),
+      this.audit.record("billing.paid", t("api.billing.paidForThePlan", { planId: payment.planId, toLocaleString: (payment.amount / 100).toLocaleString(intlTag()), value: payment.kind === "RENEWAL" ? t("api.billing.renewal") : "" }), payment.id),
     );
   }
 
@@ -241,7 +241,7 @@ export class BillingService {
   async devPay(orderId: string, success: boolean) {
     if (!this.provider.test) throw new NotFoundException();
     const payment = await this.db.payment.findFirst({ where: { orderId, workspaceId: this.ws } });
-    if (!payment) throw new NotFoundException("Платёж не найден");
+    if (!payment) throw new NotFoundException(t("api.billing.paymentNotFound"));
     await this.handleNotification(
       mockNotification({
         OrderId: payment.orderId,
@@ -261,7 +261,7 @@ export class BillingService {
       where: { workspaceId },
       data: { status: "LOCKED", cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null },
     });
-    await runInWorkspace(workspaceId, () => this.audit.record("billing.locked", "Тариф закончился, пространство переведено в режим чтения"));
+    await runInWorkspace(workspaceId, () => this.audit.record("billing.locked", t("api.billing.thePlanHasEndedThe")));
   }
 
   // Choosing the free plan explicitly (from a trial or a locked workspace).
@@ -270,7 +270,7 @@ export class BillingService {
     const workspaceId = this.ws;
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId } });
     const paidActive = sub.planId !== "FREE" && sub.status !== "TRIALING" && sub.status !== "LOCKED" && !isLocked(sub);
-    if (paidActive) throw new BadRequestException("Оплаченный тариф действует до конца периода. Отключите продление, и после него начнётся бесплатный");
+    if (paidActive) throw new BadRequestException(t("api.billing.thePaidPlanStaysActive"));
     await this.db.subscription.update({
       where: { workspaceId },
       data: {
@@ -278,7 +278,7 @@ export class BillingService {
         cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null,
       },
     });
-    await this.audit.record("billing.free", "Выбран бесплатный тариф");
+    await this.audit.record("billing.free", t("api.billing.theFreePlanIsSelected"));
   }
 
   // Renews paid periods that ended, locks cancelled and unpaid ones.
@@ -320,7 +320,7 @@ export class BillingService {
     try {
       const init = await this.provider.init({
         orderId: payment.orderId, amount: payment.amount, customerKey: sub.workspaceId, recurrent: false,
-        description: `Plano, продление тарифа ${sub.plan.name}: ${seats} польз.`,
+        description: t("api.billing.planoPlanRenewalUsers", { name: sub.plan.name, seats }),
       });
       await this.db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: init.providerPaymentId } });
       const result = await this.provider.charge(init.providerPaymentId, sub.rebillId);

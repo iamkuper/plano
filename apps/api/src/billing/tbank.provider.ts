@@ -1,7 +1,7 @@
 import { createHash } from "crypto";
 import { BadGatewayException, Logger, UnauthorizedException } from "@nestjs/common";
 import type { ChargeResult, InitParams, InitResult, PaymentNotification, PaymentProvider } from "./payment-provider";
-
+import { t } from "@plano/shared";
 // T-Bank acquiring (T-Kassa) API v2: https://www.tbank.ru/kassa/dev/payments/
 // Every request and notification carries Token = SHA-256 of the root-level
 // scalar parameters plus Password, sorted by key and concatenated by value.
@@ -43,7 +43,7 @@ export class TbankProvider implements PaymentProvider {
       body: JSON.stringify({ ...payload, Token: tbankToken(payload, this.cfg.password) }),
     }).catch((e) => {
       this.log.error(`${method}: ${(e as Error).message}`);
-      throw new BadGatewayException("Платёжный сервис недоступен, попробуйте позже");
+      throw new BadGatewayException(t("api.billing.thePaymentServiceIsUnavailable"));
     });
     const data = (await res.json().catch(() => ({}))) as T;
     return data;
@@ -70,7 +70,7 @@ export class TbankProvider implements PaymentProvider {
     });
     if (!data.Success || !data.PaymentId) {
       this.log.error(`Init failed: ${data.Message} ${data.Details}`);
-      throw new BadGatewayException("Не удалось создать платёж. Попробуйте позже");
+      throw new BadGatewayException(t("api.billing.couldNotCreateThePayment2"));
     }
     return { providerPaymentId: String(data.PaymentId), paymentUrl: data.PaymentURL ?? "" };
   }
@@ -81,7 +81,7 @@ export class TbankProvider implements PaymentProvider {
       RebillId: rebillId,
     });
     if (data.Success && data.Status === "CONFIRMED") return { confirmed: true };
-    return { confirmed: false, reason: data.Details || data.Message || data.Status || "Платёж отклонён" };
+    return { confirmed: false, reason: data.Details || data.Message || data.Status || t("api.billing.paymentDeclined") };
   }
 
   parseNotification(body: Record<string, unknown>): PaymentNotification {

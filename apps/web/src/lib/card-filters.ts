@@ -1,4 +1,4 @@
-import { cardKey, type CardPriority, type CardTileDto } from "@plano/shared";
+import { cardKey, type CardPriority, type CardTileDto, t, intlTag } from "@plano/shared";
 
 export type DateFilter = "all" | "today" | "week" | "overdue";
 export type SortKey = "manual" | "due" | "priority" | "updated";
@@ -79,11 +79,11 @@ export function applyFilters(cards: CardTileDto[], f: CardFilters) {
 export function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime();
   const min = Math.floor(diff / 60_000);
-  if (min < 1) return "сейчас";
-  if (min < 60) return `${min} мин`;
+  if (min < 1) return t("lib.cardFilters.now");
+  if (min < 60) return t("lib.cardFilters.min", { min });
   const h = Math.floor(min / 60);
-  if (h < 24) return `${h} ч`;
+  if (h < 24) return t("common.h", { h });
   const d = Math.floor(h / 24);
-  if (d < 7) return `${d} д`;
-  return new Date(iso).toLocaleDateString("ru-RU", { day: "numeric", month: "short" });
+  if (d < 7) return t("lib.cardFilters.d", { d });
+  return new Date(iso).toLocaleDateString(intlTag(), { day: "numeric", month: "short" });
 }

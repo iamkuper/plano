@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, SetMetadata } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { can, PERMISSIONS, type Permission } from "@plano/shared";
+import { can, PERMISSIONS, type Permission, t } from "@plano/shared";
 import type { AuthenticatedUser } from "../current-user.decorator";
 
 const KEY = "permission";
@@ -17,7 +17,7 @@ export class PermissionGuard implements CanActivate {
     const user: AuthenticatedUser | undefined = ctx.switchToHttp().getRequest().user;
     if (!can(user, perm)) {
       const label = PERMISSIONS.find((p) => p.key === perm)?.label ?? perm;
-      throw new ForbiddenException(`Нет права: «${label}». Его выдаёт администратор`);
+      throw new ForbiddenException(t("api.auth.missingPermissionAnAdministratorCan", { label }));
     }
     return true;
   }

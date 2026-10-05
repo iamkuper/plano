@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import { YEAR_MONTHS_CHARGED } from "@plano/shared";
+import { YEAR_MONTHS_CHARGED, t } from "@plano/shared";
 import { isLocked } from "../billing/subscription-state";
 import { caseVariants } from "../prisma/case-variants";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
@@ -123,7 +123,7 @@ export class PlatformService {
         _count: { select: { projects: true, cards: true } },
       },
     });
-    if (!w) throw new NotFoundException("Пространство не найдено");
+    if (!w) throw new NotFoundException(t("api.platform.workspaceNotFound"));
     const files = await this.db.attachment.aggregate({ where: { card: { workspaceId: id } }, _sum: { size: true } });
     return { ...w, state: w.subscription ? stateOf(w.subscription) : "free", storageBytes: files._sum.size ?? 0 };
   }
@@ -132,9 +132,9 @@ export class PlatformService {
   // journal as an action of the platform.
   async changeSubscription(id: string, cmd: SubscriptionAction, now = new Date()) {
     const sub = await this.db.subscription.findUnique({ where: { workspaceId: id } });
-    if (!sub) throw new NotFoundException("Подписка не найдена");
+    if (!sub) throw new NotFoundException(t("api.platform.subscriptionNotFound"));
     const days = (n?: number) => {
-      if (n !== undefined && (!Number.isInteger(n) || n < 1 || n > 3650)) throw new BadRequestException("Срок — от 1 до 3650 дней");
+      if (n !== undefined && (!Number.isInteger(n) || n < 1 || n > 3650)) throw new BadRequestException(t("api.platform.durationMustBeFrom1"));
       return n ?? 30;
     };
     let data: Prisma.SubscriptionUpdateInput;
@@ -142,36 +142,36 @@ export class PlatformService {
     switch (cmd.action) {
       case "grant": {
         const plan = await this.db.plan.findUnique({ where: { id: cmd.planId } });
-        if (!plan || plan.priceKopecks <= 0) throw new BadRequestException("Выберите платный тариф");
+        if (!plan || plan.priceKopecks <= 0) throw new BadRequestException(t("common.chooseAPaidPlan"));
         const n = days(cmd.days);
         // No card is saved, so the period simply runs out and locks.
         data = {
           plan: { connect: { id: plan.id } }, status: "ACTIVE", trialEndsAt: null, currentPeriodStart: now,
           currentPeriodEnd: new Date(now.getTime() + n * DAY), cancelAtPeriodEnd: true, failedAttempts: 0, nextAttemptAt: null,
         };
-        summary = `Выдан тариф ${plan.name} на ${n} дн.`;
+        summary = t("api.platform.planGrantedForDays", { name: plan.name, n });
         break;
       }
       case "extend-trial": {
         const n = days(cmd.days);
         const base = sub.trialEndsAt && sub.trialEndsAt > now ? sub.trialEndsAt : now;
         data = { plan: { connect: { id: sub.planId === "FREE" ? "PRO" : sub.planId } }, status: "TRIALING", trialEndsAt: new Date(base.getTime() + n * DAY), currentPeriodEnd: null };
-        summary = `Пробный период продлён на ${n} дн.`;
+        summary = t("api.platform.trialExtendedByDays", { n });
         break;
       }
       case "lock":
         data = { status: "LOCKED", cancelAtPeriodEnd: false, rebillId: null, nextAttemptAt: null };
-        summary = "Пространство переведено в режим чтения";
+        summary = t("api.platform.theWorkspaceWasSwitchedTo");
         break;
       case "free":
         data = { plan: { connect: { id: "FREE" } }, status: "ACTIVE", trialEndsAt: null, currentPeriodStart: null, currentPeriodEnd: null, cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null };
-        summary = "Переведено на бесплатный тариф";
+        summary = t("api.platform.switchedToTheFreePlan");
         break;
       default:
-        throw new BadRequestException("Неизвестное действие");
+        throw new BadRequestException(t("api.platform.unknownAction"));
     }
     await this.db.subscription.update({ where: { workspaceId: id }, data });
-    await this.db.auditLog.create({ data: { workspaceId: id, userId: null, action: `platform.${cmd.action}`, summary: `Поддержка Plano: ${summary}` } });
+    await this.db.auditLog.create({ data: { workspaceId: id, userId: null, action: `platform.${cmd.action}`, summary: t("api.platform.planoSupport", { summary }) } });
     return this.workspace(id);
   }
 }

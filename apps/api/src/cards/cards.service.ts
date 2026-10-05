@@ -15,7 +15,7 @@ import { CARD_FIELDS } from "../prisma/tenant";
 import { caseVariants } from "../prisma/case-variants";
 import { BillingService } from "../billing/billing.service";
 import { AuditService } from "../audit/audit.service";
-
+import { t } from "@plano/shared";
 @Injectable()
 export class CardsService {
   constructor(
@@ -42,14 +42,14 @@ export class CardsService {
   private async assertUsers(ids: string[] | undefined) {
     const unique = [...new Set(ids ?? [])];
     if (unique.length && (await this.prisma.user.count({ where: { id: { in: unique } } })) !== unique.length) {
-      throw new BadRequestException("Исполнитель не найден");
+      throw new BadRequestException(t("api.cards.assigneeNotFound"));
     }
   }
 
   private async assertLabels(ids: string[] | undefined) {
     const unique = [...new Set(ids ?? [])];
     if (unique.length && (await this.prisma.label.count({ where: { id: { in: unique } } })) !== unique.length) {
-      throw new BadRequestException("Метка не найдена");
+      throw new BadRequestException(t("api.cards.labelNotFound"));
     }
   }
 
@@ -97,7 +97,7 @@ export class CardsService {
         activity: { orderBy: { createdAt: "desc" }, take: 50, include: { user: { select: { id: true, name: true, avatarUrl: true } } } },
       },
     });
-    if (!card) throw new NotFoundException("Карточка не найдена");
+    if (!card) throw new NotFoundException(t("common.cardNotFound"));
     return {
       ...card,
       attachments: card.attachments.map(withUrl),
@@ -110,7 +110,7 @@ export class CardsService {
       where: { id: dto.columnId },
       include: { board: { select: { projectId: true } } },
     });
-    if (!column) throw new NotFoundException("Колонка не найдена");
+    if (!column) throw new NotFoundException(t("common.columnNotFound"));
     await this.assertUsers(dto.assigneeIds);
 
     const last = await this.prisma.card.findFirst({
@@ -145,10 +145,10 @@ export class CardsService {
     await this.assertLabels(labelIds);
     if (dto.startDate !== undefined || dto.dueDate !== undefined) {
       const current = await this.prisma.card.findUnique({ where: { id }, select: { startDate: true, dueDate: true } });
-      if (!current) throw new NotFoundException("Карточка не найдена");
+      if (!current) throw new NotFoundException(t("common.cardNotFound"));
       const start = dto.startDate !== undefined ? dto.startDate : current.startDate;
       const due = dto.dueDate !== undefined ? dto.dueDate : current.dueDate;
-      if (start && due && start > due) throw new BadRequestException("Начало не может быть позже срока");
+      if (start && due && start > due) throw new BadRequestException(t("api.cards.theStartCannotBeLater"));
     }
     const before = assigneeIds
       ? (await this.prisma.cardAssignee.findMany({ where: { cardId: id }, select: { userId: true } })).map((a) => a.userId)
@@ -178,10 +178,10 @@ export class CardsService {
       where: { id },
       include: { column: { select: { boardId: true, title: true } } },
     });
-    if (!card) throw new NotFoundException("Карточка не найдена");
+    if (!card) throw new NotFoundException(t("common.cardNotFound"));
     const target = await this.prisma.column.findUnique({ where: { id: dto.columnId } });
     if (!target || target.boardId !== card.column.boardId) {
-      throw new BadRequestException("Нельзя перенести карточку на другую доску");
+      throw new BadRequestException(t("api.cards.aCardCannotBeMoved"));
     }
 
     let position = dto.position;
@@ -209,7 +209,7 @@ export class CardsService {
     const purge = await this.attachments.filesOf({ cardId: id });
     const card = await this.prisma.card.delete({ where: { id } });
     await purge();
-    await this.audit.record("card.delete", `Удалена карточка ${card.title}`, id);
+    await this.audit.record("card.delete", t("api.cards.cardDeleted", { title: card.title }), id);
     await this.realtime.cardChanged(id, card.projectId);
   }
 
@@ -223,7 +223,7 @@ export class CardsService {
       include: { column: { select: { boardId: true, title: true } } },
       orderBy: [{ column: { position: "asc" } }, { position: "asc" }],
     });
-    if (!cards.length) throw new NotFoundException("Карточки не найдены");
+    if (!cards.length) throw new NotFoundException(t("api.cards.cardsNotFound"));
     const ids = cards.map((c) => c.id);
     const projects = new Set(cards.map((c) => c.projectId));
 
@@ -231,7 +231,7 @@ export class CardsService {
       case "move": {
         const target = await this.prisma.column.findUnique({ where: { id: dto.columnId! } });
         if (!target || cards.some((c) => c.column.boardId !== target.boardId)) {
-          throw new BadRequestException("Перенести можно только в колонку той же доски");
+          throw new BadRequestException(t("api.cards.cardsCanOnlyBeMoved"));
         }
         const last = await this.prisma.card.findFirst({
           where: { columnId: target.id, id: { notIn: ids } },
@@ -272,7 +272,7 @@ export class CardsService {
         const purge = await this.attachments.filesOf({ cardId: { in: ids } });
         await this.prisma.card.deleteMany({ where: { id: { in: ids } } });
         await purge();
-        await this.audit.record("card.delete", `Удалено карточек: ${ids.length}`);
+        await this.audit.record("card.delete", t("api.cards.cardsDeleted", { ids: ids.length }));
         break;
       }
     }
@@ -304,7 +304,7 @@ export class CardsService {
   // ---- comments ----
 
   async addComment(cardId: string, userId: string, text: string, mentionIds: string[] = [], attachmentIds: string[] = []) {
-    if (!text.trim() && !attachmentIds.length) throw new BadRequestException("Пустое сообщение");
+    if (!text.trim() && !attachmentIds.length) throw new BadRequestException(t("api.cards.emptyMessage"));
     const comment = await this.prisma.comment.create({
       data: { cardId, authorId: userId, text },
       include: { author: { select: { id: true, name: true, avatarUrl: true } } },
@@ -317,7 +317,7 @@ export class CardsService {
       update: { readAt: new Date() },
       create: { userId, cardId },
     });
-    await this.notifications.commented(cardId, userId, text || "Файл", mentionIds);
+    await this.notifications.commented(cardId, userId, text || t("api.cards.file"), mentionIds);
     await this.realtime.cardChanged(cardId);
     return comment;
   }

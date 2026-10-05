@@ -7,7 +7,7 @@ import { UpdateUserDto } from "./dto/update-user.dto";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { BillingService } from "../billing/billing.service";
 import { AuditService } from "../audit/audit.service";
-
+import { t, type Locale } from "@plano/shared";
 const publicFields = {
   id: true,
   email: true,
@@ -17,6 +17,7 @@ const publicFields = {
   isActive: true,
   avatarUrl: true,
   emailNotifications: true,
+  locale: true,
   customRole: { select: { name: true, permissions: true } },
 } as const;
 
@@ -32,7 +33,7 @@ function toDto<T extends UserRow>({ customRole, ...user }: T) {
   return {
     ...user,
     roleId: admin ? null : user.roleId,
-    roleName: admin ? "Администратор" : (customRole?.name ?? "Без роли"),
+    roleName: admin ? t("common.administrator") : (customRole?.name ?? t("common.noRole")),
     permissions: admin ? [] : (customRole?.permissions ?? []),
   };
 }
@@ -63,7 +64,7 @@ export class UsersService {
   async create(dto: CreateUserDto) {
     await this.billing.assertWithin("users");
     if (await this.system.user.findUnique({ where: { email: dto.email } })) {
-      throw new ConflictException("Пользователь с такой почтой уже существует");
+      throw new ConflictException(t("api.users.aUserWithThisEmail"));
     }
     const role = dto.role ?? "MEMBER";
     const roleId = role === "ADMIN" ? null : (dto.roleId ?? (await this.prisma.role.findFirst({ where: { isDefault: true } }))?.id ?? null);
@@ -78,14 +79,14 @@ export class UsersService {
       },
       select: publicFields,
     });
-    await this.audit.record("user.create", `Добавлен сотрудник ${user.name} (${user.email})`, user.id);
+    await this.audit.record("user.create", t("api.users.employeeAdded", { name: user.name, email: user.email }), user.id);
     return toDto(user);
   }
 
-  async updateMe(userId: string, data: { name?: string; email?: string; emailNotifications?: boolean }) {
+  async updateMe(userId: string, data: { name?: string; email?: string; emailNotifications?: boolean; locale?: Locale }) {
     if (data.email) {
       const taken = await this.system.user.findFirst({ where: { email: data.email, id: { not: userId } } });
-      if (taken) throw new ConflictException("Эта почта уже занята другим сотрудником");
+      if (taken) throw new ConflictException(t("api.users.thisEmailIsAlreadyUsed"));
     }
     return toDto(await this.prisma.user.update({ where: { id: userId }, data, select: publicFields }));
   }
@@ -95,19 +96,19 @@ export class UsersService {
     if (!user) throw new NotFoundException();
     if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
       // 400, not 401: the web client treats 401 as "session expired" and logs out.
-      throw new BadRequestException("Текущий пароль указан неверно");
+      throw new BadRequestException(t("api.users.theCurrentPasswordIsWrong"));
     }
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(newPassword, 10) } });
   }
 
   async resetPassword(userId: string, password: string) {
     const user = await this.prisma.user.update({ where: { id: userId }, data: { passwordHash: await bcrypt.hash(password, 10) }, select: { name: true } });
-    await this.audit.record("user.password", `Администратор сменил пароль сотрудника ${user.name}`, userId);
+    await this.audit.record("user.password", t("api.users.anAdministratorChangedThePassword", { name: user.name }), userId);
   }
 
   async setAvatar(userId: string, avatarUrl: string | null) {
     if (avatarUrl !== null && (!AVATAR_RE.test(avatarUrl) || avatarUrl.length > AVATAR_MAX)) {
-      throw new BadRequestException("Фото должно быть PNG, JPEG или WebP размером до 1 МБ");
+      throw new BadRequestException(t("api.users.thePhotoMustBePng"));
     }
     return toDto(await this.prisma.user.update({ where: { id: userId }, data: { avatarUrl }, select: publicFields }));
   }
@@ -119,8 +120,8 @@ export class UsersService {
     // Picking a custom role makes the user a MEMBER of it.
     const data = dto.roleId ? { ...dto, role: "MEMBER" as const } : dto;
     const updated = await this.prisma.user.update({ where: { id }, data, select: publicFields });
-    const what = [dto.isActive !== undefined ? (dto.isActive ? "включён" : "отключён") : null, dto.role || dto.roleId ? "изменена роль" : null].filter(Boolean).join(", ");
-    await this.audit.record("user.update", `Сотрудник ${updated.name}: ${what || "изменён"}`, id);
+    const what = [dto.isActive !== undefined ? (dto.isActive ? t("api.users.enabled") : t("api.users.deactivated")) : null, dto.role || dto.roleId ? t("api.users.roleChanged") : null].filter(Boolean).join(", ");
+    await this.audit.record("user.update", t("api.users.employee", { name: updated.name, value: what || t("api.users.changed") }), id);
     return toDto(updated);
   }
 }

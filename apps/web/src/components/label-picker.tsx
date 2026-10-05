@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
-import { LABEL_COLORS, type LabelColor, type LabelDto } from "@plano/shared";
+import { LABEL_COLORS, type LabelColor, type LabelDto, t } from "@plano/shared";
 import { labelColor } from "@/design/tokens";
 import { api, onSessionChange } from "@/lib/api";
 import { toast } from "@/lib/toast";
@@ -60,7 +60,7 @@ export function LabelPicker({
       trigger={(open, toggle) => (
         <button {...field} type="button" onClick={toggle} aria-expanded={open} className={`${inputClass} flex items-center gap-2 text-left`}>
           {selected.length === 0 ? (
-            <span className="text-ink-ghost">Нет меток</span>
+            <span className="text-ink-ghost">{t("labelPicker.noLabels")}</span>
           ) : (
             <span className="flex min-w-0 flex-1 flex-wrap gap-x-3 gap-y-0.5">
               {selected.map((l) => (
@@ -83,7 +83,7 @@ export function LabelPicker({
                 </MenuItem>
               );
             })}
-            {labels.length === 0 && <p className="px-3 py-2 text-sm text-ink-faint">Меток пока нет. Создайте первую ниже</p>}
+            {labels.length === 0 && <p className="px-3 py-2 text-sm text-ink-faint">{t("labelPicker.noLabelsYetCreateThe")}</p>}
           </div>
           <form
             className="border-t border-border p-2"
@@ -96,11 +96,11 @@ export function LabelPicker({
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={30}
-              placeholder="Новая метка"
-              aria-label="Название новой метки"
+              placeholder={t("labelPicker.newLabel")}
+              aria-label={t("labelPicker.newLabelName")}
               className={`${inputClass} w-full`}
             />
-            <div className="mt-2 flex items-center gap-1" role="radiogroup" aria-label="Цвет метки">
+            <div className="mt-2 flex items-center gap-1" role="radiogroup" aria-label={t("labelPicker.labelColour")}>
               {LABEL_COLORS.map((c) => (
                 <button
                   key={c}
@@ -115,7 +115,7 @@ export function LabelPicker({
                 </button>
               ))}
               <button type="submit" disabled={!trimmed || exists} className="ml-auto inline-flex h-6 items-center gap-1 rounded-md px-2 text-sm text-accent disabled:text-ink-ghost">
-                <Plus size={13} /> Создать
+                <Plus size={13} />  {t("common.create")}
               </button>
             </div>
           </form>

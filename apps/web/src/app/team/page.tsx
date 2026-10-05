@@ -16,7 +16,7 @@ import { applyFilters } from "@/lib/card-filters";
 import { useCardParam } from "@/lib/use-card-param";
 import { useFilters } from "@/lib/use-filters";
 import { useDebounced, useRealtime } from "@/lib/realtime";
-
+import { t } from "@plano/shared";
 // Cards of all active projects grouped by column title. "Мои задачи"
 // (?mine=1) narrows it to the current user. Cards are moved on their
 // project's own board; here they're opened and edited in the modal.
@@ -52,16 +52,16 @@ function TeamBoard() {
   return (
     <>
       <PageHeader
-        title="Главная"
+        title={t("common.home")}
         meta={<HomeTabs />}
         actions={
           <Segmented<"mine" | "all">
-            label="Чьи задачи"
+            label={t("team.whoseTasks")}
             value={mine ? "mine" : "all"}
             onChange={(v) => router.replace(v === "mine" ? "/team?mine=1" : "/team")}
             options={[
-              { value: "mine", label: "Мои" },
-              { value: "all", label: "Все" },
+              { value: "mine", label: t("team.mine") },
+              { value: "all", label: t("common.all") },
             ]}
           />
         }
@@ -85,7 +85,7 @@ function TeamBoard() {
             </ColumnShell>
           );
         })}
-        {columns?.length === 0 && <p className="text-base text-ink-faint">Активных проектов пока нет.</p>}
+        {columns?.length === 0 && <p className="text-base text-ink-faint">{t("team.thereAreNoActiveProjects")}</p>}
       </div>
       {cardId && (
         <CardModal

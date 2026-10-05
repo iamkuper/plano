@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Clock } from "lucide-react";
-import { cardKey, type NotificationDto } from "@plano/shared";
+import { cardKey, type NotificationDto, t } from "@plano/shared";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/card-filters";
 import { useRealtime } from "@/lib/realtime";
@@ -11,16 +11,16 @@ import { Avatar } from "./avatar";
 import { Popover, Tooltip } from "./ui";
 
 const VERB: Record<NotificationDto["type"], string> = {
-  ASSIGNED: "назначил(а) вас на",
-  MENTIONED: "упомянул(а) вас в",
-  COMMENTED: "написал(а) в",
+  ASSIGNED: t("notificationBell.assignedYouTo"),
+  MENTIONED: t("notificationBell.mentionedYouIn"),
+  COMMENTED: t("notificationBell.wroteIn"),
   DUE_SOON: "",
   OVERDUE: "",
 };
 
 const SYSTEM_TEXT: Partial<Record<NotificationDto["type"], string>> = {
-  DUE_SOON: "Срок скоро наступит:",
-  OVERDUE: "Срок истёк:",
+  DUE_SOON: t("notificationBell.dueSoon"),
+  OVERDUE: t("notificationBell.overdue"),
 };
 
 // Sidebar bell: assignments, @mentions and messages on your cards. Updates
@@ -46,7 +46,7 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
     <button
       onClick={toggle}
       aria-expanded={open}
-      aria-label={unread ? `Уведомления: ${unread} новых` : "Уведомления"}
+      aria-label={unread ? t("notificationBell.notificationsNew", { unread }) : t("notificationBell.notifications")}
       className="relative grid size-7 place-items-center rounded-md text-chrome-ink-faint transition-colors hover:bg-chrome-hover hover:text-chrome-ink"
     >
       <Bell size={16} strokeWidth={1.75} />
@@ -61,21 +61,22 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
   return (
     <Popover
       align="left"
-      trigger={(open, toggle) => (compact ? <Tooltip label="Уведомления">{button(open, toggle)}</Tooltip> : button(open, toggle))}
+      trigger={(open, toggle) => (compact ? <Tooltip label={t("notificationBell.notifications")}>{button(open, toggle)}</Tooltip> : button(open, toggle))}
     >
       {(close) => (
         <div className="w-[340px]">
           <div className="flex items-center justify-between px-2 pb-1.5 pt-1">
-            <span className="text-sm font-medium">Уведомления</span>
+            <span className="text-sm font-medium">{t("notificationBell.notifications")}</span>
             {unread > 0 && (
               <button onClick={() => api.markNotificationsRead().then(load)} className="text-xs text-accent hover:underline">
-                Прочитать все
+                
+                {t("notificationBell.markAllAsRead")}
               </button>
             )}
           </div>
           <div className="max-h-[420px] overflow-y-auto">
             {items.length === 0 ? (
-              <p className="px-2 py-6 text-center text-sm text-ink-faint">Пока ничего нового</p>
+              <p className="px-2 py-6 text-center text-sm text-ink-faint">{t("notificationBell.nothingNewYet")}</p>
             ) : (
               items.map((n) => (
                 <button
@@ -99,7 +100,7 @@ export function NotificationBell({ compact }: { compact?: boolean }) {
                     {n.text && <span className="mt-0.5 line-clamp-2 block text-sm text-ink-faint">{n.text}</span>}
                     <span className="mt-0.5 block text-xs text-ink-ghost">{timeAgo(n.createdAt)}</span>
                   </span>
-                  {!n.readAt && <span aria-label="Новое" className="mt-1.5 size-2 shrink-0 rounded-full bg-accent" />}
+                  {!n.readAt && <span aria-label={t("notificationBell.new")} className="mt-1.5 size-2 shrink-0 rounded-full bg-accent" />}
                 </button>
               ))
             )}

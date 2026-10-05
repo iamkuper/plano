@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "async_hooks";
 import { Prisma, PrismaClient } from "@prisma/client";
-
+import { t } from "@plano/shared";
 // Tenant isolation lives here, below the services: every query made through
 // the scoped client (PrismaService) is restricted to the current workspace,
 // and a query without a workspace context fails instead of running unscoped.
@@ -112,13 +112,13 @@ export function scopedClient(base: PrismaClient) {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
           const ws = currentWorkspaceId();
-          if (!ws) throw new Error(`Нет контекста рабочего пространства для ${model}.${operation}`);
+          if (!ws) throw new Error(t("api.prisma.noWorkspaceContextFor", { model, operation }));
           if (GLOBAL_READ.has(model)) {
-            if (!READS.has(operation)) throw new Error(`${model} нельзя менять из рабочего пространства`);
+            if (!READS.has(operation)) throw new Error(t("api.prisma.cannotBeChangedFromA", { model }));
             return query(args);
           }
           const scope = SCOPE[model];
-          if (!scope) throw new Error(`Модель ${model} не описана в SCOPE`);
+          if (!scope) throw new Error(t("api.prisma.modelIsNotDescribedIn", { model }));
           const a = (args ?? {}) as Record<string, any>;
 
           if (UNIQUE_WHERE.has(operation)) {

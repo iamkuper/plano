@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { BarChart3, CalendarDays, ChartGantt, Download, KanbanSquare, List, Settings, Table2 } from "lucide-react";
-import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type UserDto } from "@plano/shared";
+import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type UserDto, t } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Board, BoardSkeleton, ProjectFunnel } from "@/components/board";
 import { BulkBar } from "@/components/bulk-bar";
@@ -78,7 +78,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
   return (
     <>
       <PageHeader
-        crumbs={[{ label: "Проекты", href: "/projects" }]}
+        crumbs={[{ label: t("common.projects"), href: "/projects" }]}
         title={project ? project.title : "…"}
         meta={
           project && (
@@ -92,8 +92,8 @@ function ProjectPage({ projectId }: { projectId: string }) {
             {board && <ProjectFunnel columns={board.columns} />}
             <span aria-hidden className="mx-1 h-4 w-px bg-border" />
             <button
-              title="Выгрузить карточки в CSV"
-              aria-label="Выгрузить карточки в CSV"
+              title={t("projects.id.exportCardsToCsv")}
+              aria-label={t("projects.id.exportCardsToCsv")}
               onClick={() => downloadProjectCsv(projectId, project?.title ?? "project").catch((e) => toast((e as Error).message, "error"))}
               className="grid size-7 place-items-center rounded-md text-ink-ghost transition-colors hover:bg-surface-sunken hover:text-ink"
             >
@@ -101,23 +101,23 @@ function ProjectPage({ projectId }: { projectId: string }) {
             </button>
             <Link
               href={`/projects/${projectId}/settings`}
-              title="Настройки проекта"
-              aria-label="Настройки проекта"
+              title={t("common.projectSettings")}
+              aria-label={t("common.projectSettings")}
               className="grid size-7 place-items-center rounded-md text-ink-ghost transition-colors hover:bg-surface-sunken hover:text-ink"
             >
               <Settings size={16} strokeWidth={1.75} />
             </Link>
             <Segmented<View>
-              label="Вид"
+              label={t("projects.id.view")}
               value={view}
               onChange={(v) => setView(v === "kanban" ? null : v)}
               options={[
-                { value: "kanban", label: "Доска", icon: KanbanSquare },
-                { value: "table", label: "Таблица", icon: Table2 },
-                { value: "list", label: "Список", icon: List },
-                { value: "calendar", label: "Календарь", icon: CalendarDays },
-                { value: "gantt", label: "Гант", icon: ChartGantt },
-                { value: "overview", label: "Обзор", icon: BarChart3 },
+                { value: "kanban", label: t("projects.id.board"), icon: KanbanSquare },
+                { value: "table", label: t("projects.id.table"), icon: Table2 },
+                { value: "list", label: t("common.list"), icon: List },
+                { value: "calendar", label: t("projects.id.calendar"), icon: CalendarDays },
+                { value: "gantt", label: t("projects.id.gantt"), icon: ChartGantt },
+                { value: "overview", label: t("common.overview"), icon: BarChart3 },
               ]}
             />
           </>
@@ -132,7 +132,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
           shown={board ? board.columns.reduce((n, c) => n + applyFilters(c.cards, filters).length, 0) : undefined}
         />
       )}
-      {state.error && <p className="py-3 text-sm text-danger">Не удалось загрузить доску: {state.error}</p>}
+      {state.error && <p className="py-3 text-sm text-danger">{t("projects.id.couldNotLoadTheBoard", { error: state.error })}</p>}
       {!board && !state.error && <BoardSkeleton />}
 
       {board && view === "kanban" && (

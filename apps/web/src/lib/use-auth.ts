@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { UserDto } from "@plano/shared";
+import { currentLocale } from "@plano/shared";
+import { setUiLanguage } from "@/components/locale-gate";
 import { api, getToken, UnauthorizedError } from "./api";
 
 const ME_CHANGED = "plano:me-changed";
@@ -22,7 +24,11 @@ export function useAuth() {
       router.replace("/login");
       return;
     }
-    api.me().then(setUser, (err) => {
+    api.me().then((me) => {
+      // The account's language wins over whatever this browser last used.
+      if (me.locale && me.locale !== currentLocale()) setUiLanguage(me.locale);
+      else setUser(me);
+    }, (err) => {
       if (err instanceof UnauthorizedError) router.replace("/login");
     });
     const onChange = (e: Event) => setUser((e as CustomEvent<UserDto>).detail);

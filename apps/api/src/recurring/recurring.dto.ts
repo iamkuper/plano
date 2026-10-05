@@ -1,9 +1,9 @@
 import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from "class-validator";
 import { CardPriority, RecurrenceFrequency } from "@prisma/client";
-
+import { t } from "@plano/shared";
 export class SaveRecurringDto {
   @IsString()
-  @MinLength(1, { message: "Укажите название задачи" })
+  @MinLength(1, { message: () => t("common.enterATaskName") })
   @MaxLength(200)
   title!: string;
 
@@ -62,7 +62,7 @@ export class SaveRecurringDto {
   dueInDays?: number | null;
 
   // First run on or after this day (YYYY-MM-DD).
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: "Укажите дату начала" })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: () => t("api.recurring.enterAStartDate") })
   startDate!: string;
 }
 

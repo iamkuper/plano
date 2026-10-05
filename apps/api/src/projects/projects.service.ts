@@ -9,7 +9,7 @@ import { UpdateProjectDto } from "./dto/update-project.dto";
 import { CARD_FIELDS, OWN_FIELDS, changedFields } from "../prisma/tenant";
 import { BillingService } from "../billing/billing.service";
 import { AuditService } from "../audit/audit.service";
-
+import { t } from "@plano/shared";
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -42,7 +42,7 @@ export class ProjectsService {
       where: { id },
       include: { board: { select: { id: true } } },
     });
-    if (!project) throw new NotFoundException("Проект не найден");
+    if (!project) throw new NotFoundException(t("common.projectNotFound"));
     return project;
   }
 
@@ -57,7 +57,7 @@ export class ProjectsService {
           include: { cards: { orderBy: { position: "asc" } } },
         })
       : null;
-    if (dto.templateId && !template) throw new NotFoundException("Шаблон не найден");
+    if (dto.templateId && !template) throw new NotFoundException(t("api.projects.templateNotFound"));
 
     const columnTitles = template?.columns.length ? template.columns : (await this.settings.get()).defaultColumns;
 
@@ -100,13 +100,13 @@ export class ProjectsService {
       await this.prisma.project.delete({ where: { id: project.id } }).catch(() => {});
       throw e;
     }
-    await this.audit.record("project.create", `Создан проект «${project.title}»`, project.id);
+    await this.audit.record("project.create", t("api.projects.projectCreated", { title: project.title }), project.id);
     return project;
   }
 
   async update(id: string, dto: UpdateProjectDto) {
     const project = await this.prisma.project.update({ where: { id }, data: dto });
-    await this.audit.record("project.update", `Изменён проект «${project.title}»: ${changedFields(dto)}`, id);
+    await this.audit.record("project.update", t("api.projects.projectChanged", { title: project.title, changedFields: changedFields(dto) }), id);
     this.realtime.boardChanged(id);
     return project;
   }
@@ -116,7 +116,7 @@ export class ProjectsService {
     const purge = await this.attachments.filesOf({ card: { projectId: id } });
     const doomed = await this.prisma.project.findUnique({ where: { id }, select: { title: true } });
     await this.prisma.project.delete({ where: { id } });
-    await this.audit.record("project.delete", `Удалён проект «${doomed?.title ?? id}»`, id);
+    await this.audit.record("project.delete", t("api.projects.projectDeleted", { id: doomed?.title ?? id }), id);
     await purge();
     this.realtime.boardChanged(id);
   }

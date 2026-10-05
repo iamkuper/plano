@@ -2,13 +2,13 @@
 
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cardKey, type ColumnDto } from "@plano/shared";
+import { cardKey, type ColumnDto, t, intlTag } from "@plano/shared";
 import { api } from "@/lib/api";
 import { applyFilters, type CardFilters } from "@/lib/card-filters";
 import { toast } from "@/lib/toast";
 import { typeStyle } from "./card-type-icon";
 
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
+const WEEKDAYS = [t("cardsCalendar.mon"), t("cardsCalendar.tue"), t("cardsCalendar.wed"), t("cardsCalendar.thu"), t("cardsCalendar.fri"), t("cardsCalendar.sat"), t("cardsCalendar.sun")];
 const MAX_PER_DAY = 3;
 
 const dayKey = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -66,26 +66,27 @@ export function CardsCalendar({
   }
 
   const shift = (n: number) => setMonth(new Date(month.getFullYear(), month.getMonth() + n, 1));
-  const monthName = month.toLocaleDateString("ru-RU", { month: "long" });
+  const monthName = month.toLocaleDateString(intlTag(), { month: "long" });
   const title = `${monthName[0].toUpperCase()}${monthName.slice(1)} ${month.getFullYear()}`;
 
   return (
     <div className="py-3">
       <div className="mb-3 flex items-center gap-2">
         <h2 className="min-w-40 text-md font-medium">{title}</h2>
-        <button onClick={() => shift(-1)} aria-label="Предыдущий месяц" className="grid size-7 place-items-center rounded-md text-ink-faint hover:bg-surface-soft hover:text-ink">
+        <button onClick={() => shift(-1)} aria-label={t("cardsCalendar.previousMonth")} className="grid size-7 place-items-center rounded-md text-ink-faint hover:bg-surface-soft hover:text-ink">
           <ChevronLeft size={16} />
         </button>
-        <button onClick={() => shift(1)} aria-label="Следующий месяц" className="grid size-7 place-items-center rounded-md text-ink-faint hover:bg-surface-soft hover:text-ink">
+        <button onClick={() => shift(1)} aria-label={t("cardsCalendar.nextMonth")} className="grid size-7 place-items-center rounded-md text-ink-faint hover:bg-surface-soft hover:text-ink">
           <ChevronRight size={16} />
         </button>
         <button
           onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}
           className="h-7 rounded-md px-2.5 text-sm text-ink-faint hover:bg-surface-soft hover:text-ink"
         >
-          Сегодня
+          
+          {t("common.today")}
         </button>
-        {withoutDue > 0 && <span className="ml-auto text-xs text-ink-ghost">Без срока: {withoutDue}</span>}
+        {withoutDue > 0 && <span className="ml-auto text-xs text-ink-ghost">{t("cardsCalendar.noDueDate", { withoutDue })}</span>}
       </div>
 
       <div className="overflow-hidden rounded-lg border border-border">
@@ -141,9 +142,7 @@ export function CardsCalendar({
                     );
                   })}
                   {list.length > MAX_PER_DAY && expanded !== k && (
-                    <button onClick={() => setExpanded(k)} className="px-1 text-xs text-ink-faint hover:text-ink">
-                      ещё {list.length - MAX_PER_DAY}
-                    </button>
+                    <button onClick={() => setExpanded(k)} className="px-1 text-xs text-ink-faint hover:text-ink"> {t("cardsCalendar.more", { MAX_PER_DAY: list.length - MAX_PER_DAY })} </button>
                   )}
                 </div>
               </div>

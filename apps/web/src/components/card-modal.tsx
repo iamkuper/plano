@@ -12,6 +12,8 @@ import {
   type CardDetailDto,
   type AttachmentDto,
   type UserDto,
+  t,
+  intlTag,
 } from "@plano/shared";
 import { useCan } from "@/lib/permissions";
 import { api, uploadAttachment, type CardPatch } from "@/lib/api";
@@ -45,17 +47,16 @@ import {
 import { toast } from "@/lib/toast";
 import { useDebounced, useRealtime } from "@/lib/realtime";
 import { MessageComposer, MessageText } from "./message-composer";
-import { plural } from "./board-toolbar";
 
 function formatMinutes(total: number) {
   const h = Math.floor(total / 60);
   const m = total % 60;
-  if (!h) return `${m} мин`;
-  return m ? `${h} ч ${m} мин` : `${h} ч`;
+  if (!h) return t("common.min", { m });
+  return m ? t("common.hMin", { h, m }) : t("common.h", { h });
 }
 
 function formatDateTime(iso: string) {
-  return new Date(iso).toLocaleString("ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleString(intlTag(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 }
 
 // "1.5", "1,5", "1:30", "90м" → minutes. Plain numbers are hours.
@@ -78,13 +79,13 @@ function dayLabel(iso: string) {
   const today = new Date();
   const yesterday = new Date();
   yesterday.setDate(today.getDate() - 1);
-  if (d.toDateString() === today.toDateString()) return "Сегодня";
-  if (d.toDateString() === yesterday.toDateString()) return "Вчера";
-  return d.toLocaleDateString("ru-RU", { day: "numeric", month: "long", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
+  if (d.toDateString() === today.toDateString()) return t("common.today");
+  if (d.toDateString() === yesterday.toDateString()) return t("cardModal.yesterday");
+  return d.toLocaleDateString(intlTag(), { day: "numeric", month: "long", year: d.getFullYear() === today.getFullYear() ? undefined : "numeric" });
 }
 
 function timeLabel(iso: string) {
-  return new Date(iso).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" });
+  return new Date(iso).toLocaleTimeString(intlTag(), { hour: "2-digit", minute: "2-digit" });
 }
 
 function today() {
@@ -96,14 +97,14 @@ function describeActivity(a: ActivityDto) {
   const payload = a.payload as Record<string, string> | string[] | null;
   switch (a.action) {
     case "created":
-      return "создал(а) карточку";
+      return t("cardModal.createdTheCard");
     case "moved":
-      return `перенёс(ла) из «${(payload as Record<string, string>).from}» в «${(payload as Record<string, string>).to}»`;
+      return t("cardModal.movedFromTo", { from: (payload as Record<string, string>).from, to: (payload as Record<string, string>).to });
     case "commented":
-      return "оставил(а) комментарий";
+      return t("cardModal.leftAComment");
     case "updated": {
       const fields = Array.isArray(payload) ? payload.map((f) => CARD_FIELD_LABELS[f] ?? f) : [];
-      return fields.length ? `изменил(а) ${fields.join(", ")}` : "изменил(а) карточку";
+      return fields.length ? t("cardModal.changed", { join: fields.join(", ") }) : t("cardModal.changedTheCard");
     }
     default:
       return a.action;
@@ -200,8 +201,8 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
 
   if (!card) {
     return (
-      <Modal label="Карточка задачи" onClose={close}>
-        <div className="p-10 text-center text-base text-ink-faint">{error ?? "Загрузка…"}</div>
+      <Modal label={t("cardModal.taskCard")} onClose={close}>
+        <div className="p-10 text-center text-base text-ink-faint">{error ?? t("common.loading")}</div>
       </Modal>
     );
   }
@@ -218,7 +219,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
   async function remove() {
     try {
       await api.deleteCard(cardId);
-      toast(`Карточка ${cardKey(card!)} удалена`, "success");
+      toast(t("cardModal.cardDeleted", { cardKey: cardKey(card!) }), "success");
       onClose(true);
     } catch (e) {
       setConfirmingDelete(false);
@@ -246,7 +247,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
   const canDeleteFile = (a: AttachmentDto) => a.uploaderId === me?.id || me?.role === "ADMIN";
 
   return (
-    <Modal label="Карточка задачи" onClose={close}>
+    <Modal label={t("cardModal.taskCard")} onClose={close}>
       {/* Header — same anatomy as the card's top row */}
       <div className="flex h-12 shrink-0 items-center gap-1.5 border-b border-border pl-5 pr-3 text-sm">
         <LetterMark name={card.project.title} size={18} />
@@ -256,7 +257,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
         {card.recurringRule && (
           <Link
             href={`/projects/${card.project.id}/settings`}
-            title="Создана повторяющимся правилом — изменить в настройках проекта"
+            title={t("cardModal.createdByARecurringRule")}
             className={`ml-2 flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs ${card.recurringRule.active ? "bg-accent-soft text-accent" : "bg-surface-sunken text-ink-faint"}`}
           >
             <Repeat size={12} /> {describeRecurrence(card.recurringRule)}
@@ -264,7 +265,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
         )}
         <div className="ml-auto flex items-center gap-0.5 text-ink-faint">
           <IconButton
-            title={copied ? "Ссылка скопирована" : "Скопировать ссылку"}
+            title={copied ? t("common.linkCopied") : t("cardModal.copyLink")}
             onClick={() => {
               navigator.clipboard?.writeText(window.location.href).then(() => {
                 setCopied(true);
@@ -276,12 +277,12 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
           </IconButton>
           <Menu
             items={[
-              { label: "Сделать повторяющейся", icon: Repeat, onClick: () => setRepeating(true) },
-              { label: "Прикрепить файл", icon: Paperclip, onClick: () => document.getElementById(`files-${cardId}`)?.click() },
-              ...(allowed("cards.delete") ? [{ label: "Удалить карточку", icon: Trash2, onClick: () => setConfirmingDelete(true), danger: true }] : []),
+              { label: t("common.makeRecurring"), icon: Repeat, onClick: () => setRepeating(true) },
+              { label: t("common.attachAFile"), icon: Paperclip, onClick: () => document.getElementById(`files-${cardId}`)?.click() },
+              ...(allowed("cards.delete") ? [{ label: t("cardModal.deleteCard"), icon: Trash2, onClick: () => setConfirmingDelete(true), danger: true }] : []),
             ]}
           />
-          <IconButton onClick={close} title="Закрыть (Esc)">
+          <IconButton onClick={close} title={t("cardModal.closeEsc")}>
             <X size={17} strokeWidth={1.5} />
           </IconButton>
         </div>
@@ -309,11 +310,12 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
         >
           {dragging && (
             <div className="pointer-events-none absolute inset-3 z-10 grid place-items-center rounded-xl border-2 border-dashed border-accent bg-accent-soft/80 text-sm font-medium text-accent">
-              Отпустите, чтобы прикрепить файлы
+              
+              {t("cardModal.releaseToAttachTheFiles")}
             </div>
           )}
           <textarea
-            aria-label="Название"
+            aria-label={t("common.name2")}
             className="-mx-2 w-[calc(100%+16px)] resize-none rounded-md border border-transparent px-2 py-1 text-2xl font-semibold text-ink outline-none transition-colors hover:bg-surface-soft focus:border-accent focus:bg-surface"
             rows={1}
             value={title}
@@ -322,9 +324,9 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
             onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
           />
           <textarea
-            aria-label="Описание"
+            aria-label={t("common.description")}
             className="-mx-2 mt-1 min-h-[64px] w-[calc(100%+16px)] resize-none rounded-md border border-transparent px-2 py-1.5 text-base leading-6 text-ink-soft outline-none transition-colors placeholder:text-ink-ghost hover:bg-surface-soft focus:border-accent focus:bg-surface"
-            placeholder="Добавьте описание"
+            placeholder={t("cardModal.addADescription")}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             onBlur={() => description !== (card.description ?? "") && save({ description: description || null })}
@@ -332,7 +334,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
 
           {/* Properties — the same fields as every form in the app */}
           <section className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 xl:grid-cols-3">
-            <Field label="Статус">
+            <Field label={t("common.status")}>
               {(a) => (
                 <div className="relative">
                   <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2">
@@ -349,19 +351,19 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
               )}
             </Field>
 
-            <Field label="Исполнители">
+            <Field label={t("common.assignees")}>
               {(a) => (
                 <Popover
                   align="left"
                   trigger={(open, toggle) => (
                     <button {...a} type="button" onClick={toggle} aria-expanded={open} className={`${inputClass} flex items-center gap-2 text-left`}>
                       {card.assignees.length === 0 ? (
-                        <span className="text-ink-ghost">Не назначены</span>
+                        <span className="text-ink-ghost">{t("cardModal.notAssigned")}</span>
                       ) : (
                         <>
                           <AvatarStack users={card.assignees.map((a) => a.user)} size={18} />
                           <span className="min-w-0 flex-1 truncate">
-                            {card.assignees.length === 1 ? card.assignees[0].user.name : `${card.assignees.length} ${plural(card.assignees.length, "исполнитель", "исполнителя", "исполнителей")}`}
+                            {card.assignees.length === 1 ? card.assignees[0].user.name : t("plural.assignees", { count: card.assignees.length })}
                           </span>
                         </>
                       )}
@@ -391,11 +393,11 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
               )}
             </Field>
 
-            <Field label="Метки">
+            <Field label={t("common.labels")}>
               {(a) => <LabelPicker field={a} selected={card.labels.map((l) => l.label)} onChange={(ids) => save({ labelIds: ids })} />}
             </Field>
 
-            <Field label="Тип">
+            <Field label={t("common.type")}>
               {(a) => (
                 <div className="relative">
                   <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2" style={{ color: typeColor }}>
@@ -412,7 +414,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
               )}
             </Field>
 
-            <Field label="Приоритет">
+            <Field label={t("common.priority")}>
               {(a) => (
                 <div className="relative">
                   <span
@@ -430,7 +432,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
               )}
             </Field>
 
-            <Field label="Начало">
+            <Field label={t("common.start2")}>
               {(a) => (
                 <Input
                   {...a}
@@ -442,7 +444,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
               )}
             </Field>
 
-            <Field label="Срок">
+            <Field label={t("common.dueDate")}>
               {(a) => (
                 <Input
                   {...a}
@@ -456,13 +458,13 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
 
             <CustomFieldInputs card={card} canEdit={hasFields} onChanged={reloadCard} />
 
-            <Field label="Оценка, часов">
+            <Field label={t("cardModal.estimateHours")}>
               {(a) => (
                 <Input
                   {...a}
                   type="number"
                   min={0}
-                  placeholder="Не задана"
+                  placeholder={t("cardModal.notSet")}
                   defaultValue={card.estimateHours ?? ""}
                   key={card.estimateHours ?? "none"}
                   onBlur={(e) => {
@@ -477,12 +479,10 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
           {/* Subtasks */}
           <section className="mt-8">
             <header className="mb-2 flex items-center gap-2">
-              <h3 className="text-sm font-medium">Подзадачи</h3>
+              <h3 className="text-sm font-medium">{t("common.subtasks")}</h3>
               {card.checklist.length > 0 && (
                 <>
-                  <span className="text-xs text-ink-ghost">
-                    {doneCount} из {card.checklist.length}
-                  </span>
+                  <span className="text-xs text-ink-ghost"> {t("cardModal.of", { doneCount, checklist: card.checklist.length })} </span>
                   <div className="ml-auto w-24">
                     <ShareBar value={doneCount / card.checklist.length} tone="success" />
                   </div>
@@ -498,7 +498,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
                     size="sm"
                     className="opacity-0 group-hover:opacity-100 focus:opacity-100"
                     onClick={() => run(() => api.deleteChecklistItem(item.id))}
-                    title="Удалить подзадачу"
+                    title={t("cardModal.deleteSubtask")}
                   >
                     <Trash2 size={14} strokeWidth={1.75} />
                   </IconButton>
@@ -516,9 +516,9 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
               >
                 <Plus size={16} strokeWidth={1.75} className="shrink-0 text-ink-ghost" />
                 <input
-                  aria-label="Новая подзадача"
+                  aria-label={t("cardModal.newSubtask")}
                   className="h-10 flex-1 bg-transparent text-base outline-none placeholder:text-ink-ghost"
-                  placeholder="Добавить подзадачу"
+                  placeholder={t("cardModal.addSubtask")}
                   value={newItem}
                   onChange={(e) => setNewItem(e.target.value)}
                 />
@@ -529,10 +529,10 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
           {/* Files */}
           <section className="mt-8">
             <header className="mb-2 flex items-center gap-2">
-              <h3 className="text-sm font-medium">Файлы</h3>
+              <h3 className="text-sm font-medium">{t("common.files")}</h3>
               {card.attachments.length > 0 && <span className="text-xs text-ink-ghost">{card.attachments.length}</span>}
               <Button size="sm" variant="ghost" className="ml-auto" onClick={() => document.getElementById(`files-${cardId}`)?.click()}>
-                <Paperclip size={14} /> Прикрепить
+                <Paperclip size={14} />  {t("cardModal.attach")}
               </Button>
               <input
                 id={`files-${cardId}`}
@@ -567,7 +567,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
                   onClick={() => document.getElementById(`files-${cardId}`)?.click()}
                   className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-border-strong py-4 text-sm text-ink-faint transition-colors hover:border-accent hover:text-accent"
                 >
-                  <Paperclip size={15} /> Перетащите файлы сюда или выберите — до 20 МБ каждый
+                  <Paperclip size={15} />  {t("cardModal.dropFilesHereOrChoose")}
                 </button>
               )
             )}
@@ -576,10 +576,10 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
           {/* Time tracking */}
           <section className="mt-8">
             <header className="mb-2 flex items-center gap-2">
-              <h3 className="text-sm font-medium">Учёт времени</h3>
+              <h3 className="text-sm font-medium">{t("cardModal.timeTracking")}</h3>
               <span className={`text-xs ${over ? "font-medium text-danger" : "text-ink-ghost"}`}>
                 {formatMinutes(loggedMinutes)}
-                {estimateMinutes !== null && ` из ${formatMinutes(estimateMinutes)}`}
+                {estimateMinutes !== null && t("cardModal.of2", { formatMinutes: formatMinutes(estimateMinutes) })}
               </span>
               {estimateMinutes !== null && estimateMinutes > 0 && (
                 <div className="ml-auto w-24">
@@ -593,7 +593,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
                 e.preventDefault();
                 const minutes = parseDuration(duration);
                 if (!minutes) {
-                  setError("Укажите время, например 1.5, 1:30 или 45м");
+                  setError(t("cardModal.enterATimeForExample"));
                   return;
                 }
                 setDuration("");
@@ -602,32 +602,32 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
               }}
             >
               <div className="w-24 shrink-0">
-                <Input aria-label="Сколько времени" placeholder="1:30" value={duration} onChange={(e) => setDuration(e.target.value)} />
+                <Input aria-label={t("cardModal.howLong")} placeholder="1:30" value={duration} onChange={(e) => setDuration(e.target.value)} />
               </div>
               <div className="w-40 shrink-0">
-                <Input aria-label="Дата" type="date" value={timeDate} onChange={(e) => setTimeDate(e.target.value)} />
+                <Input aria-label={t("common.date")} type="date" value={timeDate} onChange={(e) => setTimeDate(e.target.value)} />
               </div>
               <div className="min-w-[160px] flex-1">
-                <Input aria-label="Что делали" placeholder="Что делали" value={timeNote} onChange={(e) => setTimeNote(e.target.value)} />
+                <Input aria-label={t("cardModal.whatWasDone")} placeholder={t("cardModal.whatWasDone")} value={timeNote} onChange={(e) => setTimeNote(e.target.value)} />
               </div>
-              <Button variant="primary">Списать</Button>
+              <Button variant="primary">{t("cardModal.log")}</Button>
             </form>
             {card.timeEntries.length > 0 && (
               <div className="mt-3 overflow-hidden rounded-lg border border-border">
-                {card.timeEntries.map((t) => (
-                  <div key={t.id} className="group flex h-10 items-center gap-3 border-b border-border px-3 text-sm last:border-b-0">
-                    <Avatar user={t.user} size={20} />
-                    <span className="w-16 shrink-0 font-medium">{formatMinutes(t.minutes)}</span>
-                    <span className="min-w-0 flex-1 truncate text-ink-soft">{t.note ?? "Без комментария"}</span>
+                {card.timeEntries.map((entry) => (
+                  <div key={entry.id} className="group flex h-10 items-center gap-3 border-b border-border px-3 text-sm last:border-b-0">
+                    <Avatar user={entry.user} size={20} />
+                    <span className="w-16 shrink-0 font-medium">{formatMinutes(entry.minutes)}</span>
+                    <span className="min-w-0 flex-1 truncate text-ink-soft">{entry.note ?? t("cardModal.noComment")}</span>
                     <span className="shrink-0 text-xs text-ink-ghost">
-                      {new Date(t.date).toLocaleDateString("ru-RU", { day: "numeric", month: "short" })}
+                      {new Date(entry.date).toLocaleDateString(intlTag(), { day: "numeric", month: "short" })}
                     </span>
-                    {(t.user.id === me?.id || me?.role === "ADMIN") && (
+                    {(entry.user.id === me?.id || me?.role === "ADMIN") && (
                       <IconButton
                         size="sm"
                         className="opacity-0 group-hover:opacity-100 focus:opacity-100"
-                        onClick={() => run(() => api.deleteTimeEntry(t.id))}
-                        title="Удалить запись"
+                        onClick={() => run(() => api.deleteTimeEntry(entry.id))}
+                        title={t("cardModal.deleteEntry")}
                       >
                         <Trash2 size={13} strokeWidth={1.75} />
                       </IconButton>
@@ -643,12 +643,12 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
         <aside className="flex min-h-[320px] w-full shrink-0 flex-col border-t border-border bg-surface-soft md:w-[380px] md:border-l md:border-t-0">
           <div className="flex h-11 shrink-0 items-center border-b border-border px-3">
             <Segmented
-              label="Обсуждение"
+              label={t("cardModal.discussion")}
               value={tab}
               onChange={setTab}
               options={[
-                { value: "comments", label: "Обсуждение", count: card.comments.length || undefined },
-                { value: "activity", label: "История" },
+                { value: "comments", label: t("cardModal.discussion"), count: card.comments.length || undefined },
+                { value: "activity", label: t("cardModal.history") },
               ]}
             />
           </div>
@@ -659,8 +659,8 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
                 {card.comments.length === 0 ? (
                   <div className="flex h-full flex-col items-center justify-center text-center">
                     <MessageSquare size={20} strokeWidth={1.75} className="text-ink-ghost" />
-                    <p className="mt-2 text-sm text-ink-faint">Сообщений пока нет</p>
-                    <p className="mt-0.5 max-w-[240px] text-xs text-ink-ghost">Вопросы и договорённости по задаче пишите здесь — их увидит вся команда.</p>
+                    <p className="mt-2 text-sm text-ink-faint">{t("cardModal.noMessagesYet")}</p>
+                    <p className="mt-0.5 max-w-[240px] text-xs text-ink-ghost">{t("cardModal.writeQuestionsAndAgreementsAbout")}</p>
                   </div>
                 ) : (
                   <div className="space-y-1">
@@ -702,7 +702,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
                                 size="sm"
                                 className="mb-0.5 opacity-0 group-hover:opacity-100 focus:opacity-100"
                                 onClick={() => run(() => api.deleteComment(c.id))}
-                                title="Удалить сообщение"
+                                title={t("cardModal.deleteMessage")}
                               >
                                 <Trash2 size={13} strokeWidth={1.75} />
                               </IconButton>
@@ -756,9 +756,9 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
       )}
       {confirmingDelete && (
         <ConfirmDialog
-          title={`Удалить карточку ${cardKey(card)}?`}
-          body={<>«{card.title}» удалится вместе с подзадачами, комментариями и записями времени.</>}
-          confirmLabel="Удалить карточку"
+          title={t("cardModal.deleteCard2", { cardKey: cardKey(card) })}
+          body={<>{t("cardModal.willBeDeletedTogetherWith", { title: card.title })}</>}
+          confirmLabel={t("cardModal.deleteCard")}
           onConfirm={remove}
           onClose={() => setConfirmingDelete(false)}
         />

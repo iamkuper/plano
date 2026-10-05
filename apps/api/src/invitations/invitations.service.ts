@@ -7,7 +7,7 @@ import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { appUrl, hashToken, newToken } from "../auth/tokens";
 import { AuditService } from "../audit/audit.service";
-
+import { currentLocale, t } from "@plano/shared";
 export const INVITE_TTL_MS = 7 * 86_400_000;
 
 @Injectable()
@@ -34,7 +34,7 @@ export class InvitationsService {
     const email = dto.email.trim();
     await this.billing.assertWithin("users");
     if (await this.system.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } })) {
-      throw new ConflictException("Эта почта уже зарегистрирована");
+      throw new ConflictException(t("common.thisEmailIsAlreadyRegistered"));
     }
     const role = dto.role ?? "MEMBER";
     const roleId = role === "ADMIN" ? null : (dto.roleId ?? (await this.prisma.role.findFirst({ where: { isDefault: true } }))?.id ?? null);
@@ -48,10 +48,10 @@ export class InvitationsService {
     const link = `${appUrl()}/invite/${token}`;
     const sent = await this.mail.send(
       email,
-      `Приглашение в «${workspace.name}»`,
-      `${inviter.name} приглашает вас в рабочее пространство «${workspace.name}» в Plano.\n\nПринять приглашение и задать пароль:\n${link}\n\nСсылка действует 7 дней.`,
+      t("api.invitations.invitationTo", { name: workspace.name }),
+      t("api.invitations.invitesYouToTheWorkspace", { name: inviter.name, name2: workspace.name, link }),
     );
-    await this.audit.record("invitation.create", `Приглашение для ${email}`, invitation.id);
+    await this.audit.record("invitation.create", t("api.invitations.invitationFor", { email }), invitation.id);
     return { id: invitation.id, email, link, emailSent: sent };
   }
 
@@ -63,7 +63,7 @@ export class InvitationsService {
 
   private async find(token: string) {
     const inv = await this.system.invitation.findUnique({ where: { tokenHash: hashToken(token) }, include: { workspace: { select: { name: true } } } });
-    if (!inv || inv.acceptedAt || inv.expiresAt <= new Date()) throw new NotFoundException("Приглашение недействительно или устарело");
+    if (!inv || inv.acceptedAt || inv.expiresAt <= new Date()) throw new NotFoundException(t("api.invitations.theInvitationIsInvalidOr"));
     return inv;
   }
 
@@ -77,11 +77,11 @@ export class InvitationsService {
   async accept(token: string, name: string, password: string, hash: (p: string) => Promise<string>) {
     const inv = await this.find(token);
     if (await this.system.user.findFirst({ where: { email: { equals: inv.email, mode: "insensitive" } } })) {
-      throw new ConflictException("Эта почта уже зарегистрирована. Войдите в аккаунт");
+      throw new ConflictException(t("api.invitations.thisEmailIsAlreadyRegistered"));
     }
     await this.assertRoom(inv.workspaceId);
     const claimed = await this.system.invitation.updateMany({ where: { id: inv.id, acceptedAt: null }, data: { acceptedAt: new Date() } });
-    if (!claimed.count) throw new NotFoundException("Приглашение уже использовано");
+    if (!claimed.count) throw new NotFoundException(t("api.invitations.theInvitationHasAlreadyBeen"));
     const role = inv.roleId ? await this.system.role.findFirst({ where: { id: inv.roleId, workspaceId: inv.workspaceId } }) : null;
     return this.system.user.create({
       data: {
@@ -90,6 +90,7 @@ export class InvitationsService {
         name: name.trim(),
         passwordHash: await hash(password),
         role: inv.role,
+        locale: currentLocale(),
         roleId: inv.role === "ADMIN" ? null : (role?.id ?? null),
       },
     });
@@ -98,10 +99,10 @@ export class InvitationsService {
   // Seats may have run out since the invitation was sent.
   private async assertRoom(workspaceId: string) {
     const sub = await this.system.subscription.findUnique({ where: { workspaceId } });
-    if (isLocked(sub)) throw new BadRequestException("Рабочее пространство сейчас в режиме чтения. Попросите администратора оплатить тариф");
+    if (isLocked(sub)) throw new BadRequestException(t("api.invitations.theWorkspaceIsReadOnly"));
     const plan = await this.billing.effectivePlan(workspaceId);
     if (plan.maxUsers === null) return;
     const users = await this.system.user.count({ where: { workspaceId, isActive: true } });
-    if (users >= plan.maxUsers) throw new BadRequestException(`В рабочем пространстве уже ${users} пользователей, максимум на тарифе ${plan.name}. Попросите администратора освободить место`);
+    if (users >= plan.maxUsers) throw new BadRequestException(t("api.invitations.theWorkspaceAlreadyHasUsers", { users, name: plan.name }));
   }
 }

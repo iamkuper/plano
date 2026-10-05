@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { api, setToken } from "@/lib/api";
 import { AuthCard } from "@/components/auth-card";
 import { Button, Field, Input } from "@/components/ui";
-
+import { t } from "@plano/shared";
 export default function InvitePage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
@@ -34,27 +34,28 @@ export default function InvitePage() {
 
   if (invalid) {
     return (
-      <AuthCard title="Приглашение недействительно" subtitle={invalid} onSubmit={(e) => e.preventDefault()}>
-        <p className="text-base">Попросите администратора отправить новое приглашение.</p>
+      <AuthCard title={t("invite.token.invitationIsNotValid")} subtitle={invalid} onSubmit={(e) => e.preventDefault()}>
+        <p className="text-base">{t("invite.token.askAnAdministratorToSend")}</p>
         <Link href="/login" className="text-sm font-medium text-accent hover:underline">
-          Ко входу
+          
+          {t("invite.token.toSignIn")}
         </Link>
       </AuthCard>
     );
   }
 
   return (
-    <AuthCard title={invite ? `Присоединиться к «${invite.workspaceName}»` : "Приглашение"} subtitle={invite?.email ?? "Загрузка…"} onSubmit={submit}>
+    <AuthCard title={invite ? t("invite.token.join", { workspaceName: invite.workspaceName }) : t("invite.token.invitation")} subtitle={invite?.email ?? t("common.loading")} onSubmit={submit}>
       {invite && (
         <>
-          <Field label="Ваше имя">
+          <Field label={t("common.yourName")}>
             {(a) => <Input {...a} value={name} onChange={(e) => setName(e.target.value)} autoFocus />}
           </Field>
-          <Field label="Пароль">
-            {(a) => <Input {...a} type="password" placeholder="от 8 символов" value={password} onChange={(e) => setPassword(e.target.value)} />}
+          <Field label={t("common.password")}>
+            {(a) => <Input {...a} type="password" placeholder={t("common.atLeast8Characters")} value={password} onChange={(e) => setPassword(e.target.value)} />}
           </Field>
           {error && <p className="text-base text-danger">{error}</p>}
-          <Button variant="primary" className="w-full py-2.5">Принять приглашение</Button>
+          <Button variant="primary" className="w-full py-2.5">{t("invite.token.acceptInvitation")}</Button>
         </>
       )}
     </AuthCard>

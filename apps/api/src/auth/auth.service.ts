@@ -7,10 +7,10 @@ import { MailService } from "../mail/mail.service";
 import { appUrl, hashToken, newToken } from "./tokens";
 import { LoginDto } from "./dto/login.dto";
 import { randomUUID } from "crypto";
-import { DEFAULT_TYPE_NAME, templateCreateData } from "../templates/default-template";
+import { DEFAULT_TEMPLATES, DEFAULT_TYPE_NAME, templateCreateData } from "../templates/default-template";
 import { RegisterDto } from "./dto/register.dto";
 import { TRIAL_DAYS } from "../billing/billing.service";
-
+import { currentLocale, t } from "@plano/shared";
 const RESET_TTL_MS = 60 * 60_000;
 
 @Injectable()
@@ -32,9 +32,9 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const email = dto.email.trim();
     if (await this.prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } })) {
-      throw new ConflictException("Эта почта уже зарегистрирована");
+      throw new ConflictException(t("common.thisEmailIsAlreadyRegistered"));
     }
-    const locale = dto.locale ?? "ru";
+    const locale = dto.locale ?? currentLocale();
     const typeId = randomUUID();
     const user = await this.prisma.user.create({
       data: {
@@ -42,9 +42,11 @@ export class AuthService {
         name: dto.name.trim(),
         passwordHash: await bcrypt.hash(dto.password, 10),
         role: "ADMIN",
+        locale,
         workspace: {
           create: {
             name: dto.workspaceName.trim(),
+            defaultColumns: DEFAULT_TEMPLATES[locale].columns,
             taskTypes: { create: { id: typeId, name: DEFAULT_TYPE_NAME[locale], isDefault: true } },
             subscription: { create: { planId: "PRO", status: "TRIALING", trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) } },
           },
@@ -59,7 +61,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (!user?.isActive || !(await bcrypt.compare(dto.password, user.passwordHash))) {
-      throw new UnauthorizedException("Неверная почта или пароль");
+      throw new UnauthorizedException(t("api.auth.wrongEmailOrPassword"));
     }
     return this.issueToken(user.id, user.email);
   }
@@ -84,16 +86,16 @@ export class AuthService {
     await this.prisma.passwordReset.create({ data: { userId: user.id, tokenHash: hashToken(token), expiresAt: new Date(Date.now() + RESET_TTL_MS) } });
     await this.mail.send(
       user.email,
-      "Сброс пароля в Plano",
-      `Чтобы задать новый пароль, откройте ссылку:\n${appUrl()}/reset/${token}\n\nСсылка действует 1 час. Если вы не запрашивали сброс, просто проигнорируйте письмо.`,
+      t("api.auth.planoPasswordReset"),
+      t("api.auth.toSetANewPassword", { appUrl: appUrl(), token }),
     );
   }
 
   async resetPassword(token: string, password: string) {
     const reset = await this.prisma.passwordReset.findUnique({ where: { tokenHash: hashToken(token) } });
-    if (!reset || reset.usedAt || reset.expiresAt <= new Date()) throw new BadRequestException("Ссылка недействительна или устарела. Запросите сброс заново");
+    if (!reset || reset.usedAt || reset.expiresAt <= new Date()) throw new BadRequestException(t("api.auth.theLinkIsInvalidOr"));
     const claimed = await this.prisma.passwordReset.updateMany({ where: { id: reset.id, usedAt: null }, data: { usedAt: new Date() } });
-    if (!claimed.count) throw new BadRequestException("Ссылка уже использована");
+    if (!claimed.count) throw new BadRequestException(t("api.auth.theLinkHasAlreadyBeen"));
     await this.prisma.user.update({ where: { id: reset.userId }, data: { passwordHash: await bcrypt.hash(password, 10) } });
     // Older links of this user stop working too.
     await this.prisma.passwordReset.updateMany({ where: { userId: reset.userId, usedAt: null }, data: { usedAt: new Date() } });

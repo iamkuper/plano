@@ -28,7 +28,7 @@ import type {
   UserDto,
   UserRole,
 } from "@plano/shared";
-
+import { currentLocale, t, type Locale } from "@plano/shared";
 export interface InvitationDto {
   id: string;
   email: string;
@@ -111,7 +111,7 @@ export async function downloadProjectCsv(projectId: string, fallbackName: string
   const res = await fetch(`${API_URL}/projects/${projectId}/export.csv`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.message ?? `Не удалось выгрузить (${res.status})`);
+    throw new Error(body.message ?? t("lib.api.couldNotExport", { status: res.status }));
   }
   const url = URL.createObjectURL(await res.blob());
   const link = document.createElement("a");
@@ -158,10 +158,10 @@ export function uploadAttachment(cardId: string, file: File, onProgress?: (pct: 
         body = JSON.parse(xhr.responseText);
       } catch {}
       if (xhr.status >= 200 && xhr.status < 300) resolve(body as AttachmentDto);
-      else if (xhr.status === 413) reject(new Error(`«${file.name}» больше 20 МБ`));
-      else reject(new Error((Array.isArray(body.message) ? body.message.join(", ") : body.message) ?? `Не удалось загрузить «${file.name}»`));
+      else if (xhr.status === 413) reject(new Error(t("lib.api.isLargerThan20Mb", { name: file.name })));
+      else reject(new Error((Array.isArray(body.message) ? body.message.join(", ") : body.message) ?? t("lib.api.couldNotUpload", { name: file.name })));
     };
-    xhr.onerror = () => reject(new Error("Нет связи с сервером"));
+    xhr.onerror = () => reject(new Error(t("lib.api.noConnectionToTheServer")));
     const form = new FormData();
     form.append("file", file);
     xhr.send(form);
@@ -211,6 +211,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
+      "X-Locale": currentLocale(),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
@@ -220,12 +221,12 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     setToken(null);
     // Without a token this is a failed sign-in: show the server's reason.
     const body = token ? {} : await res.json().catch(() => ({}));
-    throw new UnauthorizedError(body.message ?? "Требуется вход");
+    throw new UnauthorizedError(body.message ?? t("lib.api.signInRequired"));
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     const message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
-    throw new Error(message ?? `Запрос не выполнен (${res.status})`);
+    throw new Error(message ?? t("lib.api.requestFailed", { status: res.status }));
   }
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
@@ -250,7 +251,7 @@ export interface CardPatch {
 export const api = {
   login: (email: string, password: string) => post<{ accessToken: string }>("/auth/login", { email, password }),
   register: (workspaceName: string, name: string, email: string, password: string) =>
-    post<{ accessToken: string }>("/auth/register", { workspaceName, name, email, password }),
+    post<{ accessToken: string }>("/auth/register", { workspaceName, name, email, password, locale: currentLocale() }),
   me: () => apiFetch<UserDto>("/users/me"),
   users: () => apiFetch<UserDto[]>("/users"),
 
@@ -347,7 +348,7 @@ export const api = {
   deleteRole: (id: string) => del(`/roles/${id}`),
   updateSettings: (data: Partial<SettingsDto>) => patch<SettingsDto>("/settings", data),
 
-  updateMe: (data: Partial<{ name: string; email: string; emailNotifications: boolean }>) => patch<UserDto>("/users/me", data),
+  updateMe: (data: Partial<{ name: string; email: string; emailNotifications: boolean; locale: Locale }>) => patch<UserDto>("/users/me", data),
   changePassword: (currentPassword: string, newPassword: string) =>
     post<void>("/users/me/password", { currentPassword, newPassword }),
   setAvatar: (avatarUrl: string | null) =>
