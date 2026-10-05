@@ -90,6 +90,7 @@ test("new workspaces start with labels instead of task types", async ({ page }) 
 });
 
 test("the command palette and keyboard shortcuts move around the app", async ({ page }) => {
+  test.slow(); // pages compile on first visit in the dev server
   const acc = await signUp("kbd");
   await makeProject(acc.token, "Сайт компании", ["Первая"]);
   await signIn(page, acc.token, "/dashboard");
@@ -97,22 +98,22 @@ test("the command palette and keyboard shortcuts move around the app", async ({ 
 
   await page.keyboard.press(`${mod}+k`);
   const input = page.getByRole("combobox", { name: "Команда или поиск" });
-  await expect(input).toBeFocused();
+  await expect(input).toBeFocused({ timeout: 20_000 });
   await input.fill("биллинг");
   await page.keyboard.press("Enter");
-  await expect(page).toHaveURL(/\/settings\/billing$/);
+  await expect(page).toHaveURL(/\/settings\/billing$/, { timeout: 20_000 });
 
   await page.keyboard.press(`${mod}+k`);
   await page.getByRole("combobox", { name: "Команда или поиск" }).fill("первая");
   await page.getByRole("option", { name: /Первая/ }).click();
-  await expect(page).toHaveURL(/\/projects\/[^/?]+\?card=/);
+  await expect(page).toHaveURL(/\/projects\/[^/?]+\?card=/, { timeout: 20_000 });
   await page.keyboard.press("Escape");
 
   await page.goto("/dashboard");
   await expect(page.getByRole("button", { name: "Поиск" })).toBeVisible();
   await page.keyboard.press("g");
   await page.keyboard.press("p");
-  await expect(page).toHaveURL(/\/projects$/);
+  await expect(page).toHaveURL(/\/projects$/, { timeout: 20_000 });
 
   await page.keyboard.press("?");
   await expect(page.getByRole("dialog", { name: "Горячие клавиши" })).toBeVisible();
