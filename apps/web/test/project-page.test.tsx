@@ -8,6 +8,17 @@ import { toast } from "@/lib/toast";
 import { billing, card, column, member, user } from "./fixtures";
 import { nav } from "./nav";
 
+vi.mock("socket.io-client", () => {
+  const handlers = new Map<string, Set<(d?: unknown) => void>>();
+  const socket = {
+    connected: true,
+    on: vi.fn((event: string, fn: (d?: unknown) => void) => void (handlers.get(event) ?? handlers.set(event, new Set()).get(event)!).add(fn)),
+    off: vi.fn((event: string, fn: (d?: unknown) => void) => handlers.get(event)?.delete(fn)),
+    emit: vi.fn(),
+    fire: (event: string, data?: unknown) => handlers.get(event)?.forEach((fn) => fn(data)),
+  };
+  return { io: vi.fn(() => socket), __socket: socket };
+});
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 vi.mock("@/components/board", () => ({
   Board: (p: { onOpenCard: (id: string) => void; onToggleSelect: (id: string) => void }) => (
@@ -109,5 +120,23 @@ describe("project page", () => {
     render(<ProjectBoardPage params={{ id: "p1" }} />);
     expect(await screen.findByText("gantt-view false")).toBeInTheDocument();
     expect(screen.getByText("…")).toBeInTheDocument();
+  });
+
+  it("patches in only the card a colleague changed, and reloads the board when no card is named", async () => {
+    setup();
+    lib.setToken("tok");
+    const { __socket } = (await import("socket.io-client")) as unknown as { __socket: { fire(e: string, d?: unknown): void } };
+    const board = vi.spyOn(api, "projectBoard");
+    const tile = vi.spyOn(api, "cardTile").mockResolvedValue(card({ id: "c1", title: "Новое название" }));
+    render(<ProjectBoardPage params={{ id: "p1" }} />);
+    await screen.findByText("board");
+    expect(board).toHaveBeenCalledTimes(1);
+
+    act(() => __socket.fire("board:changed", { projectId: "p1", cardId: "c1", op: "upsert" }));
+    await waitFor(() => expect(tile).toHaveBeenCalledWith("c1"));
+    expect(board).toHaveBeenCalledTimes(1); // the rest of the board was not fetched again
+
+    act(() => __socket.fire("board:changed", { projectId: "p1" })); // columns or a bulk action: no card named
+    await waitFor(() => expect(board).toHaveBeenCalledTimes(2));
   });
 });

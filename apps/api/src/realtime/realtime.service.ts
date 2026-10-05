@@ -11,15 +11,17 @@ export class RealtimeService {
     private readonly prisma: PrismaService,
   ) {}
 
-  boardChanged(projectId: string) {
-    this.gateway.emit(`project:${projectId}`, "board:changed", { projectId });
+  // `hint` says which card changed, so the browser can refetch that one tile
+  // instead of the whole board. Without it the board is reloaded.
+  boardChanged(projectId: string, hint?: { cardId: string; op: "upsert" | "remove" }) {
+    this.gateway.emit(`project:${projectId}`, "board:changed", { projectId, ...hint });
   }
 
   // Card content changed: refresh its window and the board it sits on.
-  async cardChanged(cardId: string, projectId?: string) {
+  async cardChanged(cardId: string, projectId?: string, op: "upsert" | "remove" = "upsert") {
     const pid = projectId ?? (await this.prisma.card.findUnique({ where: { id: cardId }, select: { projectId: true } }))?.projectId;
     this.gateway.emit(`card:${cardId}`, "card:changed", { cardId });
-    if (pid) this.boardChanged(pid);
+    if (pid) this.boardChanged(pid, { cardId, op });
   }
 
   notify(userId: string) {

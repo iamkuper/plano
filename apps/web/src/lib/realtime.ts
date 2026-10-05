@@ -17,7 +17,8 @@ function getSocket() {
 
 // Subscribe to server events, optionally inside rooms ("project:<id>",
 // "card:<id>"). Handlers can change between renders without resubscribing.
-export function useRealtime(room: string | string[] | null, handlers: Record<string, () => void>) {
+// Handlers receive the event's data (for example which card changed).
+export function useRealtime(room: string | string[] | null, handlers: Record<string, (data?: any) => void>) {
   const ref = useRef(handlers);
   ref.current = handlers;
   const events = Object.keys(handlers).sort().join("|");
@@ -32,7 +33,7 @@ export function useRealtime(room: string | string[] | null, handlers: Record<str
       if (s.connected) s.emit("join", r);
     }
     const listeners = events.split("|").filter(Boolean).map((event) => {
-      const fn = () => ref.current[event]?.();
+      const fn = (data?: unknown) => ref.current[event]?.(data);
       s.on(event, fn);
       return [event, fn] as const;
     });

@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTextHits } from "./use-text-hits";
 import { DEFAULT_FILTERS, type CardFilters } from "./card-filters";
 
 // Board filters, remembered per page (e.g. per project) in this browser.
-export function useFilters(storageKey: string) {
+// The third value is for showing cards: the same filters plus the server's
+// answer to the text search. Only the first two are stored.
+export function useFilters(storageKey: string, projectId?: string) {
   const [filters, setFilters] = useState<CardFilters>(DEFAULT_FILTERS);
 
   useEffect(() => {
@@ -23,5 +26,8 @@ export function useFilters(storageKey: string) {
     } catch {}
   }
 
-  return [filters, update] as const;
+  const hits = useTextHits(filters.q, projectId);
+  const effective = useMemo(() => ({ ...filters, hits }), [filters, hits]);
+
+  return [filters, update, effective] as const;
 }

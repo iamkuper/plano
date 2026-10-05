@@ -192,6 +192,13 @@ describe("benchmark", () => {
       { name: "GET /cards/search?q=TSK-1500", call: get("/cards/search?q=TSK-1500") },
       { name: "GET /cards/:id (with 6 comments)", call: async (c) => send("get", `/cards/${(await t.db.comment.findFirstOrThrow({ select: { cardId: true }, where: { card: { workspaceId: big.workspaceId } } })).cardId}`, c.token) },
       { name: "GET /reports/time (30 days)", call: get(`/reports/time?from=${monthAgo}&to=${today}`) },
+      { name: "GET /reports/time/summary (30 days, by person)", call: get(`/reports/time/summary?from=${monthAgo}&to=${today}&groupBy=user`) },
+      { name: "GET /reports/time/summary (30 days, by project)", call: get(`/reports/time/summary?from=${monthAgo}&to=${today}&groupBy=project`) },
+      { name: "GET /reports/time/entries (first 100)", call: get(`/reports/time/entries?from=${monthAgo}&to=${today}&limit=100`) },
+      { name: "GET /reports/time/export.csv (30 days)", runs: 6, call: get(`/reports/time/export.csv?from=${monthAgo}&to=${today}`) },
+      { name: "GET /cards/match?q=платёж (board text filter)", call: get("/cards/match?q=" + encodeURIComponent("платёж")) },
+      { name: "GET /cards/match?q=%2331337 (rare)", call: get("/cards/match?q=" + encodeURIComponent("#31337")) },
+      { name: "GET /cards/:id/tile (realtime hint)", runs: 40, call: async (c) => send("get", `/cards/${(await t.db.comment.findFirstOrThrow({ select: { cardId: true }, where: { card: { workspaceId: big.workspaceId } } })).cardId}/tile`, c.token) },
       { name: "GET /audit", call: get("/audit") },
       { name: "GET /projects/:mega/export.csv (3000 cards)", runs: 6, call: (c) => send("get", `/projects/${mega().id}/export.csv`, c.token) },
     ];

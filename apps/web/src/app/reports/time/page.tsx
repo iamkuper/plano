@@ -5,8 +5,9 @@ import Link from "next/link";
 import { ChevronDown, Clock, Download } from "lucide-react";
 import {
   cardKey,
+  type TimeEntryRowDto,
+  type TimeSummaryDto,
   type UserDto,
-  type UserRefDto,
   t,
   intlTag,
 } from "@plano/shared";
@@ -24,24 +25,9 @@ import {
   ShareBar,
   TableSkeleton,
 } from "@/components/ui";
-import { api } from "@/lib/api";
+import { api, downloadTimeCsv } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
-
-interface Entry {
-  id: string;
-  minutes: number;
-  date: string;
-  note: string | null;
-  user: UserRefDto;
-  card: {
-    id: string;
-    number: number;
-    title: string;
-    type: { name: string };
-    project: { id: string; title: string };
-  };
-}
 
 type Period = "week" | "lastWeek" | "month" | "lastMonth" | "custom";
 type GroupBy = "user" | "project";
@@ -83,40 +69,12 @@ function formatHours(minutes: number) {
 const shortDate = (s: string) =>
   new Date(s).toLocaleDateString(intlTag(), { day: "numeric", month: "short" });
 
-// CSV that Excel opens correctly: UTF-8 BOM, ";" separators, quoted cells.
-function downloadCsv(entries: Entry[], from: string, to: string) {
-  const cell = (v: string | number) => `"${String(v).replace(/"/g, '""')}"`;
-  const rows = [
-    [
-      t("common.date"),
-      t("common.employee"),
-      t("common.project"),
-      t("common.card"),
-      t("common.cardTitle"),
-      t("reports.time.comment"),
-      t("reports.time.minutes"),
-      t("reports.time.hours"),
-    ],
-    ...entries.map((e) => [
-      e.date.slice(0, 10),
-      e.user.name,
-      e.card.project.title,
-      cardKey(e.card),
-      e.card.title,
-      e.note ?? "",
-      e.minutes,
-      String(hours(e.minutes)).replace(".", ","),
-    ]),
-  ];
-  const csv = "﻿" + rows.map((r) => r.map(cell).join(";")).join("\r\n");
-  const url = URL.createObjectURL(
-    new Blob([csv], { type: "text/csv;charset=utf-8" }),
-  );
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `uchet-vremeni_${from}_${to}.csv`;
-  a.click();
-  URL.revokeObjectURL(url);
+// Entries of an opened group are loaded in pages.
+const PAGE = 100;
+interface Opened {
+  items: TimeEntryRowDto[];
+  total: number;
+  loading: boolean;
 }
 
 export default function TimeReportPage() {
@@ -127,9 +85,9 @@ export default function TimeReportPage() {
   const [groupBy, setGroupBy] = useState<GroupBy>("user");
   const [userId, setUserId] = useState("");
   const [users, setUsers] = useState<UserDto[]>([]);
-  const [entries, setEntries] = useState<Entry[] | null>(null);
+  const [summary, setSummary] = useState<TimeSummaryDto | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [open, setOpen] = useState<Set<string>>(new Set());
+  const [open, setOpen] = useState<Map<string, Opened>>(new Map());
   const allowed = useCan();
   const viewAll = allowed("time.viewAll");
 
@@ -140,57 +98,54 @@ export default function TimeReportPage() {
       .catch(() => {});
   }, []);
 
+  // Totals and the rows of groups come from the server; the entries of a group
+  // are fetched when it is opened.
   useEffect(() => {
     if (!from || !to) return;
-    setEntries(null);
+    setSummary(null);
     setError(null);
+    setOpen(new Map());
+    let live = true;
     api
-      .timeReport(from, to, userId || undefined)
-      .then((r) => setEntries(r as Entry[]))
+      .timeSummary(from, to, groupBy, userId || undefined)
+      .then((r) => live && setSummary(r))
       .catch((e) => {
+        if (!live) return;
         setError(e.message);
-        setEntries([]);
+        setSummary({ totalMinutes: 0, entries: 0, people: 0, projects: 0, groups: [] });
       });
-  }, [from, to, userId]);
+    return () => {
+      live = false;
+    };
+  }, [from, to, userId, groupBy]);
 
-  const groups = useMemo(() => {
-    const map = new Map<
-      string,
-      {
-        key: string;
-        label: string;
-        sub?: string;
-        who?: UserRefDto;
-        entries: Entry[];
-        minutes: number;
-      }
-    >();
-    for (const e of entries ?? []) {
-      const key = groupBy === "user" ? e.user.id : e.card.project.id;
-      const g = map.get(key) ?? {
-        key,
-        label: groupBy === "user" ? e.user.name : e.card.project.title,
-        who: groupBy === "user" ? e.user : undefined,
-        entries: [],
-        minutes: 0,
-      };
-      g.entries.push(e);
-      g.minutes += e.minutes;
-      map.set(key, g);
+  async function loadEntries(key: string, offset: number) {
+    setOpen((m) => new Map(m).set(key, { items: m.get(key)?.items ?? [], total: m.get(key)?.total ?? 0, loading: true }));
+    try {
+      const page = await api.timeEntries(from, to, { groupBy, key, userId: userId || undefined, limit: PAGE, offset });
+      setOpen((m) => new Map(m).set(key, { items: [...(offset ? (m.get(key)?.items ?? []) : []), ...page.items], total: page.total, loading: false }));
+    } catch (e) {
+      toast((e as Error).message, "error");
+      setOpen((m) => {
+        const next = new Map(m);
+        next.delete(key);
+        return next;
+      });
     }
-    return [...map.values()].sort((a, b) => b.minutes - a.minutes);
-  }, [entries, groupBy]);
+  }
 
-  const total = groups.reduce((n, g) => n + g.minutes, 0);
-  const people = new Set(entries?.map((e) => e.user.id)).size;
-  const projects = new Set(entries?.map((e) => e.card.project.id)).size;
+  const groups = summary?.groups ?? [];
+  const total = summary?.totalMinutes ?? 0;
 
-  const toggle = (key: string) =>
-    setOpen((s) => {
-      const next = new Set(s);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
+  const toggle = (key: string) => {
+    if (open.has(key)) {
+      setOpen((m) => {
+        const next = new Map(m);
+        next.delete(key);
+        return next;
+      });
+    } else loadEntries(key, 0);
+  };
 
   return (
     <AppShell>
@@ -199,11 +154,12 @@ export default function TimeReportPage() {
         meta={<HomeTabs />}
         actions={
           <Button
-            disabled={!entries?.length}
-            onClick={() => {
-              downloadCsv(entries!, from, to);
-              toast(t("reports.time.fileExported"), "success");
-            }}
+            disabled={!summary?.entries}
+            onClick={() =>
+              downloadTimeCsv(from, to, userId || undefined)
+                .then(() => toast(t("reports.time.fileExported"), "success"))
+                .catch((e) => toast((e as Error).message, "error"))
+            }
           >
             <Download size={15} />  {t("reports.time.exportToExcel")}
           </Button>
@@ -254,7 +210,7 @@ export default function TimeReportPage() {
           value={groupBy}
           onChange={(g) => {
             setGroupBy(g);
-            setOpen(new Set());
+            setOpen(new Map());
           }}
           options={[
             { value: "user", label: t("common.staff") },
@@ -283,12 +239,12 @@ export default function TimeReportPage() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <Kpi
             label={t("reports.time.total")}
-            value={entries ? formatHours(total) : "…"}
+            value={summary ? formatHours(total) : "…"}
             hint={`${shortDate(from)} — ${shortDate(to)}`}
           />
-          <Kpi label={t("reports.time.entries")} value={entries ? String(entries.length) : "…"} />
-          <Kpi label={t("reports.time.employees")} value={entries ? String(people) : "…"} />
-          <Kpi label={t("reports.time.projects")} value={entries ? String(projects) : "…"} />
+          <Kpi label={t("reports.time.entries")} value={summary ? String(summary.entries) : "…"} />
+          <Kpi label={t("reports.time.employees")} value={summary ? String(summary.people) : "…"} />
+          <Kpi label={t("reports.time.projects")} value={summary ? String(summary.projects) : "…"} />
         </div>
 
         {error && (
@@ -296,8 +252,8 @@ export default function TimeReportPage() {
             {error}
           </p>
         )}
-        {!entries && <TableSkeleton />}
-        {entries && entries.length === 0 && !error && (
+        {!summary && <TableSkeleton />}
+        {summary && summary.entries === 0 && !error && (
           <EmptyState icon={Clock} title={t("reports.time.noTimeWasLoggedIn")}>
             
             {t("reports.time.timeIsLoggedOnA")}
@@ -307,7 +263,8 @@ export default function TimeReportPage() {
         {groups.length > 0 && (
           <div className="overflow-hidden rounded-lg border border-border">
             {groups.map((g) => {
-              const expanded = open.has(g.key);
+              const opened = open.get(g.key);
+              const expanded = !!opened;
               return (
                 <div
                   key={g.key}
@@ -323,8 +280,8 @@ export default function TimeReportPage() {
                       className={`text-ink-ghost transition-transform ${expanded ? "" : "-rotate-90"}`}
                     />
                     <span className="flex min-w-0 items-center gap-2.5">
-                      {g.who ? (
-                        <Avatar user={g.who} size={24} />
+                      {g.user ? (
+                        <Avatar user={g.user} size={24} />
                       ) : (
                         <LetterMark name={g.label} size={22} />
                       )}
@@ -332,13 +289,8 @@ export default function TimeReportPage() {
                         <span className="block truncate text-base font-medium">
                           {g.label}
                         </span>
-                        {g.sub && (
-                          <span className="block truncate text-xs text-ink-faint">
-                            {g.sub}
-                          </span>
-                        )}
                       </span>
-                      <span className="shrink-0 text-xs text-ink-ghost"> {t("reports.time.entries2", { entries: g.entries.length })} </span>
+                      <span className="shrink-0 text-xs text-ink-ghost"> {t("reports.time.entries2", { entries: g.entries })} </span>
                     </span>
                     <span className="flex items-center gap-2">
                       <span className="flex-1">
@@ -352,9 +304,9 @@ export default function TimeReportPage() {
                       {formatHours(g.minutes)}
                     </span>
                   </button>
-                  {expanded && (
+                  {opened && (
                     <div className="border-t border-border bg-surface-soft/60">
-                      {g.entries.map((e) => (
+                      {opened.items.map((e) => (
                         <div
                           key={e.id}
                           className="grid grid-cols-[20px_64px_minmax(0,1fr)_96px] items-center gap-3 border-b border-border px-4 py-2 text-sm last:border-b-0"
@@ -390,6 +342,14 @@ export default function TimeReportPage() {
                           </span>
                         </div>
                       ))}
+                      {opened.loading && <p className="px-4 py-2 text-sm text-ink-faint">…</p>}
+                      {!opened.loading && opened.items.length < opened.total && (
+                        <div className="px-4 py-2">
+                          <button type="button" onClick={() => loadEntries(g.key, opened.items.length)} className="text-sm text-accent hover:underline">
+                            {t("reports.time.showMore", { shown: opened.items.length, total: opened.total })}
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

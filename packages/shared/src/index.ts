@@ -139,7 +139,8 @@ export interface CardTileDto {
   number: number;
   columnId: string;
   title: string;
-  description: string | null;
+  // Boards don't carry it (long, and not shown on a tile): the card window has it.
+  description?: string | null;
   priority: CardPriority;
   position: number;
   startDate: string | null;
@@ -279,7 +280,8 @@ export interface CustomFieldDto {
 
 export type CustomFieldValue = string | number | boolean;
 
-export interface CardDetailDto extends Omit<CardTileDto, "checklist"> {
+export interface CardDetailDto extends Omit<CardTileDto, "checklist" | "description"> {
+  description: string | null;
   fieldValues: { fieldId: string; value: CustomFieldValue }[];
   attachments: AttachmentDto[];
   recurringRule?: { id: string; frequency: RecurrenceFrequency; interval: number; active: boolean } | null;
@@ -516,4 +518,37 @@ export interface WebhookDeliveryDto {
   error: string | null;
   attempts: number;
   createdAt: string;
+}
+
+// ---- time report ----
+
+export interface TimeEntryRowDto {
+  id: string;
+  minutes: number;
+  date: string;
+  note: string | null;
+  user: UserRefDto;
+  card: { id: string; number: number; title: string; project: { id: string; title: string } };
+}
+
+export interface TimeGroupDto {
+  // User or project id, depending on the grouping.
+  key: string;
+  label: string;
+  user: UserRefDto | null;
+  minutes: number;
+  entries: number;
+}
+
+export interface TimeSummaryDto {
+  totalMinutes: number;
+  entries: number;
+  people: number;
+  projects: number;
+  groups: TimeGroupDto[];
+}
+
+export interface TimeEntriesPageDto {
+  total: number;
+  items: TimeEntryRowDto[];
 }

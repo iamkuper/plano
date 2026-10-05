@@ -75,21 +75,39 @@ export class CardsService {
     return { count: Number(rows[0]?.n ?? 0) };
   }
 
-  // Header search: by title/description, or by key ("TSK-12" / "12").
+  // By title/description, or by key ("TSK-12" / "12").
+  private textWhere(term: string): Prisma.CardWhereInput {
+    const key = term.match(/^(?:[a-zа-яё0-9]+-)?(\d+)$/i);
+    return {
+      OR: [
+        ...caseVariants(term).flatMap((v) => [
+          { title: { contains: v, mode: "insensitive" as const } },
+          { description: { contains: v, mode: "insensitive" as const } },
+        ]),
+        ...(key ? [{ number: Number(key[1]) }] : []),
+      ],
+    };
+  }
+
+  // Which cards contain the text: the board filter asks this instead of
+  // holding every description in the browser.
+  async matchIds(q: string, projectId?: string) {
+    const term = q.trim();
+    if (!term) return { ids: [] as string[] };
+    const rows = await this.prisma.card.findMany({
+      where: { AND: [this.textWhere(term), projectId ? { projectId } : {}] },
+      select: { id: true },
+      take: 3000,
+    });
+    return { ids: rows.map((r) => r.id) };
+  }
+
+  // Header search.
   async search(q: string) {
     const term = q.trim();
     if (!term) return [];
-    const key = term.match(/^(?:[a-zа-яё0-9]+-)?(\d+)$/i);
     const cards = await this.prisma.card.findMany({
-      where: {
-        OR: [
-          ...caseVariants(term).flatMap((v) => [
-            { title: { contains: v, mode: "insensitive" as const } },
-            { description: { contains: v, mode: "insensitive" as const } },
-          ]),
-          ...(key ? [{ number: Number(key[1]) }] : []),
-        ],
-      },
+      where: this.textWhere(term),
       orderBy: { updatedAt: "desc" },
       take: 10,
       include: cardTileInclude,
@@ -154,7 +172,7 @@ export class CardsService {
     });
     await this.log(card.id, userId, "created");
     if (dto.assigneeIds?.length) await this.notifications.assigned(card.id, userId, dto.assigneeIds);
-    this.realtime.boardChanged(card.projectId);
+    this.realtime.boardChanged(card.projectId, { cardId: card.id, op: "upsert" });
     await this.webhooks.emit("card.created", card.id);
     return (await attachCounts(this.prisma, [card]))[0];
   }
@@ -233,7 +251,7 @@ export class CardsService {
     const card = await this.prisma.card.delete({ where: { id } });
     await purge();
     await this.audit.record("card.delete", t("api.cards.cardDeleted", { title: card.title }), id);
-    await this.realtime.cardChanged(id, card.projectId);
+    await this.realtime.cardChanged(id, card.projectId, "remove");
     if (snapshot) await this.webhooks.emit("card.deleted", id, {}, snapshot);
   }
 

@@ -28,6 +28,12 @@ export class CardsController {
     return this.cards.urgentCount(user.userId, date);
   }
 
+  // Ids of the cards (optionally of one project) that contain the text.
+  @Get("cards/match")
+  match(@Query("q") q = "", @Query("projectId") projectId?: string) {
+    return this.cards.matchIds(q, projectId || undefined);
+  }
+
   // Declared before cards/:id so "search" isn't captured as an id.
   @Get("cards/search")
   search(@Query("q") q = "") {

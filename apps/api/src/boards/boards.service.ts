@@ -72,6 +72,15 @@ export class BoardsService {
     return { ...board, columns: board.columns.map((col) => ({ ...col, cards: col.cards.map((c) => ({ ...tiles.get(c.id)!, unreadComments: unread.get(c.id) ?? 0 })) })) };
   }
 
+  // One card as the board shows it, for the browser to patch into its copy
+  // after a realtime hint.
+  async tile(cardId: string, userId: string) {
+    const card = await this.prisma.card.findUnique({ where: { id: cardId } });
+    if (!card) throw new NotFoundException(t("common.cardNotFound"));
+    const [tile] = await buildTiles(this.prisma, [card], { ids: [card.id] });
+    return { ...tile, unreadComments: (await this.unreadCounts(userId, [card.id])).get(card.id) ?? 0 };
+  }
+
   // Stages of the team board: columns of all active projects merged by title,
   // in the order titles first appear. `filter` narrows the cards that count.
   private async teamStages(assigneeId?: string) {

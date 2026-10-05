@@ -34,12 +34,15 @@ describe("card filters", () => {
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, date: "week" }))).toEqual(["b", "c"]);
   });
 
-  it("filters by assignee, priority, label and free text (title, description, key)", () => {
+  it("filters by assignee, priority, label and free text (title, key and the server's answer)", () => {
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, assigneeIds: ["u1"] }))).toEqual(["b"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, priorities: ["LOW"] }))).toEqual(["a"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, labelIds: ["l1"] }))).toEqual(["b"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "бриф" }))).toEqual(["a"]);
-    expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "ОБМЕН" }))).toEqual(["b"]);
+    // descriptions are not on the tiles: the server's answer (`hits`) finds them
+    expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "ОБМЕН" }))).toEqual([]);
+    expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "ОБМЕН", hits: new Set(["b"]) }))).toEqual(["b"]);
+    expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "бриф", hits: new Set(["b"]) }))).toEqual(["a", "b"]); // title match plus the server's
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "TSK-3" }))).toEqual(["c"]);
     expect(ids(applyFilters(cards, { ...DEFAULT_FILTERS, q: "   " }))).toHaveLength(4);
     expect(activeFilterCount({ ...DEFAULT_FILTERS, assigneeIds: ["u1"], labelIds: ["l1"], priorities: ["LOW"] })).toBe(3);

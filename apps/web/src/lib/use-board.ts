@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoardDto, CardTileDto, ColumnDto } from "@plano/shared";
 import { api } from "./api";
 import { toast } from "./toast";
@@ -58,5 +58,38 @@ export function useBoard(projectId: string) {
     },
   };
 
-  return { board, error, reload, setColumns, guard, actions };
+  // Realtime hints name the cards that changed: refetch just those tiles and
+  // patch them in (a moved card changes column, a deleted one disappears).
+  // Anything unclear falls back to reloading the board.
+  const boardRef = useRef(board);
+  boardRef.current = board;
+  const applyHints = useCallback(
+    async (hints: { cardId: string; op: "upsert" | "remove" }[]) => {
+      const last = new Map(hints.map((h) => [h.cardId, h.op]));
+      const removeFrom = (cols: ColumnDto[], id: string) => cols.map((col) => (col.cards.some((c) => c.id === id) ? { ...col, cards: col.cards.filter((c) => c.id !== id) } : col));
+      await Promise.all(
+        [...last].map(async ([id, op]) => {
+          if (op === "remove") return setColumns((cols) => removeFrom(cols, id));
+          try {
+            const tile = await api.cardTile(id);
+            if (!boardRef.current?.columns.some((col) => col.id === tile.columnId)) return reload(); // a column we don't know
+            setColumns((cols) =>
+              removeFrom(cols, id).map((col) => {
+                if (col.id !== tile.columnId) return col;
+                const at = col.cards.findIndex((c) => c.position > tile.position);
+                return { ...col, cards: at === -1 ? [...col.cards, tile] : [...col.cards.slice(0, at), tile, ...col.cards.slice(at)] };
+              }),
+            );
+          } catch (e) {
+            // Gone (or no longer ours): drop it; for other errors trust a full reload.
+            if (/not found|не найден/i.test((e as Error).message)) setColumns((cols) => removeFrom(cols, id));
+            else reload();
+          }
+        }),
+      );
+    },
+    [reload, setColumns],
+  );
+
+  return { board, error, reload, setColumns, guard, actions, applyHints };
 }

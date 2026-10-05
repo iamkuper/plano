@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, CheckCircle2 } from "lucide-react";
-import { cardKey, type CardTileDto, type TeamBoardColumnDto, type TeamStageCountDto, type UserDto, type UserRefDto, t, intlTag } from "@plano/shared";
+import { cardKey, type CardTileDto, type TeamBoardColumnDto, type TeamStageCountDto, type TimeEntryRowDto, type TimeSummaryDto, type UserDto, type UserRefDto, t, intlTag } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Avatar, LetterMark } from "@/components/avatar";
 import { CardModal } from "@/components/card-modal";
@@ -15,13 +15,11 @@ import { api } from "@/lib/api";
 import { useDebounced, useRealtime } from "@/lib/realtime";
 import { useCardParam } from "@/lib/use-card-param";
 
-interface TimeEntry {
-  id: string;
-  minutes: number;
-  date: string;
-  user: UserRefDto;
-  card: { id: string; number: number; title: string; project: { id: string; title: string } };
+interface WeekTime {
+  summary: TimeSummaryDto;
+  recent: TimeEntryRowDto[];
 }
+const NO_TIME: WeekTime = { summary: { totalMinutes: 0, entries: 0, people: 0, projects: 0, groups: [] }, recent: [] };
 
 type Task = CardTileDto & { stage: string; stageIndex: number; stageColor: string | null };
 type Bucket = "overdue" | "today" | "week" | "later";
@@ -52,6 +50,9 @@ function bucketOf(due: string | null, [, sunday]: [string, string]): Bucket {
   if (day === today) return "today";
   return day <= sunday ? "week" : "later";
 }
+
+// The home page lists the first tasks by due date; the rest is on "Задачи команды".
+const MY_LIST = 200;
 
 const BUCKETS: { key: Bucket; label: string }[] = [
   { key: "overdue", label: t("common.overdue") },
@@ -95,7 +96,7 @@ function Dashboard() {
   const [me, setMe] = useState<UserDto | null>(null);
   const [mine, setMine] = useState<TeamBoardColumnDto[] | null>(null);
   const [team, setTeam] = useState<TeamStageCountDto[] | null>(null);
-  const [time, setTime] = useState<TimeEntry[] | null>(null);
+  const [time, setTime] = useState<WeekTime | null>(null);
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [cardId, setCardId] = useCardParam();
   const week = useMemo(weekRange, []);
@@ -107,9 +108,12 @@ function Dashboard() {
 
   const load = useCallback(() => {
     if (!me) return;
-    api.teamBoard(me.id).then(setMine).catch(() => setMine([]));
+    api.teamBoard(me.id, MY_LIST).then(setMine).catch(() => setMine([]));
     api.teamSummary().then(setTeam).catch(() => setTeam([]));
-    api.timeReport(week[0], week[1]).then((r) => setTime(r as TimeEntry[])).catch(() => setTime([]));
+    // Totals come from the server; only the five latest entries are loaded.
+    Promise.all([api.timeSummary(week[0], week[1], "user"), api.timeEntries(week[0], week[1], { limit: 5 })])
+      .then(([summary, page]) => setTime({ summary, recent: page.items }))
+      .catch(() => setTime(NO_TIME));
   }, [me, week]);
   useEffect(load, [load]);
 
@@ -117,6 +121,8 @@ function Dashboard() {
   useRealtime(projectIds.map((id) => `project:${id}`), { "board:changed": refresh });
 
   const tasks = useMemo(() => (mine ? openTasks(mine) : []), [mine]);
+  // Only the first tasks of every stage are loaded: the count comes from the server.
+  const myOpen = mine ? mine.slice(0, -1).reduce((n, c) => n + (c.total ?? c.cards.length), 0) : 0;
   const grouped = useMemo(() => {
     const map = new Map<Bucket, Task[]>(BUCKETS.map((b) => [b.key, []]));
     for (const t of tasks) map.get(bucketOf(t.dueDate, week))!.push(t);
@@ -124,17 +130,12 @@ function Dashboard() {
     return map;
   }, [tasks, week]);
 
-  const myMinutes = (time ?? []).filter((e) => e.user.id === me?.id).reduce((n, e) => n + e.minutes, 0);
-  const teamMinutes = (time ?? []).reduce((n, e) => n + e.minutes, 0);
-  const byPerson = useMemo(() => {
-    const map = new Map<string, { user: UserRefDto; minutes: number }>();
-    for (const e of time ?? []) {
-      const p = map.get(e.user.id) ?? { user: e.user, minutes: 0 };
-      p.minutes += e.minutes;
-      map.set(e.user.id, p);
-    }
-    return [...map.values()].sort((a, b) => b.minutes - a.minutes);
-  }, [time]);
+  const myMinutes = time?.summary.groups.find((g) => g.key === me?.id)?.minutes ?? 0;
+  const teamMinutes = time?.summary.totalMinutes ?? 0;
+  const byPerson = useMemo(
+    () => (time?.summary.groups ?? []).flatMap((g) => (g.user ? [{ user: g.user, minutes: g.minutes }] : [])),
+    [time],
+  );
 
   // Open cards per stage across all active projects.
   const stages = useMemo(() => (team ?? []).map((c) => ({ title: c.title, color: c.color, count: c.count })), [team]);
@@ -151,7 +152,7 @@ function Dashboard() {
       <div className="space-y-4 py-5">
         <Onboarding />
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <Kpi label={t("dashboard.myOpenTasks")} value={loading ? "…" : tasks.length} />
+          <Kpi label={t("dashboard.myOpenTasks")} value={loading ? "…" : myOpen} />
           <Kpi label={t("common.overdue")} value={loading ? "…" : overdue} tone={overdue ? "danger" : undefined} />
           <Kpi label={t("dashboard.dueThisWeek")} value={loading ? "…" : grouped.get("today")!.length + grouped.get("week")!.length} />
           <Kpi label={t("dashboard.myTime")} value={loading ? "…" : formatHours(myMinutes)} hint={t("dashboard.thisWeek2")} />
@@ -199,6 +200,14 @@ function Dashboard() {
                   </div>
                 );
               })
+            )}
+            {!loading && myOpen > tasks.length && (
+              <p className="border-t border-border px-4 py-3 text-xs text-ink-faint">
+                {t("dashboard.firstTasksShown", { shown: tasks.length, total: myOpen })}{" "}
+                <Link href="/team?mine=1" className="text-accent hover:underline">
+                  {t("dashboard.allMyTasks")}
+                </Link>
+              </p>
             )}
           </Card>
 
@@ -262,13 +271,10 @@ function Dashboard() {
               )}
             </Card>
 
-            {time && time.length > 0 && (
+            {time && time.recent.length > 0 && (
               <Card title={t("dashboard.recentTimeEntries")}>
                 <div className="-mx-4 -mb-4">
-                  {[...time]
-                    .sort((a, b) => b.date.localeCompare(a.date))
-                    .slice(0, 5)
-                    .map((e) => (
+                  {time.recent.map((e) => (
                       <button
                         key={e.id}
                         onClick={() => setCardId(e.card.id)}

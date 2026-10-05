@@ -9,9 +9,11 @@ export interface CardFilters {
   // Task type ids.
   priorities: CardPriority[];
   labelIds: string[];
-  // Free text over title, description and key.
+  // Free text over title, key and (by the server) description.
   q: string;
   sort: SortKey;
+  // Set by useFilters: ids the server found for the text. Never stored.
+  hits?: ReadonlySet<string> | null;
 }
 
 export const DEFAULT_FILTERS: CardFilters = { date: "all", assigneeIds: [], priorities: [], labelIds: [], q: "", sort: "manual" };
@@ -46,17 +48,18 @@ function matchesDate(card: CardTileDto, date: DateFilter) {
   return due < today;
 }
 
-function matchesText(card: CardTileDto, q: string) {
-  const term = q.trim().toLowerCase();
+function matchesText(card: CardTileDto, f: CardFilters) {
+  const term = f.q.trim().toLowerCase();
   if (!term) return true;
-  return `${card.number} ${cardKey(card)} ${card.title} ${card.description ?? ""}`.toLowerCase().includes(term);
+  if (f.hits?.has(card.id)) return true;
+  return `${card.number} ${cardKey(card)} ${card.title}`.toLowerCase().includes(term);
 }
 
 export function applyFilters(cards: CardTileDto[], f: CardFilters) {
   const visible = cards.filter(
     (c) =>
       matchesDate(c, f.date) &&
-      matchesText(c, f.q) &&
+      matchesText(c, f) &&
       (!f.labelIds.length || c.labels.some((l) => f.labelIds.includes(l.label.id))) &&
       (!f.assigneeIds.length || c.assignees.some((a) => f.assigneeIds.includes(a.user.id))) &&
       (!f.priorities.length || f.priorities.includes(c.priority)),

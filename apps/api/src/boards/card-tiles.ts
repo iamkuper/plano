@@ -7,7 +7,9 @@ import { countsOf, withCounts } from "./card-counts";
 // is correct but costs more in Node than in the database: for 2000 cards the
 // nesting took about 240 ms of CPU against 120 ms of SQL. Here every relation
 // is read flat, with one query each, and joined in memory with small lookups.
-// The result has the same shape as `cardTileInclude` + counts.
+// The result has the shape of `cardTileInclude` + counts, without the
+// description: boards don't show it and it can be long. Text search asks the
+// server (`cards/match`).
 type Scope = { ids: string[] } | { projectId: string };
 
 const CHUNK = 10_000; // keeps one IN list far below the driver's parameter limit
@@ -59,7 +61,7 @@ export async function buildTiles(prisma: PrismaService, cards: Card[], scope: Sc
   const labelsOf = group(labelRows, (r) => (labelById.has(r.labelId) ? { label: labelById.get(r.labelId)! } : undefined));
   const checklistOf = group(checklistRows, (r) => ({ id: r.id, text: r.text, done: r.done }));
 
-  return cards.map((c) =>
+  return cards.map(({ description: _description, ...c }) =>
     withCounts(
       { ...c, assignees: assigneesOf.get(c.id) ?? [], labels: labelsOf.get(c.id) ?? [], project: projectById.get(c.projectId)!, checklist: checklistOf.get(c.id) ?? [] },
       counts,

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { BarChart3, CalendarDays, ChartGantt, Download, KanbanSquare, List, Settings, Table2 } from "lucide-react";
 import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type UserDto, t } from "@plano/shared";
@@ -22,6 +22,9 @@ import { useFilters } from "@/lib/use-filters";
 import { useDebounced, useRealtime } from "@/lib/realtime";
 import { applyFilters } from "@/lib/card-filters";
 
+// More changed cards than this are cheaper to get as a whole board.
+const MAX_POINT_UPDATES = 20;
+
 type View = "kanban" | "table" | "list" | "calendar" | "gantt" | "overview";
 
 function ProjectPage({ projectId }: { projectId: string }) {
@@ -30,11 +33,11 @@ function ProjectPage({ projectId }: { projectId: string }) {
   // null until the plan is known.
   const [hasGantt, setHasGantt] = useState<boolean | null>(null);
   const state = useBoard(projectId);
-  const { board, reload } = state;
+  const { board, reload, applyHints } = state;
   const [cardId, setCardId] = useCardParam();
   const [viewParam, setView] = useQueryParam("view");
   const view = (viewParam as View) ?? "kanban";
-  const [filters, setFilters] = useFilters(`plano.filters.${projectId}`);
+  const [filters, setFilters, shownFilters] = useFilters(`plano.filters.${projectId}`, projectId);
 
   // Board/table selection for bulk actions (Shift/⌘-click or checkbox).
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -63,11 +66,23 @@ function ProjectPage({ projectId }: { projectId: string }) {
   useEffect(loadProject, [loadProject]);
 
   // Colleagues' changes arrive over the socket; refetch the board and header.
+  // Events that name a card are applied to that card only; a burst of them,
+  // or one that names none (columns, bulk actions), reloads the board.
+  const incoming = useRef<{ hints: { cardId: string; op: "upsert" | "remove" }[]; reload: boolean }>({ hints: [], reload: false });
   const refresh = useDebounced(() => {
-    reload();
+    const { hints, reload: all } = incoming.current;
+    incoming.current = { hints: [], reload: false };
+    if (all || new Set(hints.map((h) => h.cardId)).size > MAX_POINT_UPDATES) reload();
+    else applyHints(hints);
     loadProject();
+  }, 150);
+  useRealtime(`project:${projectId}`, {
+    "board:changed": (data?: { cardId?: string; op?: "upsert" | "remove" }) => {
+      if (data?.cardId) incoming.current.hints.push({ cardId: data.cardId, op: data.op ?? "upsert" });
+      else incoming.current.reload = true;
+      refresh();
+    },
   });
-  useRealtime(`project:${projectId}`, { "board:changed": refresh });
   useEffect(() => {
     api.billing().then((b) => setHasGantt(b.plan.features.includes("gantt"))).catch(() => setHasGantt(false));
   }, []);
@@ -129,7 +144,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
           filters={filters}
           onChange={setFilters}
           users={users}
-          shown={board ? board.columns.reduce((n, c) => n + applyFilters(c.cards, filters).length, 0) : undefined}
+          shown={board ? board.columns.reduce((n, c) => n + applyFilters(c.cards, shownFilters).length, 0) : undefined}
         />
       )}
       {state.error && <p className="py-3 text-sm text-danger">{t("projects.id.couldNotLoadTheBoard", { error: state.error })}</p>}
@@ -140,7 +155,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
           boardId={board.id}
           columns={board.columns}
           state={state}
-          filters={filters}
+          filters={shownFilters}
           onOpenCard={setCardId}
           selected={selected}
           onToggleSelect={toggleSelect}
@@ -149,7 +164,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
       {board && view === "table" && (
         <CardsTable
           columns={board.columns}
-          filters={filters}
+          filters={shownFilters}
           onOpenCard={setCardId}
           selected={selected}
           onToggleSelect={toggleSelect}
@@ -165,10 +180,10 @@ function ProjectPage({ projectId }: { projectId: string }) {
           onClear={() => setSelected(new Set())}
         />
       )}
-      {board && view === "list" && <CardsList columns={board.columns} filters={filters} onOpenCard={setCardId} />}
-      {board && view === "calendar" && <CardsCalendar columns={board.columns} filters={filters} onOpenCard={setCardId} onChanged={reload} />}
+      {board && view === "list" && <CardsList columns={board.columns} filters={shownFilters} onOpenCard={setCardId} />}
+      {board && view === "calendar" && <CardsCalendar columns={board.columns} filters={shownFilters} onOpenCard={setCardId} onChanged={reload} />}
       {board && view === "gantt" && (
-        <GanttChart projectId={projectId} columns={board.columns} filters={filters} hasGantt={hasGantt} onOpenCard={setCardId} onChanged={reload} />
+        <GanttChart projectId={projectId} columns={board.columns} filters={shownFilters} hasGantt={hasGantt} onOpenCard={setCardId} onChanged={reload} />
       )}
       {board && view === "overview" && project && (
         <div className="py-5">

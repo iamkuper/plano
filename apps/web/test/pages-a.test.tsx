@@ -47,7 +47,20 @@ describe("dashboard", () => {
     vi.spyOn(api, "onboarding").mockResolvedValue(onboarding({ closed: true }));
     const team = vi.spyOn(api, "teamBoard").mockImplementation((async () => over.mine ?? []) as never);
     vi.spyOn(api, "teamSummary").mockResolvedValue(((over.team ?? []) as { title: string; color: null; cards: unknown[] }[]).map((c) => ({ title: c.title, color: c.color, count: c.cards.length })));
-    vi.spyOn(api, "timeReport").mockResolvedValue((over.time ?? []) as never);
+    // The server sums the week up; the page gets totals, one row per person and the latest entries.
+    const entries = (over.time ?? []) as { minutes: number; user: { id: string; name: string } }[];
+    const people = [...new Set(entries.map((e) => e.user.id))];
+    vi.spyOn(api, "timeSummary").mockResolvedValue({
+      totalMinutes: entries.reduce((n, e) => n + e.minutes, 0),
+      entries: entries.length,
+      people: people.length,
+      projects: entries.length ? 1 : 0,
+      groups: people.map((id) => {
+        const own = entries.filter((e) => e.user.id === id);
+        return { key: id, label: own[0].user.name, user: own[0].user, minutes: own.reduce((n, e) => n + e.minutes, 0), entries: own.length };
+      }),
+    } as never);
+    vi.spyOn(api, "timeEntries").mockResolvedValue({ total: entries.length, items: entries.slice(0, 5) } as never);
     return team;
   };
 
@@ -74,6 +87,16 @@ describe("dashboard", () => {
     expect(screen.getByText("Последние списания")).toBeInTheDocument();
   });
 
+  it("takes the open-task count from the server and says when only the nearest tasks are listed", async () => {
+    const team = setup({ mine: [column({ title: "Бэклог", cards: [card({ id: "a", title: "Ближайшая", dueDate: day(1) })], ...({ total: 640 } as object) }), column({ id: "done", title: "Готово", cards: [] })] });
+    render(<DashboardPage />);
+    expect(await screen.findByText("Ближайшая")).toBeInTheDocument();
+    expect(team).toHaveBeenCalledWith("u1", 200); // not the whole list
+    expect(screen.getByText("640")).toBeInTheDocument(); // the KPI is the server's count
+    expect(screen.getByText(/Показаны ближайшие по сроку: 1 из 640\./)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Все мои задачи" })).toHaveAttribute("href", "/team?mine=1");
+  });
+
   it("shows empty states", async () => {
     setup();
     render(<DashboardPage />);
@@ -87,7 +110,8 @@ describe("dashboard", () => {
     vi.spyOn(api, "onboarding").mockResolvedValue(onboarding({ closed: true }));
     vi.spyOn(api, "teamBoard").mockRejectedValue(new Error("x"));
     vi.spyOn(api, "teamSummary").mockRejectedValue(new Error("x"));
-    vi.spyOn(api, "timeReport").mockRejectedValue(new Error("x"));
+    vi.spyOn(api, "timeSummary").mockRejectedValue(new Error("x"));
+    vi.spyOn(api, "timeEntries").mockRejectedValue(new Error("x"));
     render(<DashboardPage />);
     expect(await screen.findByText("Открытых задач нет")).toBeInTheDocument();
   });

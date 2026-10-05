@@ -31,7 +31,7 @@ function TeamBoard() {
   // Cards are loaded in pages per stage: a big team has thousands of them.
   const [pageSize, setPageSize] = useState(PAGE);
   const [cardId, setCardId] = useCardParam();
-  const [filters, setFilters] = useFilters(mine ? "plano.filters.mine" : "plano.filters.team");
+  const [filters, setFilters, shownFilters] = useFilters(mine ? "plano.filters.mine" : "plano.filters.team");
 
   useEffect(() => {
     api.me().then(setMe).catch(() => {});
@@ -75,12 +75,12 @@ function TeamBoard() {
         filters={filters}
         onChange={setFilters}
         users={mine ? [] : users}
-        shown={columns ? columns.reduce((n, c) => n + applyFilters(c.cards, filters).length, 0) : undefined}
+        shown={columns ? columns.reduce((n, c) => n + applyFilters(c.cards, shownFilters).length, 0) : undefined}
       />
       {!columns && <BoardSkeleton />}
       <div className="-mx-6 flex h-[calc(100vh-124px)] min-h-[420px] items-start gap-2 overflow-x-auto px-6 pb-4">
         {columns?.map((column, index) => {
-          const visible = applyFilters(column.cards, filters);
+          const visible = applyFilters(column.cards, shownFilters);
           return (
             <ColumnShell key={column.title} title={column.title} color={columnColor(column.color, index, columns.length)} count={visible.length}>
               {visible.map((card) => (

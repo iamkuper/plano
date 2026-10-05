@@ -29,6 +29,8 @@ import type {
   SettingsDto,
   TeamBoardColumnDto,
   TeamStageCountDto,
+  TimeEntriesPageDto,
+  TimeSummaryDto,
   TemplateListItemDto,
   TimeEntryDto,
   UserDto,
@@ -149,6 +151,24 @@ export async function downloadProjectCsv(projectId: string, fallbackName: string
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// The time report as a file for Excel: built by the server from all entries of the period.
+export async function downloadTimeCsv(from: string, to: string, userId?: string) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}/reports/time/export.csv?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}`, { headers: { "X-Locale": currentLocale(), ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message ?? t("lib.api.couldNotExport", { status: res.status }));
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `uchet-vremeni_${from}_${to}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 export type BulkAction = "move" | "assign" | "unassign" | "priority" | "due" | "delete";
 
 export interface RecurringInput {
@@ -248,7 +268,37 @@ export function getToken() {
 const sessionResets: (() => void)[] = [];
 export const onSessionChange = (reset: () => void) => void sessionResets.push(reset);
 
+// ---- response cache ----
+// Slow-changing reads (the profile, people, labels, projects, plan...) are
+// remembered for a short time and shared between components that ask at once,
+// so moving between pages doesn't refetch them. Every write that could change
+// them empties the cache (cards and comments only touch the project counters).
+const cache = new Map<string, { at: number; value: Promise<unknown> }>();
+
+function cachedGet<T>(path: string, ms: number): Promise<T> {
+  const hit = cache.get(path);
+  if (hit && Date.now() - hit.at < ms) return hit.value.then((v) => clone(v) as T);
+  const value = apiFetch<T>(path);
+  cache.set(path, { at: Date.now(), value });
+  // A failure must not stay in the cache.
+  value.catch(() => cache.get(path)?.value === value && cache.delete(path));
+  return value.then((v) => clone(v) as T);
+}
+// Callers get their own copy: nobody can change what the next one reads.
+const clone = (v: unknown) => (v === undefined ? v : JSON.parse(JSON.stringify(v)));
+
+if (typeof window !== "undefined") window.addEventListener(BILLING_CHANGED, () => invalidateCache("/billing"));
+
+export function invalidateCache(prefix = "") {
+  for (const key of cache.keys()) if (key.startsWith(prefix)) cache.delete(key);
+}
+const COUNTER_ONLY = /^\/(cards|checklist|comments|time|notifications)(\/|$)/;
+function afterWrite(path: string) {
+  invalidateCache(COUNTER_ONLY.test(path) ? "/projects" : "");
+}
+
 export function setToken(token: string | null) {
+  cache.clear();
   if (token) localStorage.setItem(TOKEN_KEY, token);
   else localStorage.removeItem(TOKEN_KEY);
   sessionResets.forEach((reset) => reset());
@@ -279,6 +329,7 @@ async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
     const message = Array.isArray(body.message) ? body.message.join(", ") : body.message;
     throw new Error(message ?? t("lib.api.requestFailed", { status: res.status }));
   }
+  if (init?.method && init.method !== "GET") afterWrite(path);
   const text = await res.text();
   return (text ? JSON.parse(text) : undefined) as T;
 }
@@ -302,8 +353,8 @@ export const api = {
   login: (email: string, password: string) => post<{ accessToken: string }>("/auth/login", { email, password }),
   register: (workspaceName: string, name: string, email: string, password: string) =>
     post<{ accessToken: string }>("/auth/register", { workspaceName, name, email, password, locale: currentLocale() }),
-  me: () => apiFetch<UserDto>("/users/me"),
-  users: () => apiFetch<UserDto[]>("/users"),
+  me: () => cachedGet<UserDto>("/users/me", 30_000),
+  users: () => cachedGet<UserDto[]>("/users", 30_000),
 
   createUser: (data: { name: string; email: string; password: string; role: UserRole; roleId?: string }) => post<UserDto>("/users", data),
   updateUser: (id: string, data: Partial<{ name: string; role: UserRole; roleId: string; isActive: boolean }>) =>
@@ -317,14 +368,31 @@ export const api = {
   deleteTemplate: (id: string) => del(`/templates/${id}`),
   timeReport: (from: string, to: string, userId?: string) =>
     apiFetch<unknown[]>(`/reports/time?from=${from}&to=${to}${userId ? `&userId=${userId}` : ""}`),
+  // Totals and one row per person/project, counted by the server.
+  timeSummary: (from: string, to: string, groupBy: "user" | "project", userId?: string) =>
+    apiFetch<TimeSummaryDto>(`/reports/time/summary?from=${from}&to=${to}&groupBy=${groupBy}${userId ? `&userId=${userId}` : ""}`),
+  // Entries of one group (or all of them), a page at a time.
+  timeEntries: (from: string, to: string, opts: { groupBy?: "user" | "project"; key?: string; userId?: string; limit?: number; offset?: number } = {}) => {
+    const query = new URLSearchParams({ from, to });
+    if (opts.groupBy) query.set("groupBy", opts.groupBy);
+    if (opts.key) query.set("key", opts.key);
+    if (opts.userId) query.set("userId", opts.userId);
+    if (opts.limit) query.set("limit", String(opts.limit));
+    if (opts.offset) query.set("offset", String(opts.offset));
+    return apiFetch<TimeEntriesPageDto>(`/reports/time/entries?${query}`);
+  },
   templateFromProject: (projectId: string, name: string) => post<{ id: string }>(`/templates/from-project/${projectId}`, { name }),
 
-  projects: (status?: string) => apiFetch<ProjectListItemDto[]>(`/projects${status ? `?status=${status}` : ""}`),
+  projects: (status?: string) => cachedGet<ProjectListItemDto[]>(`/projects${status ? `?status=${status}` : ""}`, 10_000),
   createProject: (data: { title: string; templateId?: string; deadline?: string }) =>
     post<{ id: string }>("/projects", data),
   project: (id: string) => apiFetch<ProjectListItemDto>(`/projects/${id}`),
   projectStats: (id: string) => apiFetch<{ hoursBudget: number | null; loggedMinutes: number }>(`/projects/${id}/stats`),
   projectBoard: (id: string) => apiFetch<BoardDto>(`/projects/${id}/board`),
+  // One card as the board shows it (after a realtime hint).
+  cardTile: (id: string) => apiFetch<CardTileDto>(`/cards/${id}/tile`),
+  // Which cards contain the text (title or description): the board filter asks the server.
+  matchCards: (q: string, projectId?: string) => apiFetch<{ ids: string[] }>(`/cards/match?q=${encodeURIComponent(q)}${projectId ? `&projectId=${projectId}` : ""}`),
   // `limit` loads that many cards per stage (and each stage's total).
   teamBoard: (assigneeId?: string, limit?: number) => {
     const query = new URLSearchParams();
@@ -333,7 +401,7 @@ export const api = {
     return apiFetch<TeamBoardColumnDto[]>(`/team-board${query.size ? `?${query}` : ""}`);
   },
   teamSummary: (assigneeId?: string) => apiFetch<TeamStageCountDto[]>(`/team-board/summary${assigneeId ? `?assigneeId=${assigneeId}` : ""}`),
-  templates: () => apiFetch<TemplateListItemDto[]>("/templates"),
+  templates: () => cachedGet<TemplateListItemDto[]>("/templates", 30_000),
 
   addColumn: (boardId: string, title: string) => post<ColumnDto>(`/boards/${boardId}/columns`, { title }),
   updateColumn: (id: string, data: Partial<{ title: string; wipLimit: number | null; position: number; color: LabelColor | null }>) =>
@@ -351,7 +419,7 @@ export const api = {
   deleteProject: (id: string) => del(`/projects/${id}`),
   deleteColumn: (id: string) => del(`/columns/${id}`),
 
-  settings: () => apiFetch<SettingsDto>("/settings"),
+  settings: () => cachedGet<SettingsDto>("/settings", 30_000),
   invitations: () => apiFetch<InvitationDto[]>("/invitations"),
   invite: (data: { email: string; role?: UserRole; roleId?: string }) => post<{ id: string; email: string; link: string; emailSent: boolean }>("/invitations", data),
   revokeInvitation: (id: string) => del(`/invitations/${id}`),
@@ -377,14 +445,14 @@ export const api = {
   webhookDeliveries: (id: string) => apiFetch<WebhookDeliveryDto[]>(`/webhooks/${id}/deliveries`),
   calendarFeed: () => apiFetch<{ url: string }>("/calendar/feed"),
   resetCalendarFeed: () => post<{ url: string }>("/calendar/feed/reset", {}),
-  labels: () => apiFetch<LabelDto[]>("/labels"),
+  labels: () => cachedGet<LabelDto[]>("/labels", 30_000),
   createLabel: (name: string, color: LabelColor) => post<LabelDto>("/labels", { name, color }),
   updateLabel: (id: string, data: Partial<{ name: string; color: LabelColor }>) => patch<LabelDto>(`/labels/${id}`, data),
   deleteLabel: (id: string) => del(`/labels/${id}`),
   dependencies: (projectId: string) => apiFetch<{ cardId: string; dependsOnId: string }[]>(`/projects/${projectId}/dependencies`),
   addDependency: (cardId: string, dependsOnId: string) => post<{ cardId: string; dependsOnId: string }>(`/cards/${cardId}/dependencies`, { dependsOnId }),
   removeDependency: (cardId: string, dependsOnId: string) => del(`/cards/${cardId}/dependencies/${dependsOnId}`),
-  fields: () => apiFetch<CustomFieldDto[]>("/fields"),
+  fields: () => cachedGet<CustomFieldDto[]>("/fields", 30_000),
   createField: (data: { name: string; type: CustomFieldType; options?: string[] }) => post<CustomFieldDto>("/fields", data),
   updateField: (id: string, data: Partial<{ name: string; options: string[] }>) => patch<CustomFieldDto>(`/fields/${id}`, data),
   deleteField: (id: string) => del(`/fields/${id}`),
@@ -408,7 +476,7 @@ export const api = {
   platformWorkspace: (id: string) => apiFetch<PlatformWorkspaceDetail>(`/platform/workspaces/${id}`),
   platformChangeSubscription: (id: string, body: { action: "grant" | "extend-trial" | "lock" | "free" | "seats"; planId?: string; days?: number; seats?: number }) =>
     post<PlatformWorkspaceDetail>(`/platform/workspaces/${id}/subscription`, body),
-  billing: () => apiFetch<BillingDto>("/billing"),
+  billing: () => cachedGet<BillingDto>("/billing", 15_000),
   checkout: (planId: string, interval: BillingInterval, seats: number) =>
     post<{ paymentUrl: string }>("/billing/checkout", { planId, interval, seats }),
   requestInvoice: (body: { planId: string; interval: BillingInterval; seats: number; addSeats?: number } & InvoicePayer) =>
@@ -418,7 +486,7 @@ export const api = {
   platformInvoices: () => apiFetch<PlatformInvoice[]>("/platform/invoices"),
   platformInvoicePaid: (id: string) => post<void>(`/platform/invoices/${id}/paid`, {}),
   mockPay: (orderId: string, success: boolean) => post<void>(`/billing/dev/pay/${encodeURIComponent(orderId)}`, { success }),
-  roles: () => apiFetch<RoleDto[]>("/roles"),
+  roles: () => cachedGet<RoleDto[]>("/roles", 30_000),
   createRole: (data: { name: string; permissions?: string[] }) => post<RoleDto>("/roles", data),
   updateRole: (id: string, data: Partial<{ name: string; permissions: string[]; isDefault: boolean }>) => patch<RoleDto>(`/roles/${id}`, data),
   deleteRole: (id: string) => del(`/roles/${id}`),

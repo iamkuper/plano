@@ -43,6 +43,11 @@ export class BoardsController {
     return this.boards.getByProject(projectId, user.userId);
   }
 
+  @Get("cards/:id/tile")
+  tile(@Param("id") id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.boards.tile(id, user.userId);
+  }
+
   // Stage names and card counts, without the cards.
   @Get("team-board/summary")
   teamSummary(@Query("assigneeId") assigneeId?: string) {

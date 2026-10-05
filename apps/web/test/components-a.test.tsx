@@ -24,7 +24,7 @@ vi.mock("socket.io-client", () => {
     }),
     off: vi.fn((event: string, fn: () => void) => handlers.get(event)?.delete(fn)),
     emit: vi.fn(),
-    fire: (event: string) => handlers.get(event)?.forEach((fn) => fn()),
+    fire: (event: string, data?: unknown) => handlers.get(event)?.forEach((fn) => (fn as (d?: unknown) => void)(data)),
   };
   return { io: vi.fn(() => socket), __socket: socket };
 });
@@ -319,8 +319,9 @@ describe("realtime hook", () => {
     const { rerender, unmount } = render(<Probe room={["project:b", "project:a"]} />);
     expect(__socket.emit).toHaveBeenCalledWith("join", "project:a");
     expect(__socket.emit).toHaveBeenCalledWith("join", "project:b");
-    act(() => __socket.fire("board:changed"));
+    act(() => __socket.fire("board:changed", { projectId: "p1", cardId: "c1", op: "upsert" }));
     expect(handler).toHaveBeenCalledTimes(1);
+    expect(handler).toHaveBeenLastCalledWith({ projectId: "p1", cardId: "c1", op: "upsert" }); // handlers get the event's data
     rerender(<Probe room={null} />);
     expect(__socket.emit).toHaveBeenCalledWith("leave", "project:a");
     unmount();
