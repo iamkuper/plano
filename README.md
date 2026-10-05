@@ -209,5 +209,11 @@ docker compose up -d api
 docker compose exec api node -e "fetch('https://securepay.tinkoff.ru/v2/Init',{method:'POST'}).then(r=>console.log(r.status)).catch(e=>console.log(e.cause))"
 ```
 
+Если адреса сертификатов Госуслуг не открываются (проверьте их на сайте gu-st.ru), возьмите цепочку прямо у сервера банка — в ней обычно есть и корневой сертификат:
+
+```bash
+echo | openssl s_client -connect securepay.tinkoff.ru:443 -showcerts 2>/dev/null | sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' > certs/extra-ca.pem
+```
+
 В `docker-compose.yml` папка `deploy/certs` подключена к контейнеру API как `/certs`, а `NODE_EXTRA_CA_CERTS=/certs/extra-ca.pem` уже задан; `deploy.sh` эту папку не трогает. Если выпускающий центр в выводе `openssl` другой (не Минцифры), значит, соединение подменяет прокси хостинга: его сертификат кладётся в тот же файл.
 
