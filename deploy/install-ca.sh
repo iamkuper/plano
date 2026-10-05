@@ -36,7 +36,11 @@ trap 'rm -rf "$tmp"' EXIT
 
 # 1. The official files of the Ministry of Digital Development.
 if curl -fsSL --max-time 30 "$ROOT_URL" -o "$tmp/root.pem" && curl -fsSL --max-time 30 "$SUB_URL" -o "$tmp/sub.pem" && valid "$tmp/root.pem" && valid "$tmp/sub.pem"; then
-  cat "$tmp/root.pem" "$tmp/sub.pem" > "$tmp/bundle.pem"
+  # The files may lack a final newline or have Windows line endings; glued
+  # together as they are, "-----END CERTIFICATE----------BEGIN CERTIFICATE-----"
+  # makes Node reject the whole bundle ("bad end line").
+  for f in "$tmp/root.pem" "$tmp/sub.pem"; do tr -d '\r' < "$f"; echo; done | grep -v '^[[:space:]]*$' > "$tmp/bundle.pem"
+  valid "$tmp/bundle.pem" || { echo "certificates: the downloaded files are not valid PEM" >&2; exit 1; }
   echo "certificates: took the root and issuing certificates from gu-st.ru"
 else
   # 2. The chain the bank itself sends (usually includes the root).
