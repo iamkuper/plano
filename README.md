@@ -201,15 +201,15 @@ cd /opt/plano/deploy
 mkdir -p certs
 # кто выпустил сертификат (должен быть Russian Trusted ...)
 echo | openssl s_client -connect securepay.tinkoff.ru:443 -showcerts 2>/dev/null | grep -E " s:| i:"
-# корневой и промежуточный сертификаты с официального сайта Госуслуг
-curl -fsSL https://gu-st.ru/content/Other/doc/russian_trusted_root_ca.cer -o /tmp/root.cer
-curl -fsSL https://gu-st.ru/content/Other/doc/russian_trusted_sub_ca.cer -o /tmp/sub.cer
-for f in /tmp/root.cer /tmp/sub.cer; do openssl x509 -inform DER -in $f 2>/dev/null || cat $f; done > certs/extra-ca.pem
+# корневой и промежуточный сертификаты НУЦ Минцифры (PEM), официальные адреса Госуслуг
+curl -fsSL https://gu-st.ru/content/lending/russian_trusted_root_ca_pem.crt -o /tmp/root.crt
+curl -fsSL https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt -o /tmp/sub.crt
+cat /tmp/root.crt /tmp/sub.crt > certs/extra-ca.pem
 docker compose up -d api
 docker compose exec api node -e "fetch('https://securepay.tinkoff.ru/v2/Init',{method:'POST'}).then(r=>console.log(r.status)).catch(e=>console.log(e.cause))"
 ```
 
-Если адреса сертификатов Госуслуг не открываются (проверьте их на сайте gu-st.ru), возьмите цепочку прямо у сервера банка — в ней обычно есть и корневой сертификат:
+Если адреса сертификатов Госуслуг не открываются (в CI и из-за рубежа они бывают недоступны), возьмите цепочку прямо у сервера банка — в ней обычно есть и корневой сертификат:
 
 ```bash
 echo | openssl s_client -connect securepay.tinkoff.ru:443 -showcerts 2>/dev/null | sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' > certs/extra-ca.pem
