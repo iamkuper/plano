@@ -4,6 +4,7 @@ import { PassportStrategy } from "@nestjs/passport";
 import { ExtractJwt, Strategy } from "passport-jwt";
 import { isLocked } from "../../billing/subscription-state";
 import { SystemPrismaService } from "../../prisma/system-prisma.service";
+import { authCacheKey, authGeneration, getAuth, putAuth } from "../auth-cache";
 import type { AuthenticatedUser } from "../current-user.decorator";
 import { t } from "@plano/shared";
 export const NO_SEAT_MESSAGE = t("api.auth.thereIsNoPaidSeat");
@@ -32,6 +33,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // the token) so deactivating a user or changing their role takes effect
   // immediately.
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
+    const key = authCacheKey(payload.sub, payload.tok);
+    const cached = getAuth(key);
+    if (cached) return { ...cached };
+    const generation = authGeneration();
+    const user = await this.load(payload);
+    putAuth(key, user, generation);
+    return user;
+  }
+
+  private async load(payload: JwtPayload): Promise<AuthenticatedUser> {
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, include: { customRole: true, workspace: { select: { subscription: true } } } });
     if (!user?.isActive || user.kind === "AGENT") {
       throw new UnauthorizedException();

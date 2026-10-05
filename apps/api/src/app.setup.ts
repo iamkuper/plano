@@ -1,4 +1,5 @@
 import { INestApplication, ValidationPipe } from "@nestjs/common";
+import compression from "compression";
 import { json } from "express";
 import { localeMiddleware } from "./i18n/request-locale";
 import { PrismaExceptionFilter } from "./prisma/prisma-exception.filter";
@@ -7,6 +8,8 @@ import { PrismaExceptionFilter } from "./prisma/prisma-exception.filter";
 // the same pipeline as production.
 export function configureApp(app: INestApplication) {
   app.enableCors({ allowedHeaders: ["Content-Type", "Authorization", "X-Locale", "Accept-Language"] });
+  // JSON (boards, lists, CSV) shrinks several times; small bodies are left alone.
+  app.use(compression({ threshold: 1024 }));
   app.use(localeMiddleware);
   // Avatars are sent as data: URLs (≈30–200 KB after client-side resize).
   app.use(json({ limit: "2mb" }));

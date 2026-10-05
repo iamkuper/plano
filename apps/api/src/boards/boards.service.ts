@@ -36,6 +36,20 @@ export class BoardsService {
     return new Map(rows.map((r) => [r.cardId, Number(r.n)]));
   }
 
+  // Same, for every card of a project in one query, so the board and the counts
+  // are fetched at the same time.
+  private async unreadCountsOfProject(userId: string, projectId: string) {
+    const rows = await this.prisma.$queryRaw<{ cardId: string; n: bigint }[]>`
+      SELECT c."cardId", COUNT(*) AS n
+      FROM "Comment" c
+      JOIN "Card" k ON k."id" = c."cardId" AND k."projectId" = ${projectId}
+      LEFT JOIN "CardRead" r ON r."cardId" = c."cardId" AND r."userId" = ${userId}
+      WHERE c."authorId" <> ${userId}
+        AND (r."readAt" IS NULL OR c."createdAt" > r."readAt")
+      GROUP BY c."cardId"`;
+    return new Map(rows.map((r) => [r.cardId, Number(r.n)]));
+  }
+
   private async withUnread<T extends { id: string }>(userId: string, cards: T[]): Promise<WithUnread<T>[]> {
     const counts = await this.unreadCounts(userId, cards.map((c) => c.id));
     return cards.map((c) => ({ ...c, unreadComments: counts.get(c.id) ?? 0 }));
@@ -46,19 +60,20 @@ export class BoardsService {
   }
 
   async getByProject(projectId: string, userId: string) {
-    const board = await this.prisma.board.findUnique({
-      where: { projectId },
-      include: {
-        columns: {
-          orderBy: { position: "asc" },
-          include: { cards: { orderBy: { position: "asc" }, include: cardTileInclude } },
+    const [board, unread] = await Promise.all([
+      this.prisma.board.findUnique({
+        where: { projectId },
+        include: {
+          columns: {
+            orderBy: { position: "asc" },
+            include: { cards: { orderBy: { position: "asc" }, include: cardTileInclude } },
+          },
         },
-      },
-    });
+      }),
+      this.unreadCountsOfProject(userId, projectId),
+    ]);
     if (!board) throw new NotFoundException(t("api.boards.boardNotFound"));
-    const cards = await this.withUnread(userId, board.columns.flatMap((c) => c.cards));
-    const byId = new Map(cards.map((c) => [c.id, c]));
-    return { ...board, columns: board.columns.map((col) => ({ ...col, cards: col.cards.map((c) => byId.get(c.id)!) })) };
+    return { ...board, columns: board.columns.map((col) => ({ ...col, cards: col.cards.map((c) => ({ ...c, unreadComments: unread.get(c.id) ?? 0 })) })) };
   }
 
   // The team board is a virtual view: cards of all ACTIVE projects grouped by

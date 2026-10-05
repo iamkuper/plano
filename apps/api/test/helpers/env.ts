@@ -11,3 +11,5 @@ process.env.SMTP_HOST = "";
 process.env.PLATFORM_ADMIN_EMAILS = "platform-owner@iso.test";
 process.env.AGENTS_ALLOW_PRIVATE_URLS = "1";
 process.env.AGENT_SECRET_KEY = "test-agent-secret";
+// Tests change rows behind the app's back (own PrismaClient) and expect it at once.
+process.env.AUTH_CACHE_MS = "0";
