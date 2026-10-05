@@ -48,7 +48,14 @@ export function chooseBrowserLocale(locale: Locale) {
 }
 export const resetBrowserLocale = () => (browserChoice = null);
 
-let resolver: () => Locale = () => (!env.window ? "ru" : browserLocale());
+// Pins the language for a stretch of rendering (the public pages, whose language
+// is fixed by their address). Pass null to go back to the normal choice.
+let forced: Locale | null = null;
+export const forceLocale = (locale: Locale | null) => {
+  forced = locale;
+};
+
+let resolver: () => Locale = () => forced ?? (!env.window ? "ru" : browserLocale());
 
 // Each runtime says which locale is current: the browser reads its setting,
 // the API reads the locale of the request being served.

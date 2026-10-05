@@ -51,12 +51,12 @@ export async function ownerToken() {
 }
 
 // Owner-only helper: changes the subscription of the workspace with this company name.
-export async function platformAction(company: string, action: "grant" | "lock" | "free" | "extend-trial", planId?: string) {
+export async function platformAction(company: string, action: "grant" | "lock" | "free" | "extend-trial", planId?: string, seats?: number) {
   const owner = await ownerToken();
   const list = await call<{ items: { id: string; name: string }[] }>(`/platform/workspaces?q=${encodeURIComponent(company)}`, owner);
   const ws = list.items.find((w) => w.name === company);
   expect(ws, "workspace in platform list").toBeTruthy();
-  await call(`/platform/workspaces/${ws!.id}/subscription`, owner, "POST", { action, planId, days: 30 });
+  await call(`/platform/workspaces/${ws!.id}/subscription`, owner, "POST", { action, planId, days: 30, seats });
 }
 
 export async function makeProject(token: string, title: string, cards: string[] = []) {

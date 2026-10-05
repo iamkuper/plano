@@ -50,8 +50,12 @@ const call = (name: string, args: object, id = "c1") => ({
 
 const agentBody = (over: object = {}) => ({ name: "Мария-бот", provider: "OPENAI_COMPATIBLE", model: "test-model", baseUrl: base, apiKey: "sk-test-secret-1234", instructions: "Отвечай кратко", ...over });
 
+// Agents are a Business feature.
+const business = (workspaceId: string) => setPlan(t, workspaceId, "BUSINESS");
+
 async function setup(tag: string) {
   const a = await register(t, tag);
+  await business(a.workspaceId);
   const A = api(t, a.token);
   const agent = (await A.post("/agents", agentBody()).expect(201)).body;
   const { project, cards } = await makeProject(t, a.token, "П", ["Сделать отчёт"]);
@@ -71,7 +75,8 @@ async function settled(agentId: string, count = 1) {
 describe("agents: setup", () => {
   it("creates an agent that takes a seat, hides its key and cannot sign in", async () => {
     const a = await register(t, "ag1");
-    await setPlan(t, a.workspaceId, "FREE"); // 3 seats
+    await business(a.workspaceId);
+    await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { seats: 3 } }); // 3 paid seats
     const A = api(t, a.token);
     const created = (await A.post("/agents", agentBody()).expect(201)).body;
     expect(created).toMatchObject({ name: "Мария-бот", provider: "OPENAI_COMPATIBLE", model: "test-model", keyHint: "…1234", enabled: true, isActive: true });
@@ -85,7 +90,7 @@ describe("agents: setup", () => {
     expect(users.find((u) => u.id === created.id)?.kind).toBe("AGENT");
     expect((await A.get("/billing").expect(200)).body.usage.users).toBe(2);
     await A.post("/agents", agentBody({ name: "Второй" })).expect(201);
-    await A.post("/agents", agentBody({ name: "Третий" })).expect(402); // 3 seats on Free are used
+    await A.post("/agents", agentBody({ name: "Третий" })).expect(402); // the 3 paid seats are used
 
     // no way in
     const user = await t.db.user.findUniqueOrThrow({ where: { id: created.id } });
@@ -95,6 +100,7 @@ describe("agents: setup", () => {
 
   it("validates input and needs the agents.manage permission", async () => {
     const a = await register(t, "ag2");
+    await business(a.workspaceId);
     const A = api(t, a.token);
     await A.post("/agents", agentBody({ name: "" })).expect(400);
     await A.post("/agents", agentBody({ provider: "SKYNET" })).expect(400);
@@ -148,6 +154,43 @@ describe("agents: setup", () => {
     await B.patch(`/agents/${one.agent.id}`, { name: "Чужой" }).expect(404);
     await B.del(`/agents/${one.agent.id}`).expect(404);
     await B.get(`/agents/${one.agent.id}/runs`).expect(404);
+  });
+});
+
+describe("agents: Business plan only", () => {
+  it("refuses to connect, test or switch on agents below Business, and keeps existing ones read-only", async () => {
+    const a = await register(t, "ag18"); // a Pro trial
+    const A = api(t, a.token);
+    const denied = await A.post("/agents", agentBody()).expect(402);
+    expect(denied.body.message).toContain("Business");
+    await A.post("/agents/test", { provider: "OPENAI_COMPATIBLE", model: "m", baseUrl: base, apiKey: "k" }).expect(402);
+    expect((await A.get("/agents").expect(200)).body).toEqual([]); // reading is always fine
+
+    // an agent that was connected on Business and then the plan dropped
+    await business(a.workspaceId);
+    const agent = (await A.post("/agents", agentBody()).expect(201)).body;
+    await setPlan(t, a.workspaceId, "PRO");
+    await A.patch(`/agents/${agent.id}`, { name: "Переименован" }).expect(200); // editing still works
+    await A.patch(`/agents/${agent.id}`, { enabled: false }).expect(200);
+    await A.patch(`/agents/${agent.id}`, { enabled: true }).expect(402); // bringing it back does not
+    await A.patch(`/agents/${agent.id}`, { isActive: false }).expect(200);
+    await A.patch(`/agents/${agent.id}`, { isActive: true }).expect(402);
+    await A.del(`/agents/${agent.id}`).expect(204);
+  });
+
+  it("stops reacting once the plan drops below Business", async () => {
+    const { a, A, agent, card } = await setup("ag19");
+    await setPlan(t, a.workspaceId, "PRO");
+    await A.patch(`/cards/${card.id}`, { assigneeIds: [agent.id] }).expect(200);
+    const [run] = await settled(agent.id);
+    expect(run).toMatchObject({ status: "SKIPPED", error: "тариф без ИИ-агентов" });
+    expect(seen).toHaveLength(0);
+  });
+
+  it("lists agents among the Business features of the public plans", async () => {
+    const plans = (await request(t.app.getHttpServer()).get("/billing/plans").expect(200)).body.plans as { id: string; features: string[] }[];
+    expect(plans.find((p) => p.id === "BUSINESS")?.features).toContain("agents");
+    expect(plans.find((p) => p.id === "PRO")?.features).not.toContain("agents");
   });
 });
 

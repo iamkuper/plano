@@ -5,7 +5,7 @@ import type { AgentDto } from "@plano/shared";
 import AgentsPage from "@/app/settings/agents/page";
 import { Avatar } from "@/components/avatar";
 import { api } from "@/lib/api";
-import { member, user } from "./fixtures";
+import { billing, member, plans, user } from "./fixtures";
 
 vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: React.ReactNode }) => <div>{children}</div> }));
 
@@ -15,8 +15,9 @@ const agent = (over: Partial<AgentDto> = {}): AgentDto => ({
 });
 const roles = [{ id: "r1", name: "Участник", permissions: [], isDefault: true, _count: { users: 1 } }];
 
-function setup(list: AgentDto[], me = user()) {
+function setup(list: AgentDto[], me = user(), plan = plans[2]) {
   vi.spyOn(api, "me").mockResolvedValue(me);
+  vi.spyOn(api, "billing").mockResolvedValue(billing({ plan }));
   vi.spyOn(api, "roles").mockResolvedValue(roles as never);
   return vi.spyOn(api, "agents").mockResolvedValue(list);
 }
@@ -27,6 +28,16 @@ describe("agents page", () => {
     render(<AgentsPage />);
     expect(await screen.findByText("Агентов пока нет")).toBeInTheDocument();
     expect(screen.getByText(/занимает одно место тарифа/)).toBeInTheDocument();
+  });
+
+  it("is a Business feature: below it new agents are offered a plan change, existing ones stay manageable", async () => {
+    setup([agent()], user(), plans[1]);
+    render(<AgentsPage />);
+    expect(await screen.findByText(/ИИ-агенты есть на тарифе Business/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Тарифы" })).toHaveAttribute("href", "/settings/billing");
+    expect(screen.queryByRole("button", { name: /Новый агент/ })).toBeNull();
+    expect(await screen.findByRole("button", { name: "Изменить агента Мария-бот" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Удалить агента Мария-бот" })).toBeInTheDocument();
   });
 
   it("lists agents with their state", async () => {

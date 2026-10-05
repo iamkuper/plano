@@ -3,29 +3,34 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Check } from "lucide-react";
-import { formatRub, YEAR_MONTHS_CHARGED, type PlanDto } from "@plano/shared";
+import { formatRub, type Locale, type PlanDto } from "@plano/shared";
 import { Segmented } from "@/components/ui";
 import { goal } from "@/lib/analytics";
 import { API_URL } from "@/lib/api";
+import { appPath, makeTr, priceLabel, type Tr } from "@/lib/marketing";
 
-const FEATURES: Record<string, string> = {
-  time: "Учёт времени и отчёты",
-  roles: "Свои роли и права",
-  audit: "Журнал действий",
-  export: "Экспорт в CSV",
-  gantt: "Диаграмма Ганта",
-  fields: "Свои поля в карточках",
-};
-const PITCH: Record<string, string> = {
-  FREE: "Попробовать с небольшой командой",
-  PRO: "Для команды, которая работает каждый день",
-  BUSINESS: "Сроки, зависимости и контроль",
-};
-const limit = (n: number | null, word: string) => (n === null ? `${word} без ограничений` : `${word}: до ${n}`);
-const gb = (mb: number) => `${Math.round(mb / 1024)} ГБ`;
+const features = (tr: Tr): Record<string, string> => ({
+  time: tr("settings.billing.timeTrackingAndReports"),
+  roles: tr("settings.billing.customRolesAndPermissions"),
+  audit: tr("settings.billing.activityLog"),
+  export: tr("mk.pricingTable.csvExport"),
+  gantt: tr("settings.billing.ganttChart"),
+  fields: tr("mk.pricingTable.customCardFields"),
+  agents: tr("settings.billing.aiAgents"),
+});
+const pitch = (tr: Tr): Record<string, string> => ({
+  FREE: tr("mk.pricingTable.tryItWithASmall"),
+  PRO: tr("mk.pricingTable.forATeamThatWorks"),
+  BUSINESS: tr("mk.pricingTable.deadlinesDependenciesAndControl"),
+});
+const limit = (tr: Tr, n: number | null, word: string) => (n === null ? tr("mk.pricingTable.unlimited", { word }) : tr("mk.pricingTable.upTo", { word, n }));
+const gb = (tr: Tr, mb: number) => tr("mk.pricingTable.gb", { round: Math.round(mb / 1024) });
 
 // Public plans, read from the API so the page always matches billing.
-export function PricingTable({ initial }: { initial?: { plans: PlanDto[]; trialDays: number } | null }) {
+export function PricingTable({ initial, locale = "ru" }: { initial?: { plans: PlanDto[]; trialDays: number } | null; locale?: Locale }) {
+  const tr = makeTr(locale);
+  const FEATURES = features(tr);
+  const PITCH = pitch(tr);
   const [plans, setPlans] = useState<PlanDto[] | null>(initial?.plans ?? null);
   const [trialDays, setTrialDays] = useState(initial?.trialDays ?? 14);
   const [interval, setInterval_] = useState<"MONTH" | "YEAR">("MONTH");
@@ -45,12 +50,12 @@ export function PricingTable({ initial }: { initial?: { plans: PlanDto[]; trialD
     <div>
       <div className="mb-6 flex flex-wrap items-center justify-center gap-3">
         <Segmented
-          label="Период оплаты"
+          label={tr("settings.billing.billingPeriod")}
           value={interval}
           onChange={setInterval_}
           options={[
-            { value: "MONTH", label: "Помесячно" },
-            { value: "YEAR", label: "За год — 2 месяца в подарок" },
+            { value: "MONTH", label: tr("mk.pricingTable.monthly") },
+            { value: "YEAR", label: tr("mk.pricingTable.yearly2MonthsFree") },
           ]}
         />
       </div>
@@ -62,20 +67,20 @@ export function PricingTable({ initial }: { initial?: { plans: PlanDto[]; trialD
             <div key={p.id} className={`flex flex-col rounded-xl border bg-surface p-6 ${p.id === "PRO" ? "border-accent shadow-raised" : "border-border"}`}>
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">{p.name}</h3>
-                {p.id === "PRO" && <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-white">Популярный</span>}
+                {p.id === "PRO" && <span className="rounded-full bg-accent px-2 py-0.5 text-xs font-medium text-white">{tr("mk.pricingTable.popular")}</span>}
               </div>
               <p className="mt-1 text-sm text-ink-faint">{PITCH[p.id]}</p>
               <p className="mt-5 text-3xl font-semibold">
-                {p.priceKopecks ? formatRub(Math.round(interval === "YEAR" ? (p.priceKopecks * YEAR_MONTHS_CHARGED) / 12 : p.priceKopecks)) : "0 ₽"}
+                {priceLabel(locale, p, interval, formatRub)}
               </p>
-              <p className="text-sm text-ink-faint">{p.priceKopecks ? "за пользователя в месяц" : "бесплатно, навсегда"}</p>
+              <p className="text-sm text-ink-faint">{p.priceKopecks ? tr("settings.billing.perUserPerMonth") : tr("mk.pricingTable.freeForever")}</p>
               <ul className="mt-6 flex-1 space-y-2 text-sm">
                 {[
-                  limit(p.maxUsers, "Пользователей"),
-                  limit(p.maxProjects, "Проектов"),
-                  p.storageMbPerSeat ? `${gb(p.storageMbPerSeat)} для файлов на пользователя` : `${gb(p.storageMbBase)} для файлов`,
-                  "Доски, списки, таблица и календарь",
-                  "Шаблоны и повторяющиеся задачи",
+                  limit(tr, p.maxUsers, tr("platform.users2")),
+                  limit(tr, p.maxProjects, tr("reports.time.projects")),
+                  p.storageMbPerSeat ? tr("mk.pricingTable.ofFileStoragePerUser", { gb: gb(tr, p.storageMbPerSeat) }) : tr("mk.pricingTable.ofFileStorage", { gb: gb(tr, p.storageMbBase) }),
+                  tr("mk.pricingTable.boardsListsTableAndCalendar"),
+                  tr("mk.pricingTable.templatesAndRecurringTasks"),
                   ...p.features.map((f) => FEATURES[f]).filter(Boolean),
                 ].map((f) => (
                   <li key={f} className="flex gap-2">
@@ -84,20 +89,22 @@ export function PricingTable({ initial }: { initial?: { plans: PlanDto[]; trialD
                 ))}
               </ul>
               <Link
-                href="/register"
+                href={appPath(locale, "/register")}
                 onClick={() => goal("pricing_cta", { plan: p.id })}
                 className={`mt-6 rounded-md px-4 py-2 text-center text-sm font-medium ${
                   p.id === "PRO" ? "bg-accent text-white hover:bg-accent-hover" : "border border-border hover:bg-surface-soft"
                 }`}
               >
-                {p.priceKopecks ? `Попробовать ${trialDays} дней бесплатно` : "Начать бесплатно"}
+                {p.priceKopecks ? tr("mk.pricingTable.tryFreeForDays", { trialDays }) : tr("mk.pricingTable.getStartedFree")}
               </Link>
             </div>
           ),
         )}
       </div>
-      <p className="mt-6 text-center text-sm text-ink-faint">
-        Пробный период — без карты. Оплата картой или по счёту для юрлиц и ИП. Автоматических списаний нет.
+      <p className="mt-6 text-center text-sm text-ink-faint">{tr("mk.pricingTable.agentsNote")}</p>
+      <p className="mt-2 text-center text-sm text-ink-faint">
+        
+        {tr("mk.pricingTable.theTrialNeedsNoCard")}
       </p>
     </div>
   );

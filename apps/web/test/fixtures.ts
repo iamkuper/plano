@@ -29,7 +29,7 @@ export const column = (over: Partial<ColumnDto> = {}): ColumnDto => ({ id: "col1
 export const plans: PlanDto[] = [
   { id: "FREE", name: "Free", position: 1, priceKopecks: 0, maxUsers: 3, maxProjects: 3, maxRecurring: 3, storageMbBase: 1024, storageMbPerSeat: 0, features: [] },
   { id: "PRO", name: "Pro", position: 2, priceKopecks: 49000, maxUsers: null, maxProjects: null, maxRecurring: null, storageMbBase: 0, storageMbPerSeat: 20480, features: ["time", "roles"] },
-  { id: "BUSINESS", name: "Business", position: 3, priceKopecks: 99000, maxUsers: null, maxProjects: null, maxRecurring: null, storageMbBase: 0, storageMbPerSeat: 102400, features: ["time", "roles", "audit", "export", "gantt", "fields"] },
+  { id: "BUSINESS", name: "Business", position: 3, priceKopecks: 99000, maxUsers: null, maxProjects: null, maxRecurring: null, storageMbBase: 0, storageMbPerSeat: 102400, features: ["time", "roles", "audit", "export", "gantt", "fields", "agents"] },
 ];
 
 export const billing = (over: Partial<BillingDto> = {}): BillingDto => ({

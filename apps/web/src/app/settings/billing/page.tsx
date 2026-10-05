@@ -23,6 +23,7 @@ const FEATURE_LABELS: Record<string, string> = {
   export: t("settings.billing.dataExport"),
   gantt: t("settings.billing.ganttChart"),
   fields: t("settings.billing.customCardFields"),
+  agents: t("settings.billing.aiAgents"),
 };
 
 function status(b: BillingDto) {

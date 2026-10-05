@@ -9,6 +9,10 @@ import { LOCALES, chooseBrowserLocale, currentLocale, t, type Locale } from "@pl
 export function LocaleGate({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
   useEffect(() => {
+    // Links from the public site carry the visitor's language: /register?lang=en.
+    const asked = new URLSearchParams(window.location.search).get("lang");
+    const wanted = LOCALES.find((l) => l === asked);
+    if (wanted) chooseBrowserLocale(wanted);
     document.documentElement.lang = currentLocale();
     setReady(true);
   }, []);

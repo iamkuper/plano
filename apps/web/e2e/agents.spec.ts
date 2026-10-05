@@ -1,7 +1,7 @@
 import http from "http";
 import { AddressInfo } from "net";
 import { expect, test } from "@playwright/test";
-import { apiAs, makeProject, signIn, signUp } from "./helpers";
+import { apiAs, makeProject, platformAction, signIn, signUp } from "./helpers";
 
 // A stand-in for a model provider: first asks to post a message, then wraps up.
 let server: http.Server;
@@ -33,6 +33,7 @@ test.afterAll(() => server.close());
 
 test("connect an AI agent, assign it a card, and it answers in the card", async ({ page }) => {
   const acc = await signUp("agent");
+  await platformAction(acc.company, "grant", "BUSINESS", 3);
   const { project } = await makeProject(acc.token, "Сайт", ["Составить план"]);
   await signIn(page, acc.token, "/settings/agents");
 
@@ -71,6 +72,16 @@ test("connect an AI agent, assign it a card, and it answers in the card", async 
   await expect(page.getByText(/сегодня: 1 запуск, 30 токенов/)).toBeVisible(); // two model calls of 10 in + 5 out
   await page.getByRole("button", { name: "Запуски агента «Мария-бот»" }).click();
   await expect(page.getByRole("dialog").getByText(/назначили на карточку · готово/)).toBeVisible();
+});
+
+test("below Business the agents page offers an upgrade instead of the form", async ({ page }) => {
+  const acc = await signUp("agentpro"); // a Pro trial
+  await signIn(page, acc.token, "/settings/agents");
+  await expect(page.getByText(/ИИ-агенты есть на тарифе Business/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Новый агент" })).toHaveCount(0);
+  await page.getByRole("link", { name: "Тарифы" }).click();
+  await expect(page).toHaveURL(/\/settings\/billing/);
+  await expect(page.getByText("ИИ-агенты на вашем ключе")).toBeVisible();
 });
 
 test("a person without the right sees agents settings read-only", async ({ page, browser }) => {

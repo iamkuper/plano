@@ -327,7 +327,7 @@ export interface NotificationDto {
 // ---- Billing ----
 
 export type PlanId = "FREE" | "PRO" | "BUSINESS";
-export type PlanFeature = "time" | "roles" | "audit" | "export" | "api" | "gantt" | "fields";
+export type PlanFeature = "time" | "roles" | "audit" | "export" | "api" | "gantt" | "fields" | "agents";
 export type BillingInterval = "MONTH" | "YEAR";
 export type SubscriptionStatus = "TRIALING" | "ACTIVE" | "PAST_DUE" | "LOCKED";
 export type PaymentStatus = "PENDING" | "PAID" | "FAILED";

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Bot, History, Pencil, Plus, Trash2 } from "lucide-react";
-import { AGENT_PROVIDERS, intlTag, t, type AgentDto, type AgentProvider, type AgentUsage, type AgentRunDto, type RoleDto } from "@plano/shared";
+import { AGENT_PROVIDERS, intlTag, t, type AgentDto, type BillingDto, type AgentProvider, type AgentUsage, type AgentRunDto, type RoleDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Avatar } from "@/components/avatar";
 import { SettingsTabs } from "@/components/tab-links";
@@ -212,19 +212,25 @@ export default function AgentsPage() {
   const [editing, setEditing] = useState<AgentDto | "new" | null>(null);
   const [history, setHistory] = useState<AgentDto | null>(null);
   const [removing, setRemoving] = useState<AgentDto | null>(null);
-  const allowed = can("agents.manage");
+  const [billing, setBilling] = useState<BillingDto | null>(null);
+  const available = billing?.plan.features.includes("agents") ?? true; // assume yes until the plan is known
+  const manage = can("agents.manage");
+  const allowed = manage && available; // connecting new agents
 
   const load = useCallback(() => {
     api.agents().then(setAgents).catch(() => setAgents([]));
   }, []);
   useEffect(() => {
-    if (!allowed) {
+    api.billing().then(setBilling).catch(() => {});
+  }, []);
+  useEffect(() => {
+    if (!manage) {
       setAgents([]);
       return;
     }
     load();
     api.roles().then(setRoles).catch(() => {});
-  }, [allowed, load]);
+  }, [manage, load]);
 
   return (
     <AppShell>
@@ -240,7 +246,15 @@ export default function AgentsPage() {
         }
       />
       <div className="w-full space-y-4 py-6">
-        {!allowed && <p className="rounded-lg border border-border bg-surface-soft px-4 py-3 text-sm text-ink-faint">{t("settings.agents.noRight")}</p>}
+        {billing && !available && (
+          <div className="flex items-center justify-between gap-4 rounded-lg border border-border bg-surface-soft px-4 py-3 text-sm">
+            <span>{t("settings.agents.businessOnly")}</span>
+            <Link href="/settings/billing">
+              <Button>{t("settings.agents.plans")}</Button>
+            </Link>
+          </div>
+        )}
+        {!manage && <p className="rounded-lg border border-border bg-surface-soft px-4 py-3 text-sm text-ink-faint">{t("settings.agents.noRight")}</p>}
         <Card title={t("settings.agents.title")} description={t("settings.agents.description")}>
           {!agents ? null : agents.length === 0 ? (
             <EmptyState icon={Bot} title={t("settings.agents.empty")}>{t("settings.agents.emptyHint")}</EmptyState>
@@ -264,7 +278,7 @@ export default function AgentsPage() {
                       {a.lastRun && ` · ${t("settings.agents.lastRun", { when: when(a.lastRun.createdAt), status: t(`settings.agents.status${a.lastRun.status}`) })}`}
                     </div>
                   </div>
-                  {allowed && (
+                  {manage && (
                     <>
                       <IconButton aria-label={t("settings.agents.runsOf", { name: a.name })} onClick={() => setHistory(a)}>
                         <History size={15} />

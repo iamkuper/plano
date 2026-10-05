@@ -128,6 +128,7 @@ export class AgentsService {
   // An agent is a user of the workspace of kind AGENT: it takes a seat,
   // can be an assignee and write messages, but has no password and cannot sign in.
   async create(input: AgentInput): Promise<AgentDto> {
+    await this.billing.assertFeature("agents");
     this.validate(input);
     if (!input.apiKey?.trim()) throw new BadRequestException(t("api.agents.keyRequired"));
     const ws = (await this.prisma.workspace.findFirstOrThrow({ select: { id: true } })).id;
@@ -168,6 +169,8 @@ export class AgentsService {
     const provider = input.provider ?? current.provider;
     this.validate({ provider, baseUrl: input.baseUrl !== undefined ? input.baseUrl : current.baseUrl });
     const ws = (await this.prisma.workspace.findFirstOrThrow({ select: { id: true } })).id;
+    // Existing agents can be edited on any plan, but bringing one back needs the feature and a seat.
+    if ((input.isActive === true && !current.isActive) || (input.enabled === true && !current.enabled)) await this.billing.assertFeature("agents");
     if (input.isActive === true && !current.isActive) await this.billing.assertSeat(ws, { countInvitations: true });
     const key = input.apiKey?.trim();
     await this.prisma.user.update({
@@ -211,6 +214,7 @@ export class AgentsService {
   // Checks provider, model and key with a one-word question. Works on a saved
   // agent (its stored key) or on values typed into the form.
   async test(input: { agentId?: string; provider: AgentProvider; model: string; baseUrl?: string | null; apiKey?: string }) {
+    await this.billing.assertFeature("agents");
     this.validate(input);
     let apiKey = input.apiKey?.trim();
     if (!apiKey && input.agentId) {

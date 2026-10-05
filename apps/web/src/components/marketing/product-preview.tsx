@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   Bell,
@@ -22,7 +22,8 @@ import {
   Table2,
   X,
 } from "lucide-react";
-import { setCardKeyPrefix, type CardTileDto, type ColumnDto, type TaskTypeRefDto } from "@plano/shared";
+import { forceLocale, setCardKeyPrefix, type CardTileDto, type ColumnDto, type Locale, type TaskTypeRefDto } from "@plano/shared";
+import { makeTr, type Tr } from "@/lib/marketing";
 import { Avatar, LetterMark } from "@/components/avatar";
 import { ColumnShell, ProjectFunnel } from "@/components/board";
 import { CardTile } from "@/components/card-tile";
@@ -39,39 +40,56 @@ import { applyFilters, DEFAULT_FILTERS, type CardFilters } from "@/lib/card-filt
 
 type View = "kanban" | "table" | "list" | "gantt" | "overview";
 
-const PEOPLE = [
-  { id: "u1", name: "Анна Смирнова", avatarUrl: null },
-  { id: "u2", name: "Илья Петров", avatarUrl: null },
-  { id: "u3", name: "Мария Ким", avatarUrl: null },
-  { id: "u4", name: "Олег Новиков", avatarUrl: null },
+const makePeople = (tr: Tr) => [
+  { id: "u1", name: tr("mk.productPreview.annaSmirnova"), avatarUrl: null },
+  { id: "u2", name: tr("mk.productPreview.ilyaPetrov"), avatarUrl: null },
+  { id: "u3", name: tr("mk.productPreview.mariaKim"), avatarUrl: null },
+  { id: "u4", name: tr("mk.productPreview.olegNovikov"), avatarUrl: null },
 ];
-const STAGES = ["Бэклог", "В работе", "На проверке", "Готово"];
+const makeStages = (tr: Tr) => [tr("settings.templates.id.backlog"), tr("settings.templates.id.inProgress"), tr("settings.templates.id.inReview"), tr("common.done")];
 const DAY = 86_400_000;
 const today = new Date(new Date().toDateString()).getTime();
 const at = (days: number) => new Date(today + days * DAY).toISOString();
 
 // The demo shows a few task types a team might set up.
-const TYPES = {
-  SETUP: { id: "setup", name: "Настройка", color: "blue" },
-  INTEGRATION: { id: "integration", name: "Интеграция", color: "orange" },
-  WIDGET: { id: "widget", name: "Разработка", color: "teal" },
-  TRAINING: { id: "training", name: "Обучение", color: "green" },
-  BUG: { id: "bug", name: "Ошибка", color: "red" },
-  OTHER: { id: "task", name: "Задача", color: null },
-} satisfies Record<string, TaskTypeRefDto>;
-type Seed = [n: number, title: string, type: keyof typeof TYPES, stage: number, who: number[], due: number, start: number, subtasks: [string, boolean][], comments: number, files: number, high?: boolean];
-const SEEDS: Seed[] = [
-  [21, "Бриф и требования клиента", "SETUP", 3, [0], -3, -6, [["Встреча с клиентом", true], ["Цели и метрики", true], ["Сроки и бюджет", true]], 4, 2],
-  [22, "Воронка продаж и этапы сделки", "SETUP", 2, [1], 1, -3, [["Этапы сделки", true], ["Поля карточки", true], ["Права менеджеров", false]], 2, 0],
-  [27, "Отчёт за сентябрь", "OTHER", 2, [0], 0, -1, [], 1, 1],
-  [23, "Интеграция с сайтом: форма заявки", "INTEGRATION", 1, [3, 1], 4, -1, [["Форма заявки", true], ["Вебхук", false], ["Проверка на тестовых данных", false]], 6, 1, true],
-  [24, "Телефония и запись звонков", "INTEGRATION", 1, [1], 5, 1, [["Подключить номер", false], ["Сценарии звонков", false]], 1, 0],
-  [26, "Не приходят уведомления о новых заявках", "BUG", 0, [3], -1, -2, [["Воспроизвести", false]], 3, 1, true],
-  [25, "Обучение отдела продаж", "TRAINING", 0, [2], 9, 7, [["Презентация", false], ["Запись вебинара", false]], 0, 3],
-  [28, "Виджет расчёта стоимости", "WIDGET", 0, [2, 0], 12, 8, [], 0, 0],
+const makeTypes = (tr: Tr) => ({
+  SETUP: { id: "setup", name: tr("mk.productPreview.setup"), color: "blue" },
+  INTEGRATION: { id: "integration", name: tr("mk.productPreview.integration"), color: "orange" },
+  WIDGET: { id: "widget", name: tr("mk.productPreview.development"), color: "teal" },
+  TRAINING: { id: "training", name: tr("mk.productPreview.training"), color: "green" },
+  BUG: { id: "bug", name: tr("mk.productPreview.bug"), color: "red" },
+  OTHER: { id: "task", name: tr("common.task"), color: null },
+}) satisfies Record<string, TaskTypeRefDto>;
+type TypeKey = "SETUP" | "INTEGRATION" | "WIDGET" | "TRAINING" | "BUG" | "OTHER";
+type Seed = [n: number, title: string, type: TypeKey, stage: number, who: number[], due: number, start: number, subtasks: [string, boolean][], comments: number, files: number, high?: boolean];
+const makeSeeds = (tr: Tr): Seed[] => [
+  [21, tr("mk.productPreview.clientBriefAndRequirements"), "SETUP", 3, [0], -3, -6, [[tr("mk.productPreview.meetingWithTheClient"), true], [tr("mk.productPreview.goalsAndMetrics"), true], [tr("mk.productPreview.timelineAndBudget"), true]], 4, 2],
+  [22, tr("mk.productPreview.salesFunnelAndDealStages"), "SETUP", 2, [1], 1, -3, [[tr("mk.productPreview.dealStages"), true], [tr("mk.productPreview.cardFields"), true], [tr("mk.productPreview.managerPermissions"), false]], 2, 0],
+  [27, tr("mk.productPreview.septemberReport"), "OTHER", 2, [0], 0, -1, [], 1, 1],
+  [23, tr("mk.productPreview.websiteIntegrationLeadForm"), "INTEGRATION", 1, [3, 1], 4, -1, [[tr("mk.productPreview.leadForm"), true], [tr("mk.productPreview.webhook"), false], [tr("mk.productPreview.testWithSampleData"), false]], 6, 1, true],
+  [24, tr("mk.productPreview.telephonyAndCallRecording"), "INTEGRATION", 1, [1], 5, 1, [[tr("mk.productPreview.connectANumber"), false], [tr("mk.productPreview.callScripts"), false]], 1, 0],
+  [26, tr("mk.productPreview.newLeadNotificationsDonT"), "BUG", 0, [3], -1, -2, [[tr("mk.productPreview.reproduce"), false]], 3, 1, true],
+  [25, tr("mk.productPreview.salesTeamTraining"), "TRAINING", 0, [2], 9, 7, [[tr("mk.productPreview.slides"), false], [tr("mk.productPreview.webinarRecording"), false]], 0, 3],
+  [28, tr("mk.productPreview.priceCalculatorWidget"), "WIDGET", 0, [2, 0], 12, 8, [], 0, 0],
 ];
 
-function makeColumns(): ColumnDto[] {
+
+// Everything language-dependent in the demo: texts, people, stages, task types, cards.
+interface World {
+  tr: Tr;
+  people: ReturnType<typeof makePeople>;
+  stages: string[];
+  types: ReturnType<typeof makeTypes>;
+  seeds: Seed[];
+}
+const makeWorld = (locale: Locale): World => {
+  const tr = makeTr(locale);
+  return { tr, people: makePeople(tr), stages: makeStages(tr), types: makeTypes(tr), seeds: makeSeeds(tr) };
+};
+const WorldContext = createContext<World>(makeWorld("ru"));
+const useWorld = () => useContext(WorldContext);
+
+function makeColumns({ tr, people: PEOPLE, stages: STAGES, types: TYPES, seeds: SEEDS }: World): ColumnDto[] {
   return STAGES.map((title, i) => ({
     id: `col${i}`,
     title,
@@ -92,7 +110,7 @@ function makeColumns(): ColumnDto[] {
       estimateHours: null,
       updatedAt: at(0),
       assignees: who.map((w) => ({ user: PEOPLE[w] })),
-      project: { id: "p1", title: "Внедрение CRM" },
+      project: { id: "p1", title: tr("mk.shared.crmImplementation") },
       checklist: subtasks.map(([text, done], j) => ({ id: `c${n}-${j}`, text, done })),
       _count: { comments, attachments: files },
       labels: [],
@@ -123,12 +141,13 @@ function Nav({ icon: Icon, label, count }: { icon: typeof House; label: string; 
 }
 
 function Sidebar({ open }: { open: number }) {
+  const { tr, people: PEOPLE, stages: STAGES } = useWorld();
   return (
     <aside className="hidden w-[232px] shrink-0 flex-col bg-chrome px-2 pb-2 md:flex">
       <div className="flex h-12 items-center px-1">
         <span className="flex h-8 items-center gap-2 px-1.5 text-chrome-ink">
           <img src="/plano.svg" alt="" className="size-5 rounded-[5px]" />
-          <span className="text-sm font-medium">Студия «Север»</span>
+          <span className="text-sm font-medium">{tr("mk.productPreview.northStudio")}</span>
         </span>
         <span className="ml-auto flex items-center gap-1 text-chrome-ink-faint">
           <span className="relative grid size-7 place-items-center">
@@ -143,21 +162,21 @@ function Sidebar({ open }: { open: number }) {
       <div className="mb-2 px-1">
         <div className="relative">
           <Search size={14} strokeWidth={1.75} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-chrome-ink-faint" />
-          <div className="flex h-8 items-center rounded-md border border-chrome-line bg-chrome-hover pl-8 text-sm text-chrome-ink-faint">Поиск</div>
+          <div className="flex h-8 items-center rounded-md border border-chrome-line bg-chrome-hover pl-8 text-sm text-chrome-ink-faint">{tr("common.search")}</div>
           <kbd className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm border border-chrome-line bg-chrome px-1 text-xs text-chrome-ink-faint">⌘K</kbd>
         </div>
       </div>
       <nav className="flex flex-col gap-px px-1">
-        <Nav icon={House} label="Главная" count={2} />
-        <Nav icon={FolderKanban} label="Проекты" />
+        <Nav icon={House} label={tr("common.home")} count={2} />
+        <Nav icon={FolderKanban} label={tr("common.projects")} />
       </nav>
       <div className="mt-5 px-1">
-        <div className="flex h-7 items-center px-2 text-xs text-chrome-ink-faint">В работе</div>
+        <div className="flex h-7 items-center px-2 text-xs text-chrome-ink-faint">{tr("settings.templates.id.inProgress")}</div>
         {(
           [
-            ["Внедрение CRM", open],
-            ["Сайт для клиники", 8],
-            ["Поддержка клиентов", 3],
+            [tr("mk.shared.crmImplementation"), open],
+            [tr("mk.productPreview.clinicWebsite"), 8],
+            [tr("mk.shared.customerSupport"), 3],
           ] as const
         ).map(([title, n], i) => (
           <div
@@ -173,7 +192,7 @@ function Sidebar({ open }: { open: number }) {
       <div className="mt-auto border-t border-chrome-line px-1 pt-2">
         <div className="flex h-9 items-center gap-2 rounded-md px-1.5 text-chrome-ink">
           <Avatar user={PEOPLE[0]} size={22} />
-          <span className="min-w-0 flex-1 truncate text-sm">Анна Смирнова</span>
+          <span className="min-w-0 flex-1 truncate text-sm">{tr("mk.productPreview.annaSmirnova")}</span>
           <ChevronUp size={14} className="text-chrome-ink-faint" />
         </div>
       </div>
@@ -184,6 +203,7 @@ function Sidebar({ open }: { open: number }) {
 // ---- Views the app has no pure component for ----
 
 function GanttPreview({ columns, onOpen }: { columns: ColumnDto[]; onOpen: (id: string) => void }) {
+  const { tr, people: PEOPLE, stages: STAGES } = useWorld();
   const from = -7;
   const days = 21;
   const rows = columns
@@ -194,7 +214,7 @@ function GanttPreview({ columns, onOpen }: { columns: ColumnDto[]; onOpen: (id: 
     <div className="overflow-x-auto rounded-lg border border-border bg-surface">
       <div className="min-w-[640px]">
         <div className="grid grid-cols-[240px_1fr] border-b border-border bg-surface-soft text-xs text-ink-ghost">
-          <span className="px-3 py-2">Задача</span>
+          <span className="px-3 py-2">{tr("common.task")}</span>
           <div className="grid" style={{ gridTemplateColumns: `repeat(${days}, 1fr)` }}>
             {Array.from({ length: days }, (_, d) => (
               <span key={d} className={`border-l border-border py-2 text-center ${d + from === 0 ? "font-semibold text-danger" : ""}`}>
@@ -227,6 +247,7 @@ function GanttPreview({ columns, onOpen }: { columns: ColumnDto[]; onOpen: (id: 
 }
 
 function OverviewPreview({ columns }: { columns: ColumnDto[] }) {
+  const { tr, people: PEOPLE, stages: STAGES } = useWorld();
   const all = columns.flatMap((c) => c.cards);
   const done = columns[columns.length - 1].cards.length;
   const overdue = all.filter((c) => c.columnId !== "col3" && c.dueDate && new Date(c.dueDate).getTime() < today).length;
@@ -241,20 +262,20 @@ function OverviewPreview({ columns }: { columns: ColumnDto[] }) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {(
           [
-            ["Карточек", all.length],
-            ["Готово", done],
-            ["Просрочено", overdue],
-            ["Время за неделю", "39 ч из 120"],
+            [tr("common.cards"), all.length],
+            [tr("common.done"), done],
+            [tr("common.overdue"), overdue],
+            [tr("dashboard.timeThisWeek"), tr("mk.productPreview.39HOf120")],
           ] as const
         ).map(([k, v]) => (
           <div key={k} className="rounded-lg border border-border bg-surface px-4 py-3.5">
             <div className="text-sm text-ink-faint">{k}</div>
-            <div className={`mt-1 text-2xl font-semibold ${k === "Просрочено" && overdue ? "text-danger" : ""}`}>{v}</div>
+            <div className={`mt-1 text-2xl font-semibold ${k === tr("common.overdue") && overdue ? "text-danger" : ""}`}>{v}</div>
           </div>
         ))}
       </div>
       <div className="rounded-lg border border-border bg-surface p-4">
-        <div className="mb-3 text-base font-medium">Время по сотрудникам</div>
+        <div className="mb-3 text-base font-medium">{tr("mk.productPreview.timeByPeople")}</div>
         <div className="space-y-2.5">
           {hours.map(([who, h]) => (
             <div key={who} className="grid grid-cols-[minmax(0,1fr)_200px_48px] items-center gap-3 text-sm">
@@ -263,7 +284,7 @@ function OverviewPreview({ columns }: { columns: ColumnDto[] }) {
                 <span className="truncate">{PEOPLE[who].name}</span>
               </span>
               <ShareBar value={h / 39} />
-              <span className="text-right text-ink-faint">{h} ч</span>
+              <span className="text-right text-ink-faint">{tr("common.h", { h })}</span>
             </div>
           ))}
         </div>
@@ -275,6 +296,7 @@ function OverviewPreview({ columns }: { columns: ColumnDto[] }) {
 // ---- Card window, in the app's modal style ----
 
 function CardWindow({ card, column, onClose, onMove, onToggle }: { card: CardTileDto; column: number; onClose: () => void; onMove: (col: number) => void; onToggle: (id: string) => void }) {
+  const { tr, people: PEOPLE, stages: STAGES } = useWorld();
   const done = card.checklist.filter((i) => i.done).length;
   return (
     <div className="absolute inset-0 z-20 flex items-start justify-center bg-black/30 p-4 pt-8" onClick={onClose}>
@@ -284,14 +306,14 @@ function CardWindow({ card, column, onClose, onMove, onToggle }: { card: CardTil
           <span className="ml-1 truncate text-ink-faint">{card.project.title}</span>
           <ChevronRight size={14} className="shrink-0 text-ink-ghost" />
           <span className="font-medium text-ink">P-{card.number}</span>
-          <button onClick={onClose} aria-label="Закрыть" className="ml-auto grid size-8 place-items-center rounded-md text-ink-ghost hover:bg-surface-soft hover:text-ink">
+          <button onClick={onClose} aria-label={tr("ui.close")} className="ml-auto grid size-8 place-items-center rounded-md text-ink-ghost hover:bg-surface-soft hover:text-ink">
             <X size={17} strokeWidth={1.5} />
           </button>
         </div>
         <div className="overflow-y-auto px-5 pb-6 pt-4">
           <h4 className="text-xl font-semibold leading-snug">{card.title}</h4>
           <div className="mt-4 grid grid-cols-[110px_1fr] items-center gap-y-2.5 text-sm">
-            <span className="text-ink-faint">Этап</span>
+            <span className="text-ink-faint">{tr("projects.id.settings.stage")}</span>
             <div className="flex flex-wrap gap-1">
               {STAGES.map((s, i) => (
                 <button
@@ -304,7 +326,7 @@ function CardWindow({ card, column, onClose, onMove, onToggle }: { card: CardTil
                 </button>
               ))}
             </div>
-            <span className="text-ink-faint">Исполнители</span>
+            <span className="text-ink-faint">{tr("common.assignees")}</span>
             <span className="flex flex-wrap items-center gap-3">
               {card.assignees.map(({ user }) => (
                 <span key={user.id} className="flex items-center gap-1.5">
@@ -312,16 +334,14 @@ function CardWindow({ card, column, onClose, onMove, onToggle }: { card: CardTil
                 </span>
               ))}
             </span>
-            <span className="text-ink-faint">Срок</span>
+            <span className="text-ink-faint">{tr("common.dueDate")}</span>
             <span>{new Date(card.dueDate!).toLocaleDateString("ru-RU", { day: "numeric", month: "long" })}</span>
           </div>
           {card.checklist.length > 0 && (
             <section className="mt-6">
               <header className="mb-2 flex items-center gap-2">
-                <h3 className="text-sm font-medium">Подзадачи</h3>
-                <span className="text-xs text-ink-ghost">
-                  {done} из {card.checklist.length}
-                </span>
+                <h3 className="text-sm font-medium">{tr("common.subtasks")}</h3>
+                <span className="text-xs text-ink-ghost"> {tr("mk.productPreview.of", { done, checklist: card.checklist.length })} </span>
                 <div className="ml-auto w-24">
                   <ShareBar value={done / card.checklist.length} tone="success" />
                 </div>
@@ -339,16 +359,16 @@ function CardWindow({ card, column, onClose, onMove, onToggle }: { card: CardTil
             </section>
           )}
           <section className="mt-6">
-            <h3 className="mb-2 text-sm font-medium">Обсуждение</h3>
+            <h3 className="mb-2 text-sm font-medium">{tr("cardModal.discussion")}</h3>
             <div className="space-y-2 text-sm">
               <div className="flex gap-2">
                 <Avatar user={PEOPLE[2]} size={24} />
                 <div className="rounded-2xl rounded-tl-md bg-surface-soft px-3 py-2">
-                  <span className="font-medium text-accent">@{card.assignees[0]?.user.name}</span> посмотри, пожалуйста, до пятницы
+                  <span className="font-medium text-accent">@{card.assignees[0]?.user.name}</span>  {tr("mk.productPreview.pleaseTakeALookBefore")}
                 </div>
               </div>
               <div className="flex justify-end">
-                <div className="rounded-2xl rounded-tr-md bg-accent px-3 py-2 text-white">Беру, сегодня сделаю</div>
+                <div className="rounded-2xl rounded-tr-md bg-accent px-3 py-2 text-white">{tr("mk.productPreview.onItWillDoIt")}</div>
               </div>
             </div>
           </section>
@@ -358,10 +378,12 @@ function CardWindow({ card, column, onClose, onMove, onToggle }: { card: CardTil
   );
 }
 
-export function ProductPreview() {
+function Preview() {
+  const world = useWorld();
+  const { tr, people: PEOPLE, stages: STAGES } = world;
   // Card keys read as P-21 in the preview.
   useMemo(() => setCardKeyPrefix("P"), []);
-  const [columns, setColumns] = useState<ColumnDto[]>(makeColumns);
+  const [columns, setColumns] = useState<ColumnDto[]>(() => makeColumns(world));
   const [view, setView] = useState<View>("kanban");
   const [filters, setFilters] = useState<CardFilters>(DEFAULT_FILTERS);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -386,7 +408,7 @@ export function ProductPreview() {
     if (touched || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = setInterval(() => {
       const i = step.current++ % (SCRIPT.length + 1);
-      if (i === SCRIPT.length) setColumns(makeColumns());
+      if (i === SCRIPT.length) setColumns(makeColumns(world));
       else move(`c${SCRIPT[i][0]}`, SCRIPT[i][1]);
     }, 2600);
     return () => clearInterval(timer);
@@ -400,7 +422,7 @@ export function ProductPreview() {
     <div className="relative" onPointerDown={() => setTouched(true)}>
       {!touched && (
         <div className="lp-float pointer-events-none absolute -top-4 right-6 z-30 hidden items-center gap-1.5 rounded-full bg-[#1B1C1F] px-3 py-1.5 text-xs font-medium text-white shadow-lg sm:flex">
-          <Hand size={13} /> Попробуйте: перетащите карточку
+          <Hand size={13} />  {tr("mk.productPreview.tryItDragACard")}
         </div>
       )}
       <div className="overflow-hidden rounded-2xl border border-[#E6E7EA] bg-chrome text-left shadow-[0_30px_80px_-20px_rgba(27,28,31,0.25),0_8px_24px_-8px_rgba(27,28,31,0.12)]">
@@ -418,9 +440,9 @@ export function ProductPreview() {
               <div className="flex h-full flex-col px-6">
                 <header className="-mx-6 flex h-12 shrink-0 items-center gap-3 border-b border-border px-6">
                   <nav className="flex min-w-0 items-center gap-1.5 text-sm">
-                    <span className="text-ink-faint">Проекты</span>
+                    <span className="text-ink-faint">{tr("common.projects")}</span>
                     <ChevronRight size={14} className="shrink-0 text-ink-ghost" />
-                    <span className="truncate font-medium text-ink">Внедрение CRM</span>
+                    <span className="truncate font-medium text-ink">{tr("mk.shared.crmImplementation")}</span>
                   </nav>
                   <div className="ml-auto flex shrink-0 items-center gap-2">
                     <span className="hidden xl:block">
@@ -434,18 +456,18 @@ export function ProductPreview() {
                       <Settings size={16} strokeWidth={1.75} />
                     </span>
                     <Segmented<View>
-                      label="Вид"
+                      label={tr("projects.id.view")}
                       value={view}
                       onChange={(v) => {
                         setView(v);
                         setTouched(true);
                       }}
                       options={[
-                        { value: "kanban", label: "Доска", icon: KanbanSquare },
-                        { value: "table", label: "Таблица", icon: Table2 },
-                        { value: "list", label: "Список", icon: List },
-                        { value: "gantt", label: "Гант", icon: ChartGantt },
-                        { value: "overview", label: "Обзор", icon: BarChart3 },
+                        { value: "kanban", label: tr("projects.id.board"), icon: KanbanSquare },
+                        { value: "table", label: tr("projects.id.table"), icon: Table2 },
+                        { value: "list", label: tr("common.list"), icon: List },
+                        { value: "gantt", label: tr("projects.id.gantt"), icon: ChartGantt },
+                        { value: "overview", label: tr("common.overview"), icon: BarChart3 },
                       ]}
                     />
                   </div>
@@ -454,14 +476,14 @@ export function ProductPreview() {
                 {view !== "overview" && (
                   <div className="flex shrink-0 items-center gap-2 py-2.5">
                     <Segmented<CardFilters["date"]>
-                      label="Срок"
+                      label={tr("common.dueDate")}
                       value={filters.date}
                       onChange={(date) => setFilters((f) => ({ ...f, date }))}
                       options={[
-                        { value: "all", label: "Все" },
-                        { value: "today", label: "Сегодня" },
-                        { value: "week", label: "7 дней" },
-                        { value: "overdue", label: "Просрочено" },
+                        { value: "all", label: tr("common.all") },
+                        { value: "today", label: tr("common.today") },
+                        { value: "week", label: tr("boardToolbar.7Days") },
+                        { value: "overdue", label: tr("common.overdue") },
                       ]}
                     />
                     <span aria-hidden className="mx-1 h-4 w-px bg-border" />
@@ -471,18 +493,18 @@ export function ProductPreview() {
                         type="search"
                         value={filters.q}
                         onChange={(e) => setFilters((f) => ({ ...f, q: e.target.value }))}
-                        placeholder="Найти на доске"
-                        aria-label="Найти карточку"
+                        placeholder={tr("boardToolbar.searchTheBoard")}
+                        aria-label={tr("mk.productPreview.findACard")}
                         className="h-7 w-44 rounded-md border border-border bg-surface pl-7 pr-2 text-sm outline-none placeholder:text-ink-ghost focus:border-accent"
                       />
                     </div>
                     <span className="hidden h-7 items-center gap-1.5 rounded-md px-2 text-sm text-ink-faint lg:flex">
-                      <ListFilter size={15} strokeWidth={1.75} /> Фильтр
+                      <ListFilter size={15} strokeWidth={1.75} />  {tr("boardToolbar.filter")}
                     </span>
                     <span className="hidden h-7 items-center gap-1.5 rounded-md px-2 text-sm text-ink-faint lg:flex">
-                      <SlidersHorizontal size={15} strokeWidth={1.75} /> Сортировка
+                      <SlidersHorizontal size={15} strokeWidth={1.75} />  {tr("boardToolbar.sort")}
                     </span>
-                    <span className="ml-auto text-xs text-ink-ghost">{shown} карточек</span>
+                    <span className="ml-auto text-xs text-ink-ghost">{tr("mk.productPreview.cards", { shown })}</span>
                   </div>
                 )}
 
@@ -552,7 +574,35 @@ export function ProductPreview() {
           </div>
         </div>
       </div>
-      <p className="mt-3 text-center text-xs text-ink-ghost sm:hidden">Нажмите на карточку, чтобы открыть и перенести её</p>
+      <p className="mt-3 text-center text-xs text-ink-ghost sm:hidden">{tr("mk.productPreview.clickACardToOpen")}</p>
     </div>
+  );
+}
+
+// Sets the language of the app components shown inside the demo (card tiles,
+// table, list), which otherwise follow the visitor's browser: the page's
+// language is fixed by its address. The scope starts before the demo and, on the
+// server, ends right after it, so one request cannot leak into another.
+function LocaleScope({ locale }: { locale: Locale }) {
+  forceLocale(locale);
+  useEffect(() => {
+    forceLocale(locale);
+    return () => forceLocale(null);
+  }, [locale]);
+  return null;
+}
+function LocaleScopeEnd() {
+  if (typeof window === "undefined") forceLocale(null);
+  return null;
+}
+
+export function ProductPreview({ locale = "ru" }: { locale?: Locale }) {
+  const world = useMemo(() => makeWorld(locale), [locale]);
+  return (
+    <WorldContext.Provider value={world}>
+      <LocaleScope locale={locale} />
+      <Preview />
+      <LocaleScopeEnd />
+    </WorldContext.Provider>
   );
 }

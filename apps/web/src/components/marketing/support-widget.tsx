@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, X } from "lucide-react";
+import { currentLocale, type Locale } from "@plano/shared";
+import { makeTr } from "@/lib/marketing";
 import { SUPPORT } from "@/lib/support";
 
 function TelegramIcon() {
@@ -20,13 +22,12 @@ function WhatsAppIcon() {
   );
 }
 
-const MANAGER = { name: "Павел", role: "Менеджер Plano" };
 const TEASER_KEY = "plano.chat-teaser-closed";
 
-function ManagerAvatar({ size = 40 }: { size?: number }) {
+function ManagerAvatar({ name, size = 40 }: { name: string; size?: number }) {
   return (
     <span className="relative shrink-0" style={{ width: size, height: size }}>
-      <img src="/manager.jpg" alt={MANAGER.name} className="size-full rounded-full object-cover" />
+      <img src="/manager.jpg" alt={name} className="size-full rounded-full object-cover" />
       <span aria-hidden className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-surface bg-[#2FA36B]" />
     </span>
   );
@@ -35,7 +36,10 @@ function ManagerAvatar({ size = 40 }: { size?: number }) {
 // Floating "chat with us" button, bottom-right on the public pages: a
 // manager's greeting with Telegram / WhatsApp links, and a short teaser
 // bubble a few seconds after the page opens. Hidden when no contact is set.
-export function SupportWidget() {
+// `locale` is set on the public pages; inside the app the interface language applies.
+export function SupportWidget({ locale }: { locale?: Locale }) {
+  const tr = makeTr(locale ?? currentLocale());
+  const MANAGER = { name: tr("mk.supportWidget.pavel"), role: tr("mk.supportWidget.planoManager") };
   const [open, setOpen] = useState(false);
   const [typing, setTyping] = useState(true);
   const [teaser, setTeaser] = useState(false);
@@ -82,9 +86,9 @@ export function SupportWidget() {
   return (
     <div ref={ref} className="fixed bottom-4 right-4 z-40 flex flex-col items-end gap-3 sm:bottom-6 sm:right-6">
       {open && (
-        <div role="dialog" aria-label="Чат с поддержкой" className="animate-dialog-in w-[300px] overflow-hidden rounded-2xl border border-border bg-surface shadow-raised">
+        <div role="dialog" aria-label={tr("mk.supportWidget.supportChat")} className="animate-dialog-in w-[300px] overflow-hidden rounded-2xl border border-border bg-surface shadow-raised">
           <div className="flex items-center gap-3 bg-[#2B2F33] px-4 py-3 text-white">
-            <ManagerAvatar />
+            <ManagerAvatar name={MANAGER.name} />
             <div className="min-w-0">
               <div className="font-medium">{MANAGER.name}</div>
               <div className="flex items-center gap-1.5 text-xs text-[#CDD0D4]">
@@ -92,7 +96,7 @@ export function SupportWidget() {
                   <span className="lp-pulse absolute inset-0 rounded-full bg-[#2FA36B]" />
                   <span className="relative size-2 rounded-full bg-[#2FA36B]" />
                 </span>
-                {MANAGER.role} · онлайн
+                {MANAGER.role}  {tr("mk.supportWidget.online")}
               </div>
             </div>
           </div>
@@ -107,9 +111,10 @@ export function SupportWidget() {
               </div>
             ) : (
               <>
-                <div className="lp-rise max-w-[90%] rounded-2xl rounded-tl-md bg-surface px-3 py-2 shadow-sm">Здравствуйте! 👋 Я {MANAGER.name}, помогу разобраться с Plano.</div>
+                <div className="lp-rise max-w-[90%] rounded-2xl rounded-tl-md bg-surface px-3 py-2 shadow-sm">{tr("mk.supportWidget.helloIMILl", { name: MANAGER.name })}</div>
                 <div className="lp-rise max-w-[90%] rounded-2xl rounded-tl-md bg-surface px-3 py-2 shadow-sm" style={{ animationDelay: "250ms" }}>
-                  Расскажу про тарифы, помогу перенести задачи и настроить команду. Напишите, где удобно — отвечу в мессенджере.
+                  
+                  {tr("mk.supportWidget.iCanTellYouAbout")}
                 </div>
               </>
             )}
@@ -122,7 +127,7 @@ export function SupportWidget() {
                 rel="noreferrer"
                 className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#229ED9] text-sm font-medium text-white transition-opacity hover:opacity-90"
               >
-                <TelegramIcon /> Написать в Telegram
+                <TelegramIcon />  {tr("mk.supportWidget.writeOnTelegram")}
               </a>
             )}
             {SUPPORT.whatsapp && (
@@ -132,7 +137,7 @@ export function SupportWidget() {
                 rel="noreferrer"
                 className="flex h-10 items-center justify-center gap-2 rounded-lg bg-[#25D366] text-sm font-medium text-white transition-opacity hover:opacity-90"
               >
-                <WhatsAppIcon /> Написать в WhatsApp
+                <WhatsAppIcon />  {tr("mk.supportWidget.writeOnWhatsapp")}
               </a>
             )}
           </div>
@@ -140,12 +145,12 @@ export function SupportWidget() {
       )}
       {!open && teaser && (
         <div className="lp-rise relative flex max-w-[260px] items-start gap-2.5 rounded-2xl rounded-br-md border border-border bg-surface p-3 pr-8 text-sm shadow-raised">
-          <ManagerAvatar size={32} />
+          <ManagerAvatar name={MANAGER.name} size={32} />
           <button onClick={() => (closeTeaser(), setOpen(true))} className="text-left">
             <span className="block font-medium">{MANAGER.name}</span>
-            <span className="text-ink-faint">Есть вопросы о Plano? Напишите — отвечу за пару минут.</span>
+            <span className="text-ink-faint">{tr("mk.supportWidget.questionsAboutPlanoWriteI")}</span>
           </button>
-          <button onClick={closeTeaser} aria-label="Скрыть" className="absolute right-2 top-2 grid size-5 place-items-center rounded-full text-ink-ghost hover:bg-surface-soft hover:text-ink">
+          <button onClick={closeTeaser} aria-label={tr("onboarding.hide")} className="absolute right-2 top-2 grid size-5 place-items-center rounded-full text-ink-ghost hover:bg-surface-soft hover:text-ink">
             <X size={12} />
           </button>
         </div>
@@ -156,7 +161,7 @@ export function SupportWidget() {
           closeTeaser();
         }}
         aria-expanded={open}
-        aria-label={open ? "Закрыть чат" : "Написать в поддержку"}
+        aria-label={open ? tr("mk.supportWidget.closeChat") : tr("mk.supportWidget.contactSupport")}
         className="group relative grid size-14 place-items-center rounded-full bg-accent text-white shadow-lg shadow-black/20 transition-transform hover:scale-105"
       >
         {!open && <span aria-hidden className="lp-pulse absolute inset-0 rounded-full bg-accent" />}

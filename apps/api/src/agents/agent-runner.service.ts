@@ -125,6 +125,8 @@ export class AgentRunner implements OnModuleInit {
     const sub = await this.db.subscription.findUnique({ where: { workspaceId: event.workspaceId } });
     if (isLocked(sub)) throw new Skip(t("api.agents.workspaceReadOnly"));
     if ((await this.billing.overSeatIds(event.workspaceId)).has(event.agentId)) throw new Skip(t("api.agents.noSeat"));
+    // Downgraded below Business: agents stay in the team but stop working.
+    if (!(await this.billing.effectivePlan(event.workspaceId, sub)).features.includes("agents")) throw new Skip(t("api.agents.planWithoutAgents"));
     const hourAgo = new Date(Date.now() - HOUR);
     const perCard = await this.db.agentRun.count({ where: { agentId: event.agentId, cardId: event.cardId, createdAt: { gte: hourAgo }, status: { not: "SKIPPED" } } });
     // The run being started is already counted once.
