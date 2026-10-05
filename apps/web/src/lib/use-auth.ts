@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { UserDto } from "@amo-kanban/shared";
+import type { UserDto } from "@plano/shared";
 import { api, getToken, UnauthorizedError } from "./api";
 
-const ME_CHANGED = "amo-kanban:me-changed";
+const ME_CHANGED = "plano:me-changed";
 
 // Call after the profile is saved so the sidebar picks up the new name/photo.
 export function notifyMeChanged(user: UserDto) {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Bell, Clock } from "lucide-react";
-import { cardKey, type NotificationDto } from "@amo-kanban/shared";
+import { cardKey, type NotificationDto } from "@plano/shared";
 import { api } from "@/lib/api";
 import { timeAgo } from "@/lib/card-filters";
 import { useRealtime } from "@/lib/realtime";

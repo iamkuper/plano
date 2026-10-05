@@ -1,27 +1,21 @@
-import { Bug, CircleDot, GraduationCap, Plug, Puzzle, Settings2, type LucideIcon } from "lucide-react";
-import { CARD_TYPE_LABELS, type CardType } from "@amo-kanban/shared";
-import { cardTypeColor } from "@/design/tokens";
+import { CircleDot, type LucideIcon } from "lucide-react";
+import type { TaskTypeRefDto } from "@plano/shared";
+import { labelColor } from "@/design/tokens";
 import { Tag } from "./ui";
 
-const ICONS: Record<CardType, LucideIcon> = {
-  SETUP: Settings2,
-  INTEGRATION: Plug,
-  WIDGET: Puzzle,
-  TRAINING: GraduationCap,
-  BUG: Bug,
-  OTHER: CircleDot,
-};
+const NEUTRAL = "#6C6E75";
 
-export const CARD_TYPE_STYLES = Object.fromEntries(
-  (Object.keys(ICONS) as CardType[]).map((t) => [t, { icon: ICONS[t], color: cardTypeColor[t] }]),
-) as Record<CardType, { icon: LucideIcon; color: string }>;
+// A task type is a name plus an optional palette colour (neutral when unset).
+export function typeStyle(type: Pick<TaskTypeRefDto, "color">): { icon: LucideIcon; color: string } {
+  const color = type.color && type.color in labelColor ? labelColor[type.color as keyof typeof labelColor] : NEUTRAL;
+  return { icon: CircleDot, color };
+}
 
-export function CardTypeIcon({ type, size = 18 }: { type: CardType; size?: number }) {
-  const Icon = ICONS[type];
-  const color = cardTypeColor[type];
+export function CardTypeIcon({ type, size = 18 }: { type: TaskTypeRefDto; size?: number }) {
+  const { icon: Icon, color } = typeStyle(type);
   return (
     <span
-      title={CARD_TYPE_LABELS[type]}
+      title={type.name}
       className="inline-flex shrink-0 items-center justify-center rounded-md"
       style={{ width: size, height: size, background: `${color}1A`, color }}
     >
@@ -30,6 +24,6 @@ export function CardTypeIcon({ type, size = 18 }: { type: CardType; size?: numbe
   );
 }
 
-export function CardTypeTag({ type }: { type: CardType }) {
-  return <Tag color={cardTypeColor[type]}>{CARD_TYPE_LABELS[type]}</Tag>;
+export function CardTypeTag({ type }: { type: TaskTypeRefDto }) {
+  return <Tag color={typeStyle(type).color}>{type.name}</Tag>;
 }

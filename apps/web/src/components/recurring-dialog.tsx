@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { CARD_PRIORITY_LABELS, CARD_TYPE_LABELS, type CardPriority, type CardType, type RecurrenceFrequency, type RecurringRuleDto, type UserDto } from "@amo-kanban/shared";
+import { CARD_PRIORITY_LABELS, type CardPriority, type RecurrenceFrequency, type RecurringRuleDto, type UserDto } from "@plano/shared";
 import { api, type RecurringInput } from "@/lib/api";
 import { WEEKDAYS, describeRecurrence } from "@/lib/recurrence";
 import { toast } from "@/lib/toast";
+import { useTaskTypes } from "@/lib/use-task-types";
 import { Avatar } from "./avatar";
 import { Button, Checkbox, Dialog, Field, Input, Select, Textarea } from "./ui";
 
@@ -33,7 +34,8 @@ export function RecurringDialog({
   const src = rule ?? prefill ?? {};
   const [title, setTitle] = useState(src.title ?? "");
   const [description, setDescription] = useState(src.description ?? "");
-  const [type, setType] = useState<CardType>(src.type ?? "OTHER");
+  const taskTypes = useTaskTypes();
+  const [typeId, setTypeId] = useState<string>(src.typeId ?? "");
   const [priority, setPriority] = useState<CardPriority>(src.priority ?? "MEDIUM");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(src.assigneeIds ?? []);
   const [checklist, setChecklist] = useState((src.checklist ?? []).join("\n"));
@@ -57,7 +59,7 @@ export function RecurringDialog({
     const data: RecurringInput = {
       title: title.trim(),
       description: description.trim() || null,
-      type,
+      typeId: typeId || undefined,
       priority,
       assigneeIds,
       estimateHours: src.estimateHours ?? null,
@@ -140,10 +142,10 @@ export function RecurringDialog({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Тип">
             {(a) => (
-              <Select {...a} value={type} onChange={(e) => setType(e.target.value as CardType)}>
-                {Object.entries(CARD_TYPE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
+              <Select {...a} value={typeId || taskTypes.find((x) => x.isDefault)?.id || ""} onChange={(e) => setTypeId(e.target.value)}>
+                {taskTypes.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
                   </option>
                 ))}
               </Select>

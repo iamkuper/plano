@@ -1,5 +1,5 @@
 import { ArrayMaxSize, IsArray, IsBoolean, IsEnum, IsInt, IsOptional, IsString, Matches, Max, MaxLength, Min, MinLength, ValidateIf } from "class-validator";
-import { CardPriority, CardType, RecurrenceFrequency } from "@prisma/client";
+import { CardPriority, RecurrenceFrequency } from "@prisma/client";
 
 export class SaveRecurringDto {
   @IsString()
@@ -12,8 +12,8 @@ export class SaveRecurringDto {
   description?: string | null;
 
   @IsOptional()
-  @IsEnum(CardType)
-  type?: CardType;
+  @IsString()
+  typeId?: string;
 
   @IsOptional()
   @IsEnum(CardPriority)

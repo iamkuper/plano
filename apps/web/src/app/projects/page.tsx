@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { FolderKanban, Plus } from "lucide-react";
-import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type ProjectStatus } from "@amo-kanban/shared";
+import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type ProjectStatus } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { LetterMark } from "@/components/avatar";
 import { NewProjectDialog } from "@/components/new-project-dialog";

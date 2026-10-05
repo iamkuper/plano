@@ -250,7 +250,7 @@ describe("avatars and tags", () => {
   });
 
   it("card type markers name the type", () => {
-    render(<><CardTypeIcon type="BUG" /><CardTypeTag type="INTEGRATION" /></>);
+    render(<><CardTypeIcon type={{ id: "a", name: "Ошибка", color: "red" }} /><CardTypeTag type={{ id: "b", name: "Интеграция", color: null }} /></>);
     expect(screen.getByTitle("Ошибка")).toBeInTheDocument();
     expect(screen.getByText("Интеграция")).toBeInTheDocument();
   });

@@ -1,7 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
 export const API = "http://localhost:3201";
-export const TOKEN_KEY = "amo-kanban.token";
+export const TOKEN_KEY = "plano.token";
 export const OWNER = { email: "owner@e2e.test", password: "password-123" };
 
 let seq = 0;

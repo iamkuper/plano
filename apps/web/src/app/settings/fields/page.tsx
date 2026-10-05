@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Pencil, Plus, Trash2 } from "lucide-react";
-import { CUSTOM_FIELD_TYPES, CUSTOM_FIELD_TYPE_LABELS, type BillingDto, type CustomFieldDto, type CustomFieldType } from "@amo-kanban/shared";
+import { CUSTOM_FIELD_TYPES, CUSTOM_FIELD_TYPE_LABELS, type BillingDto, type CustomFieldDto, type CustomFieldType } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Button, Card, ConfirmDialog, Dialog, Field, IconButton, Input, PageHeader, Select, Textarea } from "@/components/ui";

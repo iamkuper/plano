@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { UserDto } from "@amo-kanban/shared";
+import type { UserDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Avatar } from "@/components/avatar";
 import { Button, Card, Checkbox, Field, Input, PageHeader } from "@/components/ui";

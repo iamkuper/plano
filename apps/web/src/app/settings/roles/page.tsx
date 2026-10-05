@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Check, Minus, Pencil, Plus, Star, Trash2 } from "lucide-react";
-import { PERMISSIONS, type Permission, type RoleDto, type UserDto } from "@amo-kanban/shared";
+import { PERMISSIONS, type Permission, type RoleDto, type UserDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Button, Card, Checkbox, ConfirmDialog, Dialog, Field, Input, Menu, PageHeader } from "@/components/ui";

@@ -1,6 +1,6 @@
 import { Body, ConflictException, Controller, Delete, Get, HttpCode, Module, Param, Patch, Post, UseGuards } from "@nestjs/common";
 import { IsIn, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
-import { LABEL_COLORS } from "@amo-kanban/shared";
+import { LABEL_COLORS } from "@plano/shared";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { PrismaService } from "../prisma/prisma.service";

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search } from "lucide-react";
-import { cardKey, type CardTileDto } from "@amo-kanban/shared";
+import { cardKey, type CardTileDto } from "@plano/shared";
 import { api } from "@/lib/api";
 import { LetterMark } from "./avatar";
 

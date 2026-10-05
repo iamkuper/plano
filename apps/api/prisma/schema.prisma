@@ -29,15 +29,6 @@ enum CardPriority {
   HIGH
 }
 
-enum CardType {
-  SETUP
-  INTEGRATION
-  WIDGET
-  TRAINING
-  BUG
-  OTHER
-}
-
 model Workspace {
   id             String   @id @default(cuid())
   name           String   @default("Канбан")
@@ -61,6 +52,7 @@ model Workspace {
   invitations  Invitation[]
   labels       Label[]
   customFields CustomField[]
+  taskTypes    TaskType[]
   auditLog     AuditLog[]
 }
 
@@ -147,7 +139,7 @@ model Column {
 
 model Card {
   id             String    @id @default(cuid())
-  // Human-facing key, shown as AMO-<number> (like Jira issue keys).
+  // Human-facing key, shown as <prefix>-<number> (like Jira issue keys).
   workspaceId    String
   workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   // Per-workspace key number, assigned in src/prisma/tenant.ts.
@@ -158,7 +150,8 @@ model Card {
   column         Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
   title          String
   description    String?
-  type           CardType  @default(OTHER)
+  typeId         String
+  type           TaskType  @relation(fields: [typeId], references: [id], onDelete: Restrict)
   priority       CardPriority @default(MEDIUM)
   position       Float
   startDate      DateTime?
@@ -237,7 +230,29 @@ model TimeEntry {
   @@index([userId, date])
 }
 
-// Templates of a typical amoCRM implementation: columns + starter cards.
+// Project templates: board stages + starter cards.
+// Task type: a workspace-level classifier of cards. Every workspace has at
+// least one (the default, "Задача"); more are configured in settings.
+model TaskType {
+  id          String   @id @default(cuid())
+  workspaceId String
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  name        String
+  // Hex colour of the marker; null = neutral grey.
+  color       String?
+  position    Int      @default(0)
+  // Cards without an explicit type get this one. Exactly one per workspace.
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  cards          Card[]
+  templateCards  TemplateCard[]
+  recurringRules RecurringRule[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId])
+}
+
 model Template {
   id          String    @id @default(cuid())
   workspaceId String
@@ -258,7 +273,8 @@ model TemplateCard {
   template      Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
   title         String
   description   String?
-  type          CardType @default(OTHER)
+  typeId        String
+  type          TaskType @relation(fields: [typeId], references: [id], onDelete: Restrict)
   estimateHours Int?
   // Checklist item texts, in order.
   checklist     String[]
@@ -353,7 +369,8 @@ model RecurringRule {
   project       Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
   title         String
   description   String?
-  type          CardType            @default(OTHER)
+  typeId        String
+  type          TaskType            @relation(fields: [typeId], references: [id], onDelete: Restrict)
   priority      CardPriority        @default(MEDIUM)
   estimateHours Int?
   assigneeIds   String[]
@@ -379,7 +396,7 @@ model RecurringRule {
 }
 
 // Custom role ("Сотрудник", "Менеджер"…) with a set of permission keys
-// (PERMISSIONS in @amo-kanban/shared). "Администратор" is the built-in
+// (PERMISSIONS in @plano/shared). "Администратор" is the built-in
 // UserRole.ADMIN and isn't stored here.
 model Role {
   id          String    @id @default(cuid())

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { BarChart3, CalendarDays, ChartGantt, Download, KanbanSquare, List, Settings, Table2 } from "lucide-react";
-import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type UserDto } from "@amo-kanban/shared";
+import { PROJECT_STATUS_LABELS, type ProjectListItemDto, type UserDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Board, BoardSkeleton, ProjectFunnel } from "@/components/board";
 import { BulkBar } from "@/components/bulk-bar";
@@ -34,7 +34,7 @@ function ProjectPage({ projectId }: { projectId: string }) {
   const [cardId, setCardId] = useCardParam();
   const [viewParam, setView] = useQueryParam("view");
   const view = (viewParam as View) ?? "kanban";
-  const [filters, setFilters] = useFilters(`amo-kanban.filters.${projectId}`);
+  const [filters, setFilters] = useFilters(`plano.filters.${projectId}`);
 
   // Board/table selection for bulk actions (Shift/⌘-click or checkbox).
   const [selected, setSelected] = useState<Set<string>>(new Set());

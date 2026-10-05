@@ -35,7 +35,8 @@ describe("CSV export (Business)", () => {
     const field = (await A.post("/fields", { name: "Бюджет", type: "NUMBER" })).body;
     const check = (await A.post("/fields", { name: "Согласовано", type: "CHECKBOX" })).body;
     const label = (await A.post("/labels", { name: "Срочно", color: "red" })).body;
-    const card = (await A.post("/cards", { columnId: columns[1].id, title: "=cmd|calc", description: "Строка 1\nСтрока 2; с запятой", type: "BUG", priority: "HIGH" })).body;
+    const bug = (await A.post("/task-types", { name: "Ошибка", color: "red" })).body;
+    const card = (await A.post("/cards", { columnId: columns[1].id, title: "=cmd|calc", description: "Строка 1\nСтрока 2; с запятой", typeId: bug.id, priority: "HIGH" })).body;
     await A.post("/cards", { columnId: columns[0].id, title: "Пустая" });
     await A.patch(`/cards/${card.id}`, { startDate: "2026-10-05", dueDate: "2026-10-09", labelIds: [label.id], estimateHours: 4, assigneeIds: [a.userId] });
     await A.put(`/cards/${card.id}/fields/${field.id}`, { value: 1500 });
@@ -57,7 +58,7 @@ describe("CSV export (Business)", () => {
     const lines = text.split("\r\n");
     expect(lines[0]).toBe("Ключ;Название;Описание;Колонка;Тип;Приоритет;Исполнители;Метки;Начало;Срок;Оценка, ч;Списано, мин;Подзадачи;Создана;Бюджет;Согласовано");
     // ordered by column: the empty card (first column) comes before the bug
-    expect(lines[1]).toMatch(/^TSK-2;Пустая;;Бэклог;Другое;Средний;/);
+    expect(lines[1]).toMatch(/^TSK-2;Пустая;;Бэклог;Задача;Средний;/);
     expect(text).toContain("'=cmd|calc");
     expect(text).toContain('"Строка 1\nСтрока 2; с запятой"');
     expect(text).toMatch(/;Админ csv1;Срочно;2026-10-05;2026-10-09;4;90;0\/1;\d{4}-\d{2}-\d{2};1500;Да\r\n$/);

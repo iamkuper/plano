@@ -10,7 +10,7 @@ import {
   type ProjectStatus,
   type RecurringRuleDto,
   type UserDto,
-} from "@amo-kanban/shared";
+} from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Button, Card, ConfirmDialog, Field, IconButton, Input, PageHeader, Select } from "@/components/ui";
 import { stageColor } from "@/design/tokens";

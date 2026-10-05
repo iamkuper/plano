@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ChevronDown, Plus, Trash2, X } from "lucide-react";
-import { CARD_TYPE_LABELS, type CardType, type UserDto } from "@amo-kanban/shared";
-import { can } from "@amo-kanban/shared";
+import type { UserDto } from "@plano/shared";
+import { can } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { useSettings } from "@/lib/settings";
-import { CARD_TYPE_STYLES } from "@/components/card-type-icon";
+import { typeStyle } from "@/components/card-type-icon";
+import { useTaskTypes } from "@/lib/use-task-types";
 import { Button, Card, ConfirmDialog, Field, IconButton, Input, PageHeader, Select, Textarea } from "@/components/ui";
 import { stageColor } from "@/design/tokens";
 import { api, type TemplateCardInput, type TemplateInput } from "@/lib/api";
@@ -58,7 +59,9 @@ function CardEditor({
   onRemove: () => void;
 }) {
   const [open, setOpen] = useState(!card.title);
-  const { icon: TypeIcon, color } = CARD_TYPE_STYLES[card.type];
+  const taskTypes = useTaskTypes();
+  const current = taskTypes.find((x) => x.id === card.typeId);
+  const { icon: TypeIcon, color } = typeStyle(current ?? { color: null });
   const items = card.checklistText.split("\n").filter((t) => t.trim()).length;
   return (
     <div className="border-b border-border last:border-b-0">
@@ -95,10 +98,10 @@ function CardEditor({
           </Field>
           <Field label="Тип">
             {(a) => (
-              <Select {...a} disabled={readOnly} value={card.type} onChange={(e) => onChange({ type: e.target.value as CardType })}>
-                {Object.entries(CARD_TYPE_LABELS).map(([v, l]) => (
-                  <option key={v} value={v}>
-                    {l}
+              <Select {...a} disabled={readOnly} value={card.typeId ?? taskTypes.find((x) => x.isDefault)?.id ?? ""} onChange={(e) => onChange({ typeId: e.target.value })}>
+                {taskTypes.map((x) => (
+                  <option key={x.id} value={x.id}>
+                    {x.name}
                   </option>
                 ))}
               </Select>
@@ -281,7 +284,7 @@ export default function TemplateEditorPage({ params }: { params: { id: string } 
                 !readOnly && (
                   <Button
                     size="sm"
-                    onClick={() => set({ cards: [...draft.cards, toDraftCard({ title: "", type: "OTHER", estimateHours: null, checklist: [], description: null })] })}
+                    onClick={() => set({ cards: [...draft.cards, toDraftCard({ title: "", estimateHours: null, checklist: [], description: null })] })}
                   >
                     <Plus size={14} /> Карточка
                   </Button>

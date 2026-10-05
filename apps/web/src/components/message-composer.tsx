@@ -2,7 +2,7 @@
 
 import { Fragment, useRef, useState } from "react";
 import { Paperclip, SendHorizontal, X } from "lucide-react";
-import type { AttachmentDto, UserRefDto } from "@amo-kanban/shared";
+import type { AttachmentDto, UserRefDto } from "@plano/shared";
 import { toast } from "@/lib/toast";
 import { Avatar } from "./avatar";
 import { formatSize } from "./attachments";

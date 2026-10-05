@@ -1,3 +1,4 @@
+import { defaultTaskTypeId } from "../task-types/default-type";
 import { Injectable, Logger, NotFoundException, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
 import type { RecurringRule } from "@prisma/client";
 import { NotificationsService } from "../notifications/notifications.service";
@@ -40,11 +41,11 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
     return this.prisma.recurringRule.findMany({ where: { projectId }, orderBy: { createdAt: "asc" } });
   }
 
-  private data(dto: SaveRecurringDto) {
+  private async data(dto: SaveRecurringDto) {
     const rule = {
       title: dto.title.trim(),
       description: dto.description?.trim() || null,
-      type: dto.type ?? "OTHER",
+      typeId: dto.typeId ?? (await defaultTaskTypeId(this.prisma)),
       priority: dto.priority ?? "MEDIUM",
       estimateHours: dto.estimateHours ?? null,
       assigneeIds: dto.assigneeIds ?? [],
@@ -60,11 +61,11 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
 
   async create(projectId: string, dto: SaveRecurringDto, userId: string) {
     await this.billing.assertWithin("recurring");
-    return this.prisma.recurringRule.create({ data: { ...this.data(dto), projectId, createdById: userId } });
+    return this.prisma.recurringRule.create({ data: { ...(await this.data(dto)), projectId, createdById: userId } });
   }
 
-  update(id: string, dto: SaveRecurringDto) {
-    return this.prisma.recurringRule.update({ where: { id }, data: this.data(dto) });
+  async update(id: string, dto: SaveRecurringDto) {
+    return this.prisma.recurringRule.update({ where: { id }, data: await this.data(dto) });
   }
 
   setActive(id: string, active: boolean) {
@@ -98,7 +99,7 @@ export class RecurringService implements OnModuleInit, OnModuleDestroy {
         columnId: column.id,
         title: rule.title,
         description: rule.description,
-        type: rule.type,
+        typeId: rule.typeId,
         priority: rule.priority,
         estimateHours: rule.estimateHours,
         dueDate: due,

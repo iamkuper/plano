@@ -142,8 +142,8 @@ describe("templates", () => {
     name: "Мой шаблон",
     columns: ["Идеи", "Готово"],
     cards: [
-      { title: "Первая", type: "SETUP", estimateHours: 2, checklist: ["а", "б"] },
-      { title: "Вторая", description: "Описание", type: "OTHER", checklist: [] },
+      { title: "Первая", estimateHours: 2, checklist: ["а", "б"] },
+      { title: "Вторая", description: "Описание", checklist: [] },
     ],
   };
 

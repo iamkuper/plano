@@ -1,6 +1,6 @@
 import { Controller, Get, Header, Module, NotFoundException, Param, Res, UseGuards } from "@nestjs/common";
 import type { Response } from "express";
-import { CARD_PRIORITY_LABELS, CARD_TYPE_LABELS } from "@amo-kanban/shared";
+import { CARD_PRIORITY_LABELS } from "@plano/shared";
 import { AuditService } from "../audit/audit.service";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { BillingService } from "../billing/billing.service";
@@ -43,6 +43,7 @@ export class ExportController {
         orderBy: [{ column: { position: "asc" } }, { position: "asc" }],
         include: {
           column: { select: { title: true } },
+          type: { select: { name: true } },
           assignees: { select: { user: { select: { name: true } } } },
           labels: { select: { label: { select: { name: true } } } },
           checklist: { select: { done: true } },
@@ -62,7 +63,7 @@ export class ExportController {
           c.title,
           c.description,
           c.column.title,
-          CARD_TYPE_LABELS[c.type],
+          c.type.name,
           CARD_PRIORITY_LABELS[c.priority],
           c.assignees.map((a) => a.user.name).join(", "),
           c.labels.map((l) => l.label.name).join(", "),

@@ -17,6 +17,7 @@ import { AttachmentsModule } from "./attachments/attachments.module";
 import { BillingModule } from "./billing/billing.module";
 import { MailModule } from "./mail/mail.module";
 import { LabelsModule } from "./labels/labels.controller";
+import { TaskTypesModule } from "./task-types/task-types.controller";
 import { DependenciesModule } from "./dependencies/dependencies.controller";
 import { FieldsModule } from "./fields/fields.controller";
 import { AuditModule } from "./audit/audit.service";
@@ -46,6 +47,7 @@ import { InvitationsModule } from "./invitations/invitations.module";
     BillingModule,
     MailModule,
     LabelsModule,
+    TaskTypesModule,
     DependenciesModule,
     FieldsModule,
     AuditModule,

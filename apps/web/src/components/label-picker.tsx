@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown, Plus } from "lucide-react";
-import { LABEL_COLORS, type LabelColor, type LabelDto } from "@amo-kanban/shared";
+import { LABEL_COLORS, type LabelColor, type LabelDto } from "@plano/shared";
 import { labelColor } from "@/design/tokens";
 import { api, onSessionChange } from "@/lib/api";
 import { toast } from "@/lib/toast";

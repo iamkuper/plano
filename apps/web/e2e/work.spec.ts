@@ -15,7 +15,7 @@ test("create a project from the dashboard hint, add and open a card, comment", a
   await expect.poll(async () => (await apiAs(acc.token).get(`/cards/search?q=${encodeURIComponent("Макет")}`)).length).toBe(1);
 
   await page.keyboard.press("Escape");
-  await page.getByText("Бриф и требования").click();
+  await page.getByText("Осмотреть доску").click();
   await expect(page).toHaveURL(/card=/);
   await page.getByLabel("Описание").fill("Нужен вариант под мобильные");
   await page.getByLabel("Новая подзадача").fill("Шапка");

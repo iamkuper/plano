@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BoardDto, CardTileDto, ColumnDto } from "@amo-kanban/shared";
+import type { BoardDto, CardTileDto, ColumnDto } from "@plano/shared";
 import { api } from "./api";
 import { toast } from "./toast";
 

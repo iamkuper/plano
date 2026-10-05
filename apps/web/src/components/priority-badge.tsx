@@ -1,4 +1,4 @@
-import { CARD_PRIORITY_LABELS, type CardPriority } from "@amo-kanban/shared";
+import { CARD_PRIORITY_LABELS, type CardPriority } from "@plano/shared";
 import { priorityColor } from "@/design/tokens";
 
 // Priority as a dot + plain text; only "high" draws attention.

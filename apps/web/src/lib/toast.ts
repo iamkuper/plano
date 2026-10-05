@@ -6,7 +6,7 @@ export interface ToastItem {
   tone: ToastTone;
 }
 
-const EVENT = "amo-kanban:toast";
+const EVENT = "plano:toast";
 let seq = 0;
 
 export function toast(message: string, tone: ToastTone = "default") {

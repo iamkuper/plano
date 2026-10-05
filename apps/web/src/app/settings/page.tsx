@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
-import type { SettingsDto, UserDto } from "@amo-kanban/shared";
+import type { SettingsDto, UserDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Button, Card, Field, IconButton, Input, PageHeader } from "@/components/ui";

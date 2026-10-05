@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import type { CardTileDto, ColumnDto } from "@amo-kanban/shared";
+import type { CardTileDto, ColumnDto } from "@plano/shared";
 import { api } from "@/lib/api";
 import { applyFilters, isReordered, type CardFilters } from "@/lib/card-filters";
 import type { useBoard } from "@/lib/use-board";

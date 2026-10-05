@@ -4,7 +4,23 @@
 export type UserRole = "ADMIN" | "MEMBER";
 export type ProjectStatus = "ACTIVE" | "ON_HOLD" | "DONE" | "ARCHIVED";
 export type CardPriority = "LOW" | "MEDIUM" | "HIGH";
-export type CardType = "SETUP" | "INTEGRATION" | "WIDGET" | "TRAINING" | "BUG" | "OTHER";
+// Task type: configured per workspace (settings → task types); every
+// workspace has at least one, marked as default.
+export interface TaskTypeRefDto {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+export interface TaskTypeDto extends TaskTypeRefDto {
+  position: number;
+  isDefault: boolean;
+  cardCount: number;
+}
+
+export type Locale = "ru" | "en";
+export const LOCALES: readonly Locale[] = ["ru", "en"];
+export const DEFAULT_LOCALE: Locale = "ru";
 
 // Card key prefix (TSK → TSK-12). Configured per workspace in settings; the
 // web app calls setCardKeyPrefix() once settings are loaded.
@@ -32,6 +48,7 @@ export const PERMISSIONS = [
   { key: "templates.manage", label: "Создавать и менять шаблоны" },
   { key: "labels.manage", label: "Менять и удалять метки", hint: "Создавать и назначать метки может любой сотрудник" },
   { key: "fields.manage", label: "Настраивать дополнительные поля карточек" },
+  { key: "types.manage", label: "Настраивать типы задач" },
   { key: "audit.view", label: "Смотреть журнал действий" },
   { key: "billing.manage", label: "Управлять тарифом и оплатой" },
   { key: "time.viewAll", label: "Видеть время всех сотрудников", hint: "Без этого права в отчёте видно только своё время" },
@@ -53,15 +70,6 @@ export function can(user: { role: UserRole; permissions?: string[] } | null | un
 }
 
 export const DEFAULT_COLUMNS = ["Бэклог", "В работе", "На проверке", "Готово"];
-
-export const CARD_TYPE_LABELS: Record<CardType, string> = {
-  SETUP: "Настройка",
-  INTEGRATION: "Интеграция",
-  WIDGET: "Разработка",
-  TRAINING: "Обучение",
-  BUG: "Ошибка",
-  OTHER: "Другое",
-};
 
 export const CARD_PRIORITY_LABELS: Record<CardPriority, string> = {
   HIGH: "Высокий",
@@ -134,7 +142,7 @@ export interface CardTileDto {
   columnId: string;
   title: string;
   description: string | null;
-  type: CardType;
+  type: TaskTypeRefDto;
   priority: CardPriority;
   position: number;
   startDate: string | null;
@@ -228,7 +236,7 @@ export interface RecurringRuleDto {
   projectId: string;
   title: string;
   description: string | null;
-  type: CardType;
+  typeId: string;
   priority: CardPriority;
   estimateHours: number | null;
   assigneeIds: string[];
@@ -279,7 +287,7 @@ export interface CardDetailDto extends Omit<CardTileDto, "checklist"> {
 export const CARD_FIELD_LABELS: Record<string, string> = {
   title: "название",
   description: "описание",
-  type: "тип",
+  typeId: "тип",
   priority: "приоритет",
   startDate: "начало",
   dueDate: "срок",

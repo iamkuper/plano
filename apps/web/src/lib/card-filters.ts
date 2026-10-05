@@ -1,4 +1,4 @@
-import { cardKey, type CardPriority, type CardTileDto, type CardType } from "@amo-kanban/shared";
+import { cardKey, type CardPriority, type CardTileDto } from "@plano/shared";
 
 export type DateFilter = "all" | "today" | "week" | "overdue";
 export type SortKey = "manual" | "due" | "priority" | "updated";
@@ -6,7 +6,8 @@ export type SortKey = "manual" | "due" | "priority" | "updated";
 export interface CardFilters {
   date: DateFilter;
   assigneeIds: string[];
-  types: CardType[];
+  // Task type ids.
+  types: string[];
   priorities: CardPriority[];
   labelIds: string[];
   // Free text over title, description and key.
@@ -59,7 +60,7 @@ export function applyFilters(cards: CardTileDto[], f: CardFilters) {
       matchesText(c, f.q) &&
       (!f.labelIds.length || c.labels.some((l) => f.labelIds.includes(l.label.id))) &&
       (!f.assigneeIds.length || c.assignees.some((a) => f.assigneeIds.includes(a.user.id))) &&
-      (!f.types.length || f.types.includes(c.type)) &&
+      (!f.types.length || f.types.includes(c.type.id)) &&
       (!f.priorities.length || f.priorities.includes(c.priority)),
   );
   switch (f.sort) {

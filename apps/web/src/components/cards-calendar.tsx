@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cardKey, type ColumnDto } from "@amo-kanban/shared";
+import { cardKey, type ColumnDto } from "@plano/shared";
 import { api } from "@/lib/api";
 import { applyFilters, type CardFilters } from "@/lib/card-filters";
 import { toast } from "@/lib/toast";
-import { CARD_TYPE_STYLES } from "./card-type-icon";
+import { typeStyle } from "./card-type-icon";
 
 const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
 const MAX_PER_DAY = 3;
@@ -123,7 +123,7 @@ export function CardsCalendar({
                 </div>
                 <div className="space-y-0.5">
                   {shown.map((c) => {
-                    const { icon: Icon, color } = CARD_TYPE_STYLES[c.type];
+                    const { icon: Icon, color } = typeStyle(c.type);
                     const done = c.columnId === doneColumnId;
                     const overdue = !done && new Date(c.dueDate!) < new Date(new Date().toDateString());
                     return (

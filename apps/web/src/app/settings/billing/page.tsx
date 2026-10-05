@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Check } from "lucide-react";
-import { formatRub, planAmount, type BillingDto, type BillingInterval, type PlanDto } from "@amo-kanban/shared";
+import { formatRub, planAmount, type BillingDto, type BillingInterval, type PlanDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Button, Card, ConfirmDialog, PageHeader, Segmented, Skeleton } from "@/components/ui";

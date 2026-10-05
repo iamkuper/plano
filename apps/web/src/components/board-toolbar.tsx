@@ -1,10 +1,11 @@
 "use client";
 
 import { ArrowUpDown, Check, ListFilter, Search, X } from "lucide-react";
-import { CARD_PRIORITY_LABELS, CARD_TYPE_LABELS, type CardPriority, type CardType, type UserDto } from "@amo-kanban/shared";
+import { CARD_PRIORITY_LABELS, type CardPriority, type UserDto } from "@plano/shared";
 import { activeFilterCount, type CardFilters, type DateFilter, type SortKey } from "@/lib/card-filters";
 import { Avatar } from "./avatar";
-import { CARD_TYPE_STYLES } from "./card-type-icon";
+import { typeStyle } from "./card-type-icon";
+import { useTaskTypes } from "@/lib/use-task-types";
 import { useLabels } from "./label-picker";
 import { LabelTag, MenuLabel, Popover, Segmented, inputClass } from "./ui";
 
@@ -62,6 +63,7 @@ export function BoardToolbar({
   const set = (patch: Partial<CardFilters>) => onChange({ ...filters, ...patch });
   const count = activeFilterCount(filters);
   const [labels] = useLabels();
+  const taskTypes = useTaskTypes();
 
   const chips = [
     ...filters.assigneeIds.map((id) => ({
@@ -76,7 +78,7 @@ export function BoardToolbar({
     })),
     ...filters.types.map((t) => ({
       key: `t-${t}`,
-      label: CARD_TYPE_LABELS[t],
+      label: taskTypes.find((x) => x.id === t)?.name ?? "Тип",
       remove: () => set({ types: filters.types.filter((v) => v !== t) }),
     })),
     ...filters.priorities.map((p) => ({
@@ -144,11 +146,11 @@ export function BoardToolbar({
                 </>
               )}
               <MenuLabel>Тип</MenuLabel>
-              {(Object.keys(CARD_TYPE_LABELS) as CardType[]).map((t) => {
-                const { icon: Icon, color } = CARD_TYPE_STYLES[t];
+              {taskTypes.map((t) => {
+                const { icon: Icon, color } = typeStyle(t);
                 return (
-                  <OptionRow key={t} on={filters.types.includes(t)} onClick={() => set({ types: toggle(filters.types, t) })}>
-                    <Icon size={14} strokeWidth={2} style={{ color }} /> {CARD_TYPE_LABELS[t]}
+                  <OptionRow key={t.id} on={filters.types.includes(t.id)} onClick={() => set({ types: toggle(filters.types, t.id) })}>
+                    <Icon size={14} strokeWidth={2} style={{ color }} /> {t.name}
                   </OptionRow>
                 );
               })}

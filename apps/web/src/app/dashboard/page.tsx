@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, CheckCircle2 } from "lucide-react";
-import { cardKey, type CardTileDto, type TeamBoardColumnDto, type UserDto, type UserRefDto } from "@amo-kanban/shared";
+import { cardKey, type CardTileDto, type TeamBoardColumnDto, type UserDto, type UserRefDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Avatar, LetterMark } from "@/components/avatar";
 import { CardModal } from "@/components/card-modal";

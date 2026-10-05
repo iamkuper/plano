@@ -1,4 +1,5 @@
 import { Body, Controller, Delete, Get, HttpCode, NotFoundException, Param, Post, Put, UseGuards } from "@nestjs/common";
+import { defaultTaskTypeId } from "../task-types/default-type";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { PrismaService } from "../prisma/prisma.service";
@@ -6,13 +7,13 @@ import { FromProjectDto, SaveTemplateDto } from "./templates.dto";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { AuditService } from "../audit/audit.service";
 
-const clean = (dto: SaveTemplateDto) => ({
+const clean = (dto: SaveTemplateDto, defaultTypeId: string) => ({
   name: dto.name.trim(),
   columns: dto.columns.map((c) => c.trim()).filter(Boolean),
   cards: dto.cards.map((c, i) => ({
     title: c.title.trim(),
     description: c.description?.trim() || null,
-    type: c.type,
+    typeId: c.typeId ?? defaultTypeId,
     estimateHours: c.estimateHours ?? null,
     checklist: c.checklist.map((t) => t.trim()).filter(Boolean),
     position: i + 1,
@@ -47,7 +48,7 @@ export class TemplatesController {
   @Post()
   @RequirePermission("templates.manage")
   async create(@Body() dto: SaveTemplateDto) {
-    const { cards, ...data } = clean(dto);
+    const { cards, ...data } = clean(dto, await defaultTaskTypeId(this.prisma));
     const template = await this.prisma.template.create({ data: { ...OWN_FIELDS, ...data, cards: { create: cards } } });
     await this.audit.record("template.create", `Создан шаблон «${template.name}»`, template.id);
     return template;
@@ -55,8 +56,8 @@ export class TemplatesController {
 
   @Put(":id")
   @RequirePermission("templates.manage")
-  save(@Param("id") id: string, @Body() dto: SaveTemplateDto) {
-    const { cards, ...data } = clean(dto);
+  async save(@Param("id") id: string, @Body() dto: SaveTemplateDto) {
+    const { cards, ...data } = clean(dto, await defaultTaskTypeId(this.prisma));
     return this.prisma.template.update({
       where: { id },
       data: { ...data, cards: { deleteMany: {}, create: cards } },
@@ -98,7 +99,7 @@ export class TemplatesController {
           create: cards.map((c, i) => ({
             title: c.title,
             description: c.description,
-            type: c.type,
+            typeId: c.typeId,
             estimateHours: c.estimateHours,
             checklist: c.checklist.map((item) => item.text),
             position: i + 1,

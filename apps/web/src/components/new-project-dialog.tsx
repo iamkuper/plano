@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { TemplateListItemDto } from "@amo-kanban/shared";
+import type { TemplateListItemDto } from "@plano/shared";
 import { api } from "@/lib/api";
 import { notifyProjectsChanged } from "@/lib/projects-events";
 import { Button, Dialog, Field, Input, Select } from "./ui";

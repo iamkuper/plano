@@ -6,15 +6,13 @@ import { Check, ChevronDown, ChevronRight, Link2, MessageSquare, Paperclip, Plus
 import {
   CARD_FIELD_LABELS,
   CARD_PRIORITY_LABELS,
-  CARD_TYPE_LABELS,
   cardKey,
   type CardPriority,
   type ActivityDto,
   type CardDetailDto,
-  type CardType,
   type AttachmentDto,
   type UserDto,
-} from "@amo-kanban/shared";
+} from "@plano/shared";
 import { useCan } from "@/lib/permissions";
 import { api, uploadAttachment, type CardPatch } from "@/lib/api";
 import { describeRecurrence } from "@/lib/recurrence";
@@ -24,7 +22,8 @@ import { priorityColor } from "@/design/tokens";
 import { Avatar, AvatarStack, LetterMark } from "./avatar";
 import { LabelPicker } from "./label-picker";
 import { CustomFieldInputs } from "./custom-field-inputs";
-import { CARD_TYPE_STYLES } from "./card-type-icon";
+import { typeStyle } from "./card-type-icon";
+import { useTaskTypes } from "@/lib/use-task-types";
 import {
   Button,
   Checkbox,
@@ -117,6 +116,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
   const [card, setCard] = useState<CardDetailDto | null>(null);
   const [me, setMe] = useState<UserDto | null>(null);
   const allowed = useCan();
+  const taskTypes = useTaskTypes();
   const [users, setUsers] = useState<UserDto[]>([]);
   const [columns, setColumns] = useState<{ id: string; title: string }[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -213,7 +213,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
   const over = estimateMinutes !== null && loggedMinutes > estimateMinutes;
   const columnIndex = columns.findIndex((c) => c.id === card.column.id);
   const statusTone = columnIndex === -1 ? "todo" : columnTone(columnIndex, columns.length);
-  const { icon: TypeIcon, color: typeColor } = CARD_TYPE_STYLES[card.type];
+  const { icon: TypeIcon, color: typeColor } = typeStyle(card.type);
 
   async function remove() {
     try {
@@ -401,10 +401,10 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
                   <span className="pointer-events-none absolute left-2.5 top-1/2 z-10 -translate-y-1/2" style={{ color: typeColor }}>
                     <TypeIcon size={14} strokeWidth={2} />
                   </span>
-                  <Select {...a} className="pl-8" value={card.type} onChange={(e) => save({ type: e.target.value as CardType })}>
-                    {Object.entries(CARD_TYPE_LABELS).map(([value, text]) => (
-                      <option key={value} value={value}>
-                        {text}
+                  <Select {...a} className="pl-8" value={card.type.id} onChange={(e) => save({ typeId: e.target.value })}>
+                    {(taskTypes.some((x) => x.id === card.type.id) ? taskTypes : [card.type, ...taskTypes]).map((x) => (
+                      <option key={x.id} value={x.id}>
+                        {x.name}
                       </option>
                     ))}
                   </Select>
@@ -744,7 +744,7 @@ export function CardModal({ cardId, onClose }: { cardId: string; onClose: (chang
           prefill={{
             title: card.title,
             description: card.description,
-            type: card.type,
+            typeId: card.type.id,
             priority: card.priority,
             estimateHours: card.estimateHours,
             assigneeIds: card.assignees.map((a) => a.user.id),

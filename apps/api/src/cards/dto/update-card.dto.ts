@@ -1,6 +1,6 @@
 import { Type } from "class-transformer";
 import { IsArray, IsDate, IsEnum, IsInt, IsOptional, IsString, Min, MinLength } from "class-validator";
-import { CardPriority, CardType } from "@prisma/client";
+import { CardPriority } from "@prisma/client";
 
 export class UpdateCardDto {
   @IsOptional()
@@ -13,8 +13,8 @@ export class UpdateCardDto {
   description?: string;
 
   @IsOptional()
-  @IsEnum(CardType)
-  type?: CardType;
+  @IsString()
+  typeId?: string;
 
   @IsOptional()
   @IsEnum(CardPriority)

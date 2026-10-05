@@ -17,7 +17,7 @@ describe("registration", () => {
     expect(user.role).toBe("ADMIN");
     expect(user.workspace.subscription).toMatchObject({ planId: "PRO", status: "TRIALING" });
     expect(user.workspace.subscription!.trialEndsAt!.getTime()).toBeGreaterThan(Date.now() + 13 * 86_400_000);
-    expect(user.workspace.templates.map((x) => x.name)).toContain("Типовой проект");
+    expect(user.workspace.templates.map((x) => x.name)).toContain("Знакомство с Plano");
   });
 
   it("rejects duplicates regardless of case, and bad input", async () => {

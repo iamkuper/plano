@@ -1,17 +1,17 @@
 {
-  "name": "amo-kanban",
+  "name": "plano",
   "private": true,
   "packageManager": "pnpm@11.20.0",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "postinstall": "pnpm --filter @amo-kanban/shared build",
-    "api:dev": "pnpm --filter @amo-kanban/api start:dev",
-    "web:dev": "pnpm --filter @amo-kanban/web dev",
-    "db:up": "pnpm --filter @amo-kanban/api db:up",
-    "db:down": "pnpm --filter @amo-kanban/api db:down",
-    "db:migrate": "pnpm --filter @amo-kanban/api prisma migrate dev",
-    "db:seed": "pnpm --filter @amo-kanban/api prisma db seed"
+    "postinstall": "pnpm --filter @plano/shared build",
+    "api:dev": "pnpm --filter @plano/api start:dev",
+    "web:dev": "pnpm --filter @plano/web dev",
+    "db:up": "pnpm --filter @plano/api db:up",
+    "db:down": "pnpm --filter @plano/api db:down",
+    "db:migrate": "pnpm --filter @plano/api prisma migrate dev",
+    "db:seed": "pnpm --filter @plano/api prisma db seed"
   }
 }

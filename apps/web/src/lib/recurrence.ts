@@ -1,4 +1,4 @@
-import type { RecurrenceFrequency } from "@amo-kanban/shared";
+import type { RecurrenceFrequency } from "@plano/shared";
 
 export const WEEKDAYS = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"];
 const WEEKDAYS_ACC = ["понедельникам", "вторникам", "средам", "четвергам", "пятницам", "субботам", "воскресеньям"];

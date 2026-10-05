@@ -89,7 +89,7 @@ export class ProjectsService {
             columnId: firstColumn.id,
             title: tc.title,
             description: tc.description,
-            type: tc.type,
+            typeId: tc.typeId,
             estimateHours: tc.estimateHours,
             position: i + 1,
             checklist: { create: tc.checklist.map((text, j) => ({ text, position: j + 1 })) },

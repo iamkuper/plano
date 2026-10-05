@@ -1,6 +1,6 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, SetMetadata } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
-import { can, PERMISSIONS, type Permission } from "@amo-kanban/shared";
+import { can, PERMISSIONS, type Permission } from "@plano/shared";
 import type { AuthenticatedUser } from "../current-user.decorator";
 
 const KEY = "permission";

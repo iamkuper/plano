@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { formatRub } from "@amo-kanban/shared";
+import { formatRub } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Button, Dialog, Field, Input, Kpi, PageHeader, Panel, Select, Segmented, td, th, tr, TableSkeleton } from "@/components/ui";
 import { api, type PlatformState, type PlatformStats, type PlatformWorkspaceDetail, type PlatformWorkspaceRow } from "@/lib/api";

@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarDays } from "lucide-react";
-import { cardKey, type CardTileDto, type ColumnDto } from "@amo-kanban/shared";
+import { cardKey, type CardTileDto, type ColumnDto } from "@plano/shared";
 import { AvatarStack } from "./avatar";
 import { CardTypeIcon, CardTypeTag } from "./card-type-icon";
 import { formatDate } from "./card-tile";

@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { api, API_URL, downloadProjectCsv, getToken, setToken, UnauthorizedError, uploadAttachment } from "@/lib/api";
 import { loadSettings, publishSettings, useSettings } from "@/lib/settings";
-import { can } from "@amo-kanban/shared";
+import { can } from "@plano/shared";
 import { useCan } from "@/lib/permissions";
 import { notifyMeChanged, useAuth } from "@/lib/use-auth";
 import { useBoard } from "@/lib/use-board";
@@ -54,6 +54,7 @@ describe("request wrapper", () => {
   });
 
   it("every endpoint helper builds a request without throwing", async () => {
+    vi.restoreAllMocks(); // drops the global taskTypes stub from setup
     const f = reply(200, {});
     vi.stubGlobal("fetch", f);
     const skip = new Set(["login"]);

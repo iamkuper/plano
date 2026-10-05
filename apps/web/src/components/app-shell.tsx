@@ -16,7 +16,7 @@ import {
   UserCog,
   type LucideIcon,
 } from "lucide-react";
-import type { ProjectListItemDto, UserDto } from "@amo-kanban/shared";
+import type { ProjectListItemDto, UserDto } from "@plano/shared";
 import { BILLING_CHANGED, api, setToken } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { onProjectsChanged } from "@/lib/projects-events";
@@ -28,7 +28,7 @@ import { NotificationBell } from "./notification-bell";
 import { Toaster } from "./toaster";
 import { Popover, Tooltip } from "./ui";
 
-const COLLAPSED_KEY = "amo-kanban.sidebar-collapsed";
+const COLLAPSED_KEY = "plano.sidebar-collapsed";
 
 function NavItem({
   href,

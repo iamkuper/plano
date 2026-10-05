@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { ChartGantt } from "lucide-react";
-import { cardKey, type CardTileDto, type ColumnDto } from "@amo-kanban/shared";
+import { cardKey, type CardTileDto, type ColumnDto } from "@plano/shared";
 import { api } from "@/lib/api";
 import { applyFilters, type CardFilters } from "@/lib/card-filters";
 import { toast } from "@/lib/toast";
-import { CARD_TYPE_STYLES } from "./card-type-icon";
+import { typeStyle } from "./card-type-icon";
 import { Button, ConfirmDialog, EmptyState, Segmented, Skeleton } from "./ui";
 
 const DAY_MS = 86_400_000;
@@ -252,7 +252,7 @@ export function GanttChart({
               {/* task names */}
               <div className="sticky left-0 z-20 shrink-0 border-r border-border bg-surface" style={{ width: LEFT }}>
                 {rows.map((c) => {
-                  const { icon: Icon, color } = CARD_TYPE_STYLES[c.type];
+                  const { icon: Icon, color } = typeStyle(c.type);
                   return (
                     <button key={c.id} onClick={() => onOpenCard(c.id)} className="flex w-full items-center gap-2 border-b border-border px-3 text-left text-sm hover:bg-surface-soft" style={{ height: ROW }} title={c.title}>
                       <Icon size={13} strokeWidth={2} style={{ color }} className="shrink-0" />
@@ -309,7 +309,7 @@ export function GanttChart({
                 {rows.map((c, i) => {
                   const sp = live(c);
                   if (!sp) return null;
-                  const { color } = CARD_TYPE_STYLES[c.type];
+                  const { color } = typeStyle(c.type);
                   const done = c.columnId === doneColumnId;
                   const overdue = !done && sp.e < today;
                   const left = x(sp.s);

@@ -77,7 +77,7 @@ describe("app shell", () => {
     await screen.findByText("Ромашка");
     await userEvent.click(screen.getByRole("button", { name: "Свернуть меню" }));
     expect(screen.queryByText("Ромашка")).toBeNull();
-    expect(localStorage.getItem("amo-kanban.sidebar-collapsed")).toBe("1");
+    expect(localStorage.getItem("plano.sidebar-collapsed")).toBe("1");
     expect(screen.getByRole("link", { name: "Сайт" })).toHaveAttribute("href", "/projects/p1");
     await userEvent.click(screen.getByRole("button", { name: "Развернуть меню" }));
     expect(screen.getByText("Ромашка")).toBeInTheDocument();
@@ -93,7 +93,7 @@ describe("app shell", () => {
   });
 
   it("starts collapsed when that was the last choice", async () => {
-    localStorage.setItem("amo-kanban.sidebar-collapsed", "1");
+    localStorage.setItem("plano.sidebar-collapsed", "1");
     setup();
     await waitFor(() => expect(screen.queryByText("Ромашка")).toBeNull());
     expect(await screen.findByRole("button", { name: "Развернуть меню" })).toBeInTheDocument();

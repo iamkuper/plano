@@ -5,7 +5,8 @@ import type {
   CardDetailDto,
   CardTileDto,
   CardPriority,
-  CardType,
+  TaskTypeDto,
+  TaskTypeRefDto,
   ChecklistItemDto,
   ColumnDto,
   CustomFieldDto,
@@ -26,7 +27,7 @@ import type {
   TimeEntryDto,
   UserDto,
   UserRole,
-} from "@amo-kanban/shared";
+} from "@plano/shared";
 
 export interface InvitationDto {
   id: string;
@@ -127,7 +128,7 @@ export type BulkAction = "move" | "assign" | "unassign" | "priority" | "due" | "
 export interface RecurringInput {
   title: string;
   description?: string | null;
-  type?: CardType;
+  typeId?: string;
   priority?: CardPriority;
   estimateHours?: number | null;
   assigneeIds?: string[];
@@ -171,7 +172,7 @@ export function uploadAttachment(cardId: string, file: File, onProgress?: (pct: 
 export interface TemplateCardInput {
   title: string;
   description?: string | null;
-  type: CardType;
+  typeId?: string;
   estimateHours?: number | null;
   checklist: string[];
 }
@@ -184,7 +185,7 @@ export type TemplateDetailDto = TemplateInput & { id: string; cards: (TemplateCa
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
 export const BILLING_CHANGED = "plano:billing-changed";
-const TOKEN_KEY = "amo-kanban.token";
+const TOKEN_KEY = "plano.token";
 
 export function getToken() {
   return typeof window === "undefined" ? null : localStorage.getItem(TOKEN_KEY);
@@ -237,7 +238,7 @@ const del = (path: string) => apiFetch<void>(path, { method: "DELETE" });
 export interface CardPatch {
   title: string;
   description: string | null;
-  type: CardType;
+  typeId: string;
   priority: CardPriority;
   startDate: string | null;
   dueDate: string | null;
@@ -301,6 +302,10 @@ export const api = {
   acceptInvite: (token: string, name: string, password: string) => post<{ accessToken: string }>("/auth/accept-invite", { token, name, password }),
   forgotPassword: (email: string) => post<void>("/auth/forgot", { email }),
   resetPassword: (token: string, password: string) => post<void>("/auth/reset", { token, password }),
+  taskTypes: () => apiFetch<TaskTypeDto[]>("/task-types"),
+  createTaskType: (name: string, color: LabelColor | null) => post<TaskTypeDto>("/task-types", { name, color }),
+  updateTaskType: (id: string, data: Partial<{ name: string; color: LabelColor | null; isDefault: boolean }>) => patch<TaskTypeDto>(`/task-types/${id}`, data),
+  deleteTaskType: (id: string) => del(`/task-types/${id}`),
   labels: () => apiFetch<LabelDto[]>("/labels"),
   createLabel: (name: string, color: LabelColor) => post<LabelDto>("/labels", { name, color }),
   updateLabel: (id: string, data: Partial<{ name: string; color: LabelColor }>) => patch<LabelDto>(`/labels/${id}`, data),

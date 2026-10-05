@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import type { TeamBoardColumnDto, UserDto } from "@amo-kanban/shared";
+import type { TeamBoardColumnDto, UserDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { BoardSkeleton, ColumnShell } from "@/components/board";
 import { BoardToolbar } from "@/components/board-toolbar";
@@ -27,7 +27,7 @@ function TeamBoard() {
   const [users, setUsers] = useState<UserDto[]>([]);
   const [columns, setColumns] = useState<TeamBoardColumnDto[] | null>(null);
   const [cardId, setCardId] = useCardParam();
-  const [filters, setFilters] = useFilters(mine ? "amo-kanban.filters.mine" : "amo-kanban.filters.team");
+  const [filters, setFilters] = useFilters(mine ? "plano.filters.mine" : "plano.filters.team");
 
   useEffect(() => {
     api.me().then(setMe).catch(() => {});

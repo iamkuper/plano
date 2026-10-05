@@ -1,5 +1,11 @@
-import type { BillingDto, CardDetailDto, CardTileDto, ColumnDto, PlanDto, UserDto } from "@amo-kanban/shared";
+import type { TaskTypeDto, TaskTypeRefDto, BillingDto, CardDetailDto, CardTileDto, ColumnDto, PlanDto, UserDto } from "@plano/shared";
 import type { OnboardingDto } from "@/lib/api";
+
+export const taskType = (over: Partial<TaskTypeRefDto> = {}): TaskTypeRefDto => ({ id: "tt1", name: "Задача", color: null, ...over });
+export const taskTypes = (): TaskTypeDto[] => [
+  { ...taskType(), position: 0, isDefault: true, cardCount: 3 },
+  { id: "tt2", name: "Ошибка", color: "red", position: 1, isDefault: false, cardCount: 1 },
+];
 
 export const user = (over: Partial<UserDto> = {}): UserDto => ({
   id: "u1", email: "ivan@example.ru", name: "Иван Петров", role: "ADMIN", roleId: null, roleName: "Администратор",
@@ -9,7 +15,7 @@ export const user = (over: Partial<UserDto> = {}): UserDto => ({
 export const member = (over: Partial<UserDto> = {}) => user({ id: "u2", email: "anna@example.ru", name: "Анна Смирнова", role: "MEMBER", roleName: "Участник", ...over });
 
 export const card = (over: Partial<CardTileDto> = {}): CardTileDto => ({
-  id: "c1", number: 1, columnId: "col1", title: "Первая карточка", description: null, type: "OTHER", priority: "MEDIUM",
+  id: "c1", number: 1, columnId: "col1", title: "Первая карточка", description: null, type: taskType(), priority: "MEDIUM",
   position: 1, startDate: null, dueDate: null, estimateHours: null, updatedAt: "2026-10-01T10:00:00.000Z",
   assignees: [], labels: [], project: { id: "p1", title: "Проект" }, checklist: [], _count: { comments: 0, attachments: 0 }, ...over,
 });

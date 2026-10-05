@@ -1,7 +1,7 @@
 # Plano — заметки для Claude
 
 - Монорепо pnpm: `apps/api` (NestJS + Prisma), `apps/web` (Next 14 + Tailwind), `packages/shared`.
-- После правок в `packages/shared/src` пересобрать: `pnpm --filter @amo-kanban/shared build`, иначе api/web не увидят изменений.
+- После правок в `packages/shared/src` пересобрать: `pnpm --filter @plano/shared build`, иначе api/web не увидят изменений.
 - Проверка типов: `npx tsc --noEmit -p apps/api` и `npx tsc --noEmit -p apps/web`.
 - Миграции: `prisma migrate dev` интерактивный и в неинтерактивной среде не работает. Создавать SQL через
   `prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --script`
@@ -12,5 +12,5 @@
 - Проверять интерфейс в браузере и скриншотами можно.
 - В облаке (Claude Code on the web) окружение готовит хук SessionStart из `.claude/settings.json`: он запускает `scripts/cloud-setup.sh`, лог — `/tmp/plano-setup.log`. Если база или зависимости не поднялись, посмотреть лог и запустить скрипт вручную.
 - Мультитенантность: сервисы получают `PrismaService` (скоуп по рабочему пространству, `src/prisma/tenant.ts`). Новая модель — добавить в `SCOPE` (и в `PARENTS`, если есть внешние ключи). Создавая запись User/Project/Card/Template/Role, подмешивать `OWN_FIELDS`/`CARD_FIELDS`. `SystemPrismaService` — только для логина, планировщика и подписанных ссылок. После изменений в доступе к данным: `node apps/api/test/isolation.mjs` на запущенном API.
-- Тесты: API — `pnpm --filter @amo-kanban/api test` (Jest, база `kanban_test` создаётся и очищается сама; `test:cov` — покрытие). Веб — `pnpm --filter @amo-kanban/web test` (Vitest + RTL, `test:cov`). E2E — `pnpm --filter @amo-kanban/web e2e` (Playwright, свои порты 3200/3201, база `kanban_e2e`, mock-оплата, владелец платформы `owner@e2e.test`). Проверка типов в приложениях: `pnpm exec tsc --noEmit -p .` внутри `apps/api` и `apps/web` (глобальный `npx tsc` новее и ругается на baseUrl).
+- Тесты: API — `pnpm --filter @plano/api test` (Jest, база `kanban_test` создаётся и очищается сама; `test:cov` — покрытие). Веб — `pnpm --filter @plano/web test` (Vitest + RTL, `test:cov`). E2E — `pnpm --filter @plano/web e2e` (Playwright, свои порты 3200/3201, база `kanban_e2e`, mock-оплата, владелец платформы `owner@e2e.test`). Проверка типов в приложениях: `pnpm exec tsc --noEmit -p .` внутри `apps/api` и `apps/web` (глобальный `npx tsc` новее и ругается на baseUrl).
 - Блокировка тарифа, онбординг и скрытая админка `/platform` (`PLATFORM_ADMIN_EMAILS`) описаны в README.

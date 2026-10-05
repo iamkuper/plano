@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { can, type Permission, type UserDto } from "@amo-kanban/shared";
+import { can, type Permission, type UserDto } from "@plano/shared";
 import { api, onSessionChange } from "./api";
 
 let mePromise: Promise<UserDto> | null = null;

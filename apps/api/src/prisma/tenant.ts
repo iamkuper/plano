@@ -37,6 +37,7 @@ const SCOPE: Record<string, (ws: string) => Where> = {
   CardLabel: (ws) => ({ card: { workspaceId: ws } }),
   CardDependency: (ws) => ({ card: { workspaceId: ws } }),
   CustomField: (ws) => ({ workspaceId: ws }),
+  TaskType: (ws) => ({ workspaceId: ws }),
   AuditLog: (ws) => ({ workspaceId: ws }),
   CardFieldValue: (ws) => ({ card: { workspaceId: ws } }),
   Payment: (ws) => ({ workspaceId: ws }),
@@ -56,7 +57,7 @@ const SCOPE: Record<string, (ws: string) => Where> = {
 
 // Models that carry workspaceId themselves: it is set from the context on
 // create, never taken from the caller.
-const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment", "Invitation", "Label", "CustomField", "AuditLog"]);
+const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment", "Invitation", "Label", "CustomField", "TaskType", "AuditLog"]);
 
 // Shared catalogue, not tenant data: readable by everyone, never writable here.
 const GLOBAL_READ = new Set(["Plan"]);
@@ -66,11 +67,11 @@ const READS = new Set(["findFirst", "findFirstOrThrow", "findUnique", "findUniqu
 const PARENTS: Record<string, Record<string, string>> = {
   User: { roleId: "Role" },
   Invitation: { roleId: "Role", invitedById: "User" },
-  Card: { projectId: "Project", columnId: "Column", recurringRuleId: "RecurringRule" },
+  Card: { projectId: "Project", columnId: "Column", recurringRuleId: "RecurringRule", typeId: "TaskType" },
   Board: { projectId: "Project" },
   Column: { boardId: "Board" },
-  RecurringRule: { projectId: "Project" },
-  TemplateCard: { templateId: "Template" },
+  RecurringRule: { projectId: "Project", typeId: "TaskType" },
+  TemplateCard: { templateId: "Template", typeId: "TaskType" },
   CardAssignee: { cardId: "Card", userId: "User" },
   ChecklistItem: { cardId: "Card" },
   Comment: { cardId: "Card", authorId: "User" },

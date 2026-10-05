@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { CardDetailDto, CustomFieldDto, CustomFieldValue } from "@amo-kanban/shared";
+import type { CardDetailDto, CustomFieldDto, CustomFieldValue } from "@plano/shared";
 import { api, onSessionChange } from "@/lib/api";
 import { toast } from "@/lib/toast";
 import { Checkbox, Field, Input, Select } from "./ui";

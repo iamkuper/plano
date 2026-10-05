@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Copy, Mail, Plus } from "lucide-react";
-import type { RoleDto, UserDto, UserRole } from "@amo-kanban/shared";
+import type { RoleDto, UserDto, UserRole } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { Avatar } from "@/components/avatar";

@@ -72,7 +72,7 @@ export const priorityColor = {
 // Muted categorical hues for people/projects and card types.
 export const series = ["#4A5BDC", "#C2562F", "#1E8F7A", "#9A6B00", "#B04A85", "#3F7F2E"] as const;
 
-// Label colours, keyed like LABEL_COLORS in @amo-kanban/shared.
+// Label colours, keyed like LABEL_COLORS in @plano/shared.
 export const labelColor = {
   gray: "#8B8D94",
   red: "#D23F3F",
@@ -83,15 +83,6 @@ export const labelColor = {
   blue: "#3D8BF2",
   violet: "#8A6CE8",
   pink: "#E26AA0",
-} as const;
-
-export const cardTypeColor = {
-  SETUP: "#4A5BDC",
-  INTEGRATION: "#C2562F",
-  WIDGET: "#1E8F7A",
-  TRAINING: "#3F7F2E",
-  BUG: "#D23F3F",
-  OTHER: "#6C6E75",
 } as const;
 
 // Type scale [size, line-height]. Nothing below 12px; 12px is meta only.

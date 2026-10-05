@@ -1,6 +1,6 @@
 import { BadRequestException, Controller, Get, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
-import { can } from "@amo-kanban/shared";
+import { can } from "@plano/shared";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
 import { PrismaService } from "../prisma/prisma.service";
 import { BillingService } from "../billing/billing.service";
@@ -45,7 +45,7 @@ export class ReportsController {
             id: true,
             number: true,
             title: true,
-            type: true,
+            type: { select: { id: true, name: true, color: true } },
             project: { select: { id: true, title: true } },
           },
         },

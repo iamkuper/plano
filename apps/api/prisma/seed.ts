@@ -1,11 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcrypt";
-import { templateCreateData } from "../src/templates/default-template";
+import { DEFAULT_TYPE_NAME, defaultTemplateNames, templateCreateData } from "../src/templates/default-template";
 
 const prisma = new PrismaClient();
 
-// Older seeded template that was tied to one CRM vendor.
-const LEGACY_TEMPLATES = ["Стандартное внедрение amoCRM"];
 
 // Local test admin in its own workspace, created or updated in place.
 // Idempotent: the starter template is replaced by name.
@@ -18,8 +16,11 @@ async function seedAdmin(email: string, password: string, name: string, workspac
     update: { passwordHash, isActive: true, role: "ADMIN" },
     create: { email, name, role: "ADMIN", passwordHash, workspaceId },
   });
-  const template = templateCreateData();
-  await prisma.template.deleteMany({ where: { workspaceId, name: { in: [template.name, ...LEGACY_TEMPLATES] } } });
+  const type =
+    (await prisma.taskType.findFirst({ where: { workspaceId, isDefault: true } })) ??
+    (await prisma.taskType.create({ data: { workspaceId, name: DEFAULT_TYPE_NAME.ru, isDefault: true } }));
+  const template = templateCreateData(type.id);
+  await prisma.template.deleteMany({ where: { workspaceId, name: { in: defaultTemplateNames() } } });
   await prisma.template.create({ data: { ...template, workspaceId } });
   console.log(`Seeded ${email} (workspace "${workspaceName}") with template "${template.name}"`);
 }

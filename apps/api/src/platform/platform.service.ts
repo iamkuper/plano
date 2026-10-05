@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import type { Prisma } from "@prisma/client";
-import { YEAR_MONTHS_CHARGED } from "@amo-kanban/shared";
+import { YEAR_MONTHS_CHARGED } from "@plano/shared";
 import { isLocked } from "../billing/subscription-state";
 import { caseVariants } from "../prisma/case-variants";
 import { SystemPrismaService } from "../prisma/system-prisma.service";

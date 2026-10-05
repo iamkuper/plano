@@ -4,12 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChevronDown, Clock, Download } from "lucide-react";
 import {
-  CARD_TYPE_LABELS,
   cardKey,
-  type CardType,
   type UserDto,
   type UserRefDto,
-} from "@amo-kanban/shared";
+} from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { HomeTabs } from "@/components/tab-links";
 import { Avatar, LetterMark } from "@/components/avatar";
@@ -38,7 +36,7 @@ interface Entry {
     id: string;
     number: number;
     title: string;
-    type: CardType;
+    type: { name: string };
     project: { id: string; title: string };
   };
 }
@@ -104,7 +102,7 @@ function downloadCsv(entries: Entry[], from: string, to: string) {
       e.card.project.title,
       cardKey(e.card),
       e.card.title,
-      CARD_TYPE_LABELS[e.card.type],
+      e.card.type.name,
       e.note ?? "",
       e.minutes,
       String(hours(e.minutes)).replace(".", ","),

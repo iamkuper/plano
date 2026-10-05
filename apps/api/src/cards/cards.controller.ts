@@ -2,7 +2,7 @@ import { Body, Controller, ForbiddenException, Delete, Get, HttpCode, Param, Pat
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
-import { can } from "@amo-kanban/shared";
+import { can } from "@plano/shared";
 import { CardsService } from "./cards.service";
 import { CreateCardDto } from "./dto/create-card.dto";
 import { UpdateCardDto } from "./dto/update-card.dto";

@@ -3,11 +3,11 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { LayoutTemplate, Plus } from "lucide-react";
-import type { TemplateListItemDto, UserDto } from "@amo-kanban/shared";
+import type { TemplateListItemDto, UserDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
 import { useSettings } from "@/lib/settings";
-import { can } from "@amo-kanban/shared";
+import { can } from "@plano/shared";
 import { Button, EmptyState, PageHeader, TableSkeleton } from "@/components/ui";
 import { stageColor } from "@/design/tokens";
 import { api } from "@/lib/api";

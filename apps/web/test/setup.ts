@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { setToken } from "@/lib/api";
+import { api, setToken } from "@/lib/api";
+import { taskTypes } from "./fixtures";
 import { afterEach, beforeEach, vi } from "vitest";
 
 // Components talk to the API only through lib/api; tests spy on its methods.
@@ -11,6 +12,8 @@ beforeEach(() => {
   }));
   localStorage.clear();
   setToken(null); // drops every per-account cache between tests
+  // Task types are read by every card form; tests that care override this.
+  vi.spyOn(api, "taskTypes").mockResolvedValue(taskTypes());
 });
 
 afterEach(() => {

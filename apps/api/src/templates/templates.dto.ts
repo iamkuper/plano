@@ -3,7 +3,6 @@ import {
   ArrayMaxSize,
   ArrayMinSize,
   IsArray,
-  IsEnum,
   IsInt,
   IsOptional,
   IsString,
@@ -12,7 +11,6 @@ import {
   MinLength,
   ValidateNested,
 } from "class-validator";
-import { CardType } from "@prisma/client";
 
 export class TemplateCardDto {
   @IsString()
@@ -24,8 +22,10 @@ export class TemplateCardDto {
   @IsString()
   description?: string | null;
 
-  @IsEnum(CardType)
-  type!: CardType;
+  // Omitted = the workspace default type.
+  @IsOptional()
+  @IsString()
+  typeId?: string;
 
   @IsOptional()
   @IsInt()

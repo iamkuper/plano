@@ -111,9 +111,9 @@ Free (3 пользователя, 3 проекта, 1 ГБ), Pro (490 ₽ за �
 
 ## Тесты
 
-- API: `pnpm --filter @amo-kanban/api test` (Jest + supertest, отдельная база `kanban_test`), покрытие — `test:cov`.
-- Веб: `pnpm --filter @amo-kanban/web test` (Vitest + Testing Library), покрытие — `test:cov`.
-- E2E: `pnpm --filter @amo-kanban/web e2e` (Playwright; сам собирает и запускает API на :3201 и веб на :3200 с базой `kanban_e2e`, платежи через mock-провайдер).
+- API: `pnpm --filter @plano/api test` (Jest + supertest, отдельная база `kanban_test`), покрытие — `test:cov`.
+- Веб: `pnpm --filter @plano/web test` (Vitest + Testing Library), покрытие — `test:cov`.
+- E2E: `pnpm --filter @plano/web e2e` (Playwright; сам собирает и запускает API на :3201 и веб на :3200 с базой `kanban_e2e`, платежи через mock-провайдер).
 
 Для боевой БД нужна UTF-8 локаль (в встроенном Postgres локаль «C», поиск по кириллице без учёта регистра обеспечивает `caseVariants`).
 

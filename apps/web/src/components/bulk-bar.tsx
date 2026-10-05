@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRightLeft, CalendarDays, Flag, Trash2, UserPlus, X } from "lucide-react";
-import { CARD_PRIORITY_LABELS, type CardPriority, type ColumnDto, type UserDto } from "@amo-kanban/shared";
+import { CARD_PRIORITY_LABELS, type CardPriority, type ColumnDto, type UserDto } from "@plano/shared";
 import { useCan } from "@/lib/permissions";
 import { api, type BulkAction } from "@/lib/api";
 import { toast } from "@/lib/toast";

@@ -2,7 +2,7 @@ import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../prisma/prisma.service";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { ProjectsService } from "../projects/projects.service";
-import { DEFAULT_TEMPLATE } from "../templates/default-template";
+import { defaultTemplateNames } from "../templates/default-template";
 
 export interface OnboardingStep {
   id: string;
@@ -81,10 +81,10 @@ export class OnboardingService {
   // A ready project from the starter template with dates spread over the
   // next weeks, so the board, calendar and reminders have something to show.
   async createSample() {
-    const template = await this.prisma.template.findFirst({ where: { name: DEFAULT_TEMPLATE.name } });
+    const template = await this.prisma.template.findFirst({ where: { name: { in: defaultTemplateNames() } } });
     const now = Date.now();
     const project = await this.projects.create({
-      title: "Пример: запуск проекта",
+      title: "Знакомство с Plano",
       templateId: template?.id,
       startDate: new Date(now),
       deadline: new Date(now + 30 * DAY),

@@ -6,7 +6,8 @@ import { InvitationsService } from "../invitations/invitations.service";
 import { MailService } from "../mail/mail.service";
 import { appUrl, hashToken, newToken } from "./tokens";
 import { LoginDto } from "./dto/login.dto";
-import { templateCreateData } from "../templates/default-template";
+import { randomUUID } from "crypto";
+import { DEFAULT_TYPE_NAME, templateCreateData } from "../templates/default-template";
 import { RegisterDto } from "./dto/register.dto";
 import { TRIAL_DAYS } from "../billing/billing.service";
 
@@ -33,6 +34,8 @@ export class AuthService {
     if (await this.prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } })) {
       throw new ConflictException("Эта почта уже зарегистрирована");
     }
+    const locale = dto.locale ?? "ru";
+    const typeId = randomUUID();
     const user = await this.prisma.user.create({
       data: {
         email,
@@ -42,12 +45,14 @@ export class AuthService {
         workspace: {
           create: {
             name: dto.workspaceName.trim(),
-            templates: { create: templateCreateData() },
+            taskTypes: { create: { id: typeId, name: DEFAULT_TYPE_NAME[locale], isDefault: true } },
             subscription: { create: { planId: "PRO", status: "TRIALING", trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) } },
           },
         },
       },
     });
+    // Created after the workspace: the starter cards reference its default task type.
+    await this.prisma.template.create({ data: { workspaceId: user.workspaceId, ...templateCreateData(typeId, locale) } });
     return this.issueToken(user.id, user.email);
   }
 

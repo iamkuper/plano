@@ -1,11 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { setCardKeyPrefix, type SettingsDto } from "@amo-kanban/shared";
+import { setCardKeyPrefix, type SettingsDto } from "@plano/shared";
 import { api, onSessionChange } from "./api";
 
 // Workspace settings, fetched once per page load and shared by all callers.
-const EVENT = "amo-kanban:settings-changed";
+const EVENT = "plano:settings-changed";
 let cached: SettingsDto | null = null;
 let inflight: Promise<SettingsDto> | null = null;
 onSessionChange(() => {

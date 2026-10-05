@@ -1,6 +1,6 @@
 import { BadRequestException, Body, ConflictException, Controller, Delete, Get, HttpCode, Module, NotFoundException, Param, Patch, Post, Put, UseGuards } from "@nestjs/common";
 import { ArrayMaxSize, IsArray, IsIn, IsOptional, IsString, MaxLength, MinLength } from "class-validator";
-import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@amo-kanban/shared";
+import { CUSTOM_FIELD_TYPES, type CustomFieldType } from "@plano/shared";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { BillingService } from "../billing/billing.service";

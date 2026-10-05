@@ -8,7 +8,7 @@ import {
   type ColumnDto,
   type ProjectListItemDto,
   type ProjectStatus,
-} from "@amo-kanban/shared";
+} from "@plano/shared";
 import { api } from "@/lib/api";
 import { notifyProjectsChanged } from "@/lib/projects-events";
 import { Card, Field, Kpi, ShareBar, StatusDot, columnTone, Input, Select } from "./ui";

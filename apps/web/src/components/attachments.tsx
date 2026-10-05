@@ -1,7 +1,7 @@
 "use client";
 
 import { FileArchive, FileImage, FileSpreadsheet, FileText, File as FileIcon, Trash2, type LucideIcon } from "lucide-react";
-import type { AttachmentDto } from "@amo-kanban/shared";
+import type { AttachmentDto } from "@plano/shared";
 import { fileUrl } from "@/lib/api";
 import { IconButton } from "./ui";
 

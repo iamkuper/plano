@@ -11,7 +11,7 @@ vi.mock("@/components/tab-links", () => ({ HomeTabs: () => null }));
 const ref = (id: string, name: string) => ({ id, name, avatarUrl: null });
 const e = (id: string, minutes: number, who = ref("u1", "Иван Петров"), project = { id: "p1", title: "Сайт" }, note: string | null = null) => ({
   id, minutes, date: "2026-10-01T00:00:00Z", note, user: who,
-  card: { id: "c" + id, number: 3, title: "Вёрстка", type: "SETUP", project },
+  card: { id: "c" + id, number: 3, title: "Вёрстка", type: { name: "Задача" }, project },
 });
 
 function setup(entries: unknown[] | Error, me = user()) {
