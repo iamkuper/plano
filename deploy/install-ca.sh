@@ -31,7 +31,8 @@ if curl -fsSL --max-time 30 "$ROOT_URL" -o "$tmp/root.pem" && curl -fsSL --max-t
 else
   # 2. The chain the bank itself sends (usually includes the root).
   echo "certificates: gu-st.ru is not reachable, taking the chain of $BANK_HOST"
-  echo | openssl s_client -connect "$BANK_HOST:443" -servername "$BANK_HOST" -showcerts 2>/dev/null | sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' > "$tmp/bundle.pem"
+  # (a failing pipeline must not stop the script here: the result is checked below)
+  { echo | timeout 20 openssl s_client -connect "$BANK_HOST:443" -servername "$BANK_HOST" -showcerts 2>/dev/null | sed -n '/BEGIN CERTIFICATE/,/END CERTIFICATE/p' > "$tmp/bundle.pem"; } || true
   if ! valid "$tmp/bundle.pem"; then
     echo "certificates: could not get any certificate; put the PEM file into deploy/$OUT by hand (see README)" >&2
     exit 1
