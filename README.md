@@ -192,3 +192,22 @@ pnpm pm2:logs      # логи;  pnpm pm2:stop — остановить
 
 Быстрая проверка из контейнера: `docker compose exec api node -e "fetch('https://securepay.tinkoff.ru/v2/Init',{method:'POST'}).then(r=>console.log(r.status)).catch(e=>console.log(e.cause))"` — любой HTTP-код значит, что связь есть; ошибка покажет причину.
 
+### `SELF_SIGNED_CERT_IN_CHAIN` при обращении к банку
+
+Сертификат `securepay.tinkoff.ru` выпущен корневым центром Минцифры («Russian Trusted Root CA»), которого нет в списке доверенных у Node. На сервере:
+
+```bash
+cd /opt/plano/deploy
+mkdir -p certs
+# кто выпустил сертификат (должен быть Russian Trusted ...)
+echo | openssl s_client -connect securepay.tinkoff.ru:443 -showcerts 2>/dev/null | grep -E " s:| i:"
+# корневой и промежуточный сертификаты с официального сайта Госуслуг
+curl -fsSL https://gu-st.ru/content/Other/doc/russian_trusted_root_ca.cer -o /tmp/root.cer
+curl -fsSL https://gu-st.ru/content/Other/doc/russian_trusted_sub_ca.cer -o /tmp/sub.cer
+for f in /tmp/root.cer /tmp/sub.cer; do openssl x509 -inform DER -in $f 2>/dev/null || cat $f; done > certs/extra-ca.pem
+docker compose up -d api
+docker compose exec api node -e "fetch('https://securepay.tinkoff.ru/v2/Init',{method:'POST'}).then(r=>console.log(r.status)).catch(e=>console.log(e.cause))"
+```
+
+В `docker-compose.yml` папка `deploy/certs` подключена к контейнеру API как `/certs`, а `NODE_EXTRA_CA_CERTS=/certs/extra-ca.pem` уже задан; `deploy.sh` эту папку не трогает. Если выпускающий центр в выводе `openssl` другой (не Минцифры), значит, соединение подменяет прокси хостинга: его сертификат кладётся в тот же файл.
+

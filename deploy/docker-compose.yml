@@ -27,8 +27,13 @@ services:
       DATABASE_URL: postgresql://plano:${POSTGRES_PASSWORD}@db:5432/plano?schema=public
       PORT: "3101"
       UPLOAD_DIR: /data/uploads
+      # Extra trusted root certificates (for example the Russian Trusted Root CA
+      # that T-Bank's certificate chains to): put them in deploy/certs/extra-ca.pem
+      # on the server. Without the file Node only prints a warning.
+      NODE_EXTRA_CA_CERTS: /certs/extra-ca.pem
     volumes:
       - uploads:/data/uploads
+      - ./certs:/certs:ro
     depends_on:
       db: { condition: service_healthy }
 
