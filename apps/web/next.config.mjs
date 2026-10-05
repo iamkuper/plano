@@ -11,6 +11,7 @@ const nextConfig = {
     return [
       { source: "/users", destination: "/settings/users", permanent: false },
       { source: "/templates/:path*", destination: "/settings/templates/:path*", permanent: false },
+      { source: "/settings/roles", destination: "/settings/users", permanent: true },
       { source: "/clients", destination: "/projects", permanent: false },
     ];
   },

@@ -5,6 +5,7 @@ import { Copy, Lock, Mail, Plus } from "lucide-react";
 import Link from "next/link";
 import type { RoleDto, UserDto, UserRole } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
+import { RolesSection } from "@/components/roles-section";
 import { SettingsTabs } from "@/components/tab-links";
 import { Avatar } from "@/components/avatar";
 import { Badge, Button, Dialog, Field, PageHeader, Panel, td, th, tr, TableSkeleton, Input, Select } from "@/components/ui";
@@ -386,6 +387,7 @@ export default function UsersPage() {
       {inviting && <InviteDialog roles={roles} onClose={() => setInviting(false)} onInvited={load} />}
       {creating && <NewUserDialog roles={roles} onClose={() => setCreating(false)} onCreated={load} />}
       {resetting && <ResetPasswordDialog user={resetting} onClose={() => setResetting(null)} />}
+      <RolesSection />
     </AppShell>
   );
 }

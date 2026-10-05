@@ -73,3 +73,14 @@ test("protected pages redirect guests to the sign-in form", async ({ page }) => 
   await page.goto("/projects");
   await expect(page).toHaveURL(/\/login/);
 });
+
+test("staff and permissions share a page; billing tab is called Billing; old links still work", async ({ page }) => {
+  const acc = await signUp("tabs");
+  await signIn(page, acc.token, "/settings/roles");
+  await expect(page).toHaveURL(/\/settings\/users/);
+  await expect(page.getByRole("tab", { name: "Сотрудники и права" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tab", { name: "Права", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Роли и права").first()).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Биллинг" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "Тариф", exact: true })).toHaveCount(0);
+});

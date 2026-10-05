@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import RolesPage from "@/app/settings/roles/page";
+import { RolesSection as RolesPage } from "@/components/roles-section";
 import UsersPage from "@/app/settings/users/page";
 import { api } from "@/lib/api";
 import { onToast } from "@/lib/toast";
@@ -292,5 +292,19 @@ describe("staff page", () => {
     expect(screen.queryByRole("button", { name: /Пригласить/ })).toBeNull();
     expect(screen.queryByRole("button", { name: "Сбросить пароль" })).toBeNull();
     expect(screen.queryByText("guest@example.ru")).toBeNull();
+  });
+});
+
+describe("staff and permissions on one page", () => {
+  it("shows the people and the roles matrix together", async () => {
+    vi.spyOn(api, "me").mockResolvedValue(user());
+    vi.spyOn(api, "users").mockResolvedValue([user(), member()]);
+    vi.spyOn(api, "roles").mockResolvedValue([{ id: "r1", name: "Менеджер", permissions: ["projects.create"], isDefault: true, _count: { users: 1 } }] as never);
+    vi.spyOn(api, "invitations").mockResolvedValue([]);
+    render(<UsersPage />);
+    expect(await screen.findByText("Анна Смирнова")).toBeInTheDocument();
+    expect(await screen.findByText("Роли и права")).toBeInTheDocument();
+    expect(screen.getAllByText("Менеджер").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Новая роль/ })).toBeInTheDocument();
   });
 });

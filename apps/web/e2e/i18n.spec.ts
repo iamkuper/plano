@@ -54,7 +54,7 @@ test("every settings page and the dashboard are fully English", async ({ page })
   const acc = await signUp("eng", "en");
   await signIn(page, acc.token, "/dashboard");
   await page.getByRole("button", { name: "Close", exact: false }).first().click().catch(() => {});
-  for (const path of ["/dashboard", "/projects", "/team", "/reports/time", "/settings", "/settings/users", "/settings/templates", "/settings/roles", "/settings/types", "/settings/agents", "/settings/fields", "/settings/audit", "/settings/billing", "/profile"]) {
+  for (const path of ["/dashboard", "/projects", "/team", "/reports/time", "/settings", "/settings/users", "/settings/templates", "/settings/types", "/settings/agents", "/settings/fields", "/settings/audit", "/settings/billing", "/profile"]) {
     await page.goto(path);
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
     await expectEnglish(page, path);

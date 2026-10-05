@@ -96,10 +96,11 @@ describe("layout pieces", () => {
   it("tab links highlight the current section", () => {
     nav.path = "/settings/users";
     render(<><SettingsTabs /><HomeTabs /></>);
-    expect(screen.getByRole("tab", { name: "Сотрудники" })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: "Сотрудники и права" })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tab", { name: "Общие" })).toHaveAttribute("aria-selected", "false");
     expect(screen.getByRole("tab", { name: "Обзор" })).toHaveAttribute("aria-selected", "false");
-    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(expect.arrayContaining(["Журнал", "Поля", "Тариф", "Права"]));
+    expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual(expect.arrayContaining(["Журнал", "Поля", "Биллинг", "Сотрудники и права"]));
+    expect(screen.queryByRole("tab", { name: "Права" })).toBeNull(); // merged into the staff page
     nav.path = "/dashboard";
     render(<TabLinks label="Только точные" tabs={[{ href: "/dashboard", label: "Точно", exact: true }]} />);
     expect(screen.getByRole("tab", { name: "Точно" })).toHaveAttribute("aria-selected", "true");

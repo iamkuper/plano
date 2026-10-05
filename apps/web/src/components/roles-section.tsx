@@ -3,9 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Minus, Pencil, Plus, Star, Trash2 } from "lucide-react";
 import { PERMISSIONS, type Permission, type RoleDto, type UserDto, t } from "@plano/shared";
-import { AppShell } from "@/components/app-shell";
-import { SettingsTabs } from "@/components/tab-links";
-import { Button, Card, Checkbox, ConfirmDialog, Dialog, Field, Input, Menu, PageHeader } from "@/components/ui";
+import { Button, Card, Checkbox, ConfirmDialog, Dialog, Field, Input, Menu } from "@/components/ui";
 import { api } from "@/lib/api";
 import { toast } from "@/lib/toast";
 
@@ -56,7 +54,8 @@ function RoleNameDialog({ role, onClose, onSaved }: { role?: RoleDto; onClose: (
   );
 }
 
-export default function RolesPage() {
+// Roles and what each may do, as a matrix. Lives on the staff page, below the people.
+export function RolesSection() {
   const [me, setMe] = useState<UserDto | null>(null);
   const [roles, setRoles] = useState<RoleDto[] | null>(null);
   // Unsaved permission changes, by role id.
@@ -99,13 +98,18 @@ export default function RolesPage() {
   const cols = `minmax(220px,1fr) 112px ${(roles ?? []).map(() => "112px").join(" ")}`;
 
   return (
-    <AppShell>
-      <PageHeader
-        title={t("common.settings")}
-        meta={<SettingsTabs />}
-        actions={
+    <>
+      <div className="w-full space-y-4 pb-6 pt-8">
+        {me && !canEdit && (
+          <p className="rounded-lg border border-border bg-surface-soft px-4 py-3 text-sm text-ink-faint">{t("settings.roles.rolesAndPermissionsAreManaged")}</p>
+        )}
+        <Card
+          title={t("settings.roles.rolesAndPermissions")}
+          description={t("settings.roles.anAdministratorCanDoEverything")}
+          bodyClassName="p-4 pt-3"
+          action={
           canEdit && (
-            <>
+            <div className="flex items-center gap-2">
               {changed.length > 0 && (
                 <Button variant="ghost" onClick={() => setDraft({})}>
                   
@@ -119,18 +123,9 @@ export default function RolesPage() {
                 
                 {t("common.save")}
               </Button>
-            </>
+            </div>
           )
-        }
-      />
-      <div className="w-full space-y-4 py-6">
-        {me && !canEdit && (
-          <p className="rounded-lg border border-border bg-surface-soft px-4 py-3 text-sm text-ink-faint">{t("settings.roles.rolesAndPermissionsAreManaged")}</p>
-        )}
-        <Card
-          title={t("settings.roles.rolesAndPermissions")}
-          description={t("settings.roles.anAdministratorCanDoEverything")}
-          bodyClassName="p-4 pt-3"
+          }
         >
           <div className="overflow-x-auto rounded-lg border border-border">
             <div className="min-w-max">
@@ -249,6 +244,6 @@ export default function RolesPage() {
           }}
         />
       )}
-    </AppShell>
+    </>
   );
 }
