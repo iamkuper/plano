@@ -3,6 +3,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { chooseBrowserLocale, currentLocale } from "@plano/shared";
 import { Landing, landingMetadata } from "@/components/marketing/landing";
+import { ApiDocsPage, apiDocsMetadata } from "@/components/marketing/api-docs";
 import { PricingPage, pricingMetadata } from "@/components/marketing/pricing-page";
 import { ProductPreview } from "@/components/marketing/product-preview";
 import { PricingTable } from "@/components/marketing/pricing-table";
@@ -87,7 +88,7 @@ describe("public landing", () => {
 
   it("lists both languages in the sitemap", () => {
     const urls = AppSitemap().map((e) => e.url);
-    expect(urls).toEqual(expect.arrayContaining([expect.stringMatching(/\/en$/), expect.stringMatching(/\/en\/pricing$/), expect.stringMatching(/\/pricing$/)]));
+    expect(urls).toEqual(expect.arrayContaining([expect.stringMatching(/\/en$/), expect.stringMatching(/\/en\/pricing$/), expect.stringMatching(/\/pricing$/), expect.stringMatching(/\/docs\/api$/), expect.stringMatching(/\/en\/docs\/api$/)]));
   });
 });
 
@@ -160,5 +161,27 @@ describe("links from the public site carry the language", () => {
     render(<LocaleGate><p>{currentLocale()}</p></LocaleGate>);
     await waitFor(() => expect(currentLocale()).toBe("en"));
     window.history.pushState({}, "", "/");
+  });
+});
+
+describe("API documentation", () => {
+  it("is Russian at /docs/api: access, reference, webhooks, calendar", () => {
+    render(<ApiDocsPage locale="ru" />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("API Plano");
+    for (const h of ["Доступ", "Быстрый старт", "Основные методы", "Вебхуки", "Календарь задач"]) expect(screen.getByRole("heading", { level: 2, name: h })).toBeInTheDocument();
+    expect(screen.getByText("/cards/{id}/move")).toBeInTheDocument();
+    expect(screen.getByText("card.moved")).toBeInTheDocument();
+    expect(screen.getAllByLabelText("curl")[0]).toHaveTextContent("Authorization: Bearer <token>");
+    expect(screen.getByRole("link", { name: "en" })).toHaveAttribute("href", "/en/docs/api");
+  });
+
+  it("is English at /en/docs/api, with no Russian in the text", () => {
+    render(<ApiDocsPage locale="en" />);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Plano API");
+    expect(screen.getByRole("link", { name: "ru" })).toHaveAttribute("href", "/docs/api");
+    const main = document.querySelector("main")!;
+    expect(main.textContent).not.toMatch(CYRILLIC);
+    expect(apiDocsMetadata("en").alternates?.languages).toMatchObject({ ru: "/docs/api", en: "/en/docs/api" });
+    expect(apiDocsMetadata("ru").alternates?.canonical).toBe("/docs/api");
   });
 });

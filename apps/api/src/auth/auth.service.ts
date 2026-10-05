@@ -8,7 +8,7 @@ import { InvitationsService } from "../invitations/invitations.service";
 import { MailService } from "../mail/mail.service";
 import { appUrl, hashToken, newToken } from "./tokens";
 import { LoginDto } from "./dto/login.dto";
-import { DEFAULT_TEMPLATES, templateCreateData } from "../templates/default-template";
+import { DEFAULT_LABELS, DEFAULT_TEMPLATES, templateCreateData } from "../templates/default-template";
 import { RegisterDto } from "./dto/register.dto";
 import { TRIAL_DAYS } from "../billing/billing.service";
 import { currentLocale, t } from "@plano/shared";
@@ -27,6 +27,11 @@ export class AuthService {
   private async issueToken(userId: string, email: string) {
     const accessToken = await this.jwt.signAsync({ sub: userId, email });
     return { accessToken };
+  }
+
+  // A token for the public API: valid until its row is deleted.
+  signApiToken(userId: string, email: string, tokenId: string) {
+    return this.jwt.signAsync({ sub: userId, email, tok: tokenId }, { expiresIn: "36500d" });
   }
 
   // Open sign-up: creates a workspace together with its first administrator.
@@ -48,6 +53,7 @@ export class AuthService {
           create: {
             name: dto.workspaceName.trim(),
             defaultColumns: DEFAULT_TEMPLATES[locale].columns,
+            labels: { create: DEFAULT_LABELS[locale] },
             subscription: { create: { planId: "PRO", status: "TRIALING", trialEndsAt: new Date(Date.now() + TRIAL_DAYS * 86_400_000) } },
           },
         },

@@ -17,6 +17,9 @@ import { AttachmentsModule } from "./attachments/attachments.module";
 import { BillingModule } from "./billing/billing.module";
 import { MailModule } from "./mail/mail.module";
 import { LabelsModule } from "./labels/labels.controller";
+import { ApiTokensModule } from "./api-tokens/api-tokens.controller";
+import { WebhooksModule } from "./webhooks/webhooks.controller";
+import { CalendarModule } from "./calendar/calendar.controller";
 import { AgentsModule } from "./agents/agents.controller";
 import { DependenciesModule } from "./dependencies/dependencies.controller";
 import { FieldsModule } from "./fields/fields.controller";
@@ -48,6 +51,9 @@ import { InvitationsModule } from "./invitations/invitations.module";
     MailModule,
     LabelsModule,
     AgentsModule,
+    CalendarModule,
+    WebhooksModule,
+    ApiTokensModule,
     DependenciesModule,
     FieldsModule,
     AuditModule,

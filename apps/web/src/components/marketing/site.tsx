@@ -9,7 +9,7 @@ import { SupportWidget } from "./support-widget";
 
 // Header and footer of the public pages (landing, pricing).
 // `path` is the page being shown, so the language links lead to its twin.
-export function SiteHeader({ locale = "ru", path = "/" }: { locale?: Locale; path?: "/" | "/pricing" }) {
+export function SiteHeader({ locale = "ru", path = "/" }: { locale?: Locale; path?: "/" | "/pricing" | "/docs/api" }) {
   const tr = makeTr(locale);
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-bg/90 backdrop-blur">
@@ -66,6 +66,9 @@ export function SiteFooter({ locale = "ru" }: { locale?: Locale }) {
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-1 text-ink-faint">
             <Link href={sitePath(locale, "/pricing")} className="hover:text-ink">
               {tr("mk.shared.pricing")}
+            </Link>
+            <Link href={sitePath(locale, "/docs/api")} className="hover:text-ink">
+              {tr("mk.site.apiDocs")}
             </Link>
             <Link href={appPath(locale, "/login")} className="hover:text-ink">
               

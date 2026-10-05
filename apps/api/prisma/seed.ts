@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import * as bcrypt from "bcrypt";
-import { defaultTemplateNames, templateCreateData } from "../src/templates/default-template";
+import { DEFAULT_LABELS, defaultTemplateNames, templateCreateData } from "../src/templates/default-template";
 
 const prisma = new PrismaClient();
 
@@ -16,6 +16,7 @@ async function seedAdmin(email: string, password: string, name: string, workspac
     update: { passwordHash, isActive: true, role: "ADMIN" },
     create: { email, name, role: "ADMIN", passwordHash, workspaceId },
   });
+  for (const l of DEFAULT_LABELS.ru) await prisma.label.upsert({ where: { workspaceId_name: { workspaceId, name: l.name } }, update: {}, create: { ...l, workspaceId } });
   const template = templateCreateData();
   await prisma.template.deleteMany({ where: { workspaceId, name: { in: defaultTemplateNames() } } });
   await prisma.template.create({ data: { ...template, workspaceId } });

@@ -15,6 +15,20 @@ interface StarterTemplate {
 }
 
 
+// Labels every new workspace starts with: they classify cards (bug, feature, ...).
+export const DEFAULT_LABELS: Record<Locale, { name: string; color: string }[]> = {
+  ru: [
+    { name: "Ошибка", color: "red" },
+    { name: "Фича", color: "blue" },
+    { name: "Улучшение", color: "green" },
+  ],
+  en: [
+    { name: "Bug", color: "red" },
+    { name: "Feature", color: "blue" },
+    { name: "Improvement", color: "green" },
+  ],
+};
+
 export const DEFAULT_TEMPLATES: Record<Locale, StarterTemplate> = {
   ru: {
     name: "Знакомство с Plano",

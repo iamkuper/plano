@@ -49,7 +49,7 @@ describe("tenant isolation over HTTP", () => {
     expect((await B.get("/users")).body.every((u: { id: string }) => u.id !== a.userId)).toBe(true);
     expect((await B.get("/roles")).body.every((r: { id: string }) => r.id !== role.id)).toBe(true);
     expect((await B.get("/templates")).body.every((x: { id: string }) => x.id !== tpl.id)).toBe(true);
-    expect((await B.get("/labels")).body).toEqual([]);
+    expect((await B.get("/labels")).body.map((l: { name: string }) => l.name)).toEqual(["Ошибка", "Улучшение", "Фича"]); // only its own starter labels
     expect((await B.get("/fields")).body).toEqual([]);
     expect((await B.get("/invitations")).body).toEqual([]);
     expect((await B.get("/reports/time?from=2020-01-01&to=2030-01-01")).body).toEqual([]);

@@ -83,12 +83,14 @@ describe("app shell", () => {
     expect(screen.getByText("Ромашка")).toBeInTheDocument();
     await userEvent.keyboard("[[");
     expect(screen.queryByText("Ромашка")).toBeNull();
-    await userEvent.click(screen.getByRole("button", { name: "Поиск" })); // the icon expands the sidebar
-    expect(screen.getByText("Ромашка")).toBeInTheDocument();
-    const input = screen.getByPlaceholderText("Поиск");
-    await userEvent.type(input, "[[");
-    expect(screen.getByText("Ромашка")).toBeInTheDocument(); // typing a bracket in a field doesn't collapse
+    await userEvent.click(screen.getByRole("button", { name: "Поиск" })); // the icon opens the palette
+    const input = await screen.findByRole("combobox", { name: "Команда или поиск" });
+    await userEvent.type(input, "[["); // typing a bracket in a field doesn't expand the sidebar
+    expect(screen.queryByText("Ромашка")).toBeNull();
+    await userEvent.keyboard("{Escape}");
     fireEvent.keyDown(window, { key: "[", metaKey: true });
+    expect(screen.queryByText("Ромашка")).toBeNull();
+    await userEvent.keyboard("[[");
     expect(screen.getByText("Ромашка")).toBeInTheDocument();
   });
 

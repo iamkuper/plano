@@ -11,6 +11,8 @@ export const NO_SEAT_MESSAGE = t("api.auth.thereIsNoPaidSeat");
 export interface JwtPayload {
   sub: string;
   email: string;
+  // Set on API tokens: the ApiToken row that must still exist.
+  tok?: string;
 }
 
 @Injectable()
@@ -38,6 +40,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if ((await this.billing.overSeatIds(user.workspaceId)).has(user.id)) {
       throw new UnauthorizedException(NO_SEAT_MESSAGE);
     }
-    return { userId: user.id, workspaceId: user.workspaceId, locked: isLocked(user.workspace.subscription), email: user.email, role: user.role, permissions: user.customRole?.permissions ?? [] };
+    if (payload.tok) {
+      const token = await this.prisma.apiToken.findFirst({ where: { id: payload.tok, userId: user.id } });
+      if (!token) throw new UnauthorizedException();
+      // Recorded at most once a minute.
+      if (!token.lastUsedAt || Date.now() - token.lastUsedAt.getTime() > 60_000) await this.prisma.apiToken.update({ where: { id: token.id }, data: { lastUsedAt: new Date() } });
+    }
+    return { userId: user.id, workspaceId: user.workspaceId, locked: isLocked(user.workspace.subscription), email: user.email, role: user.role, permissions: user.customRole?.permissions ?? [], viaToken: !!payload.tok };
   }
 }

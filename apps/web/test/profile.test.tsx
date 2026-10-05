@@ -133,4 +133,33 @@ describe("profile", () => {
     await waitFor(() => expect(messages).toContain("Подсказки вернулись на главную"));
     expect(within(screen.getByText("Начало работы").closest("section")!).getByRole("button")).toBeInTheDocument();
   });
+
+  it("reveals the calendar link on request, copies it and replaces it after confirmation", async () => {
+    setup();
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", { value: { writeText }, configurable: true });
+    const feed = vi.spyOn(api, "calendarFeed").mockResolvedValue({ url: "https://api.example.com/calendar/aaa/plano.ics" });
+    const reset = vi.spyOn(api, "resetCalendarFeed").mockResolvedValue({ url: "https://api.example.com/calendar/bbb/plano.ics" });
+    render(<ProfilePage />);
+    expect(feed).not.toHaveBeenCalled(); // viewing the profile creates nothing
+    await userEvent.click(await screen.findByRole("button", { name: "Показать ссылку на календарь" }));
+    expect(await screen.findByLabelText("Адрес календаря")).toHaveValue("https://api.example.com/calendar/aaa/plano.ics");
+    const card = screen.getByLabelText("Адрес календаря").closest("section")!;
+    await userEvent.click(within(card).getByRole("button", { name: "Копировать" }));
+    await waitFor(() => expect(writeText).toHaveBeenCalledWith("https://api.example.com/calendar/aaa/plano.ics"));
+    await userEvent.click(within(card).getByRole("button", { name: "Создать новую ссылку" }));
+    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Создать новую ссылку" }));
+    await waitFor(() => expect(reset).toHaveBeenCalled());
+    expect(await screen.findByDisplayValue("https://api.example.com/calendar/bbb/plano.ics")).toBeInTheDocument();
+  });
+
+  it("reports a calendar link that couldn't be loaded", async () => {
+    setup();
+    vi.spyOn(api, "calendarFeed").mockRejectedValue(new Error("Сервер недоступен"));
+    const messages: string[] = [];
+    onToast((t) => messages.push(t.message));
+    render(<ProfilePage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Показать ссылку на календарь" }));
+    await waitFor(() => expect(messages).toContain("Сервер недоступен"));
+  });
 });

@@ -41,6 +41,7 @@ export const PERMISSIONS = [
   { key: "labels.manage", get label() { return t("shared.editAndDeleteLabels"); }, get hint() { return t("shared.anyEmployeeCanCreateAnd"); } },
   { key: "fields.manage", get label() { return t("shared.configureCustomCardFields"); } },
   { key: "agents.manage", get label() { return t("shared.manageAiAgents"); }, get hint() { return t("shared.manageAiAgentsHint"); } },
+  { key: "webhooks.manage", get label() { return t("shared.manageWebhooks"); }, get hint() { return t("shared.manageWebhooksHint"); } },
   { key: "audit.view", get label() { return t("shared.viewTheActivityLog"); } },
   { key: "billing.manage", get label() { return t("shared.manageThePlanAndBilling"); } },
   { key: "time.viewAll", get label() { return t("shared.seeTheTimeOfAll"); }, get hint() { return t("shared.withoutThisPermissionTheReport"); } },
@@ -472,4 +473,39 @@ export interface AgentUsage {
   runs: number;
   inputTokens: number;
   outputTokens: number;
+}
+
+// ---- public API: tokens and webhooks ----
+
+export interface ApiTokenDto {
+  id: string;
+  name: string;
+  // Last characters of the token.
+  hint: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export const WEBHOOK_EVENTS = ["card.created", "card.updated", "card.moved", "card.deleted", "comment.created"] as const;
+export type WebhookEvent = (typeof WEBHOOK_EVENTS)[number];
+
+export interface WebhookDto {
+  id: string;
+  url: string;
+  // Empty = every event.
+  events: WebhookEvent[];
+  isActive: boolean;
+  createdAt: string;
+  // Result of the latest attempt, null before the first one.
+  lastDelivery: { ok: boolean; statusCode: number | null; createdAt: string } | null;
+}
+
+export interface WebhookDeliveryDto {
+  id: string;
+  event: string;
+  ok: boolean;
+  statusCode: number | null;
+  error: string | null;
+  attempts: number;
+  createdAt: string;
 }

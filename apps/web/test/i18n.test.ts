@@ -86,7 +86,7 @@ describe("source usage", async () => {
   });
 
   it("has no leftover keys nobody uses", () => {
-    const dynamic = ["weekday.", "weekdayOn.", "settings.agents.status"];
+    const dynamic = ["weekday.", "weekdayOn.", "settings.agents.status", "mk.apiDocs.ep.", "mk.apiDocs.event."];
     const unused = Object.keys(CATALOGUES.ru).filter((k) => !dynamic.some((d) => k.startsWith(d)) && !source.includes(`"${k}"`));
     expect(unused).toEqual([]);
   });

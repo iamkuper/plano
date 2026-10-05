@@ -14,6 +14,7 @@ import { CARD_FIELDS } from "../prisma/tenant";
 import { caseVariants } from "../prisma/case-variants";
 import { BillingService } from "../billing/billing.service";
 import { AuditService } from "../audit/audit.service";
+import { WebhooksService } from "../webhooks/webhooks.service";
 import { t } from "@plano/shared";
 @Injectable()
 export class CardsService {
@@ -24,6 +25,7 @@ export class CardsService {
     private readonly attachments: AttachmentsService,
     private readonly billing: BillingService,
     private readonly audit: AuditService,
+    private readonly webhooks: WebhooksService,
   ) {}
 
   // Opening a card marks its discussion and its notifications as read.
@@ -134,6 +136,7 @@ export class CardsService {
     await this.log(card.id, userId, "created");
     if (dto.assigneeIds?.length) await this.notifications.assigned(card.id, userId, dto.assigneeIds);
     this.realtime.boardChanged(card.projectId);
+    await this.webhooks.emit("card.created", card.id);
     return card;
   }
 
@@ -165,6 +168,7 @@ export class CardsService {
     await this.log(id, userId, "updated", Object.keys(dto));
     if (assigneeIds) await this.notifications.assigned(id, userId, assigneeIds.filter((uid) => !before.includes(uid)));
     await this.realtime.cardChanged(id, card.projectId);
+    await this.webhooks.emit("card.updated", id, { changes: Object.entries(dto).filter(([, v]) => v !== undefined).map(([k]) => k) });
     return card;
   }
 
@@ -200,15 +204,18 @@ export class CardsService {
       await this.log(id, userId, "moved", { from: card.column.title, to: target.title });
     }
     await this.realtime.cardChanged(id, moved.projectId);
+    if (card.columnId !== dto.columnId) await this.webhooks.emit("card.moved", id, { from: card.column.title, to: target.title });
     return moved;
   }
 
   async remove(id: string) {
+    const snapshot = await this.webhooks.cardSnapshot(id);
     const purge = await this.attachments.filesOf({ cardId: id });
     const card = await this.prisma.card.delete({ where: { id } });
     await purge();
     await this.audit.record("card.delete", t("api.cards.cardDeleted", { title: card.title }), id);
     await this.realtime.cardChanged(id, card.projectId);
+    if (snapshot) await this.webhooks.emit("card.deleted", id, {}, snapshot);
   }
 
   // ---- bulk ----
@@ -224,6 +231,7 @@ export class CardsService {
     if (!cards.length) throw new NotFoundException(t("api.cards.cardsNotFound"));
     const ids = cards.map((c) => c.id);
     const projects = new Set(cards.map((c) => c.projectId));
+    const gone = dto.action === "delete" ? await Promise.all(ids.map((id) => this.webhooks.cardSnapshot(id))) : [];
 
     switch (dto.action) {
       case "move": {
@@ -276,6 +284,13 @@ export class CardsService {
     }
 
     for (const pid of projects) this.realtime.boardChanged(pid);
+    if (dto.action === "delete") {
+      for (const snap of gone) if (snap) await this.webhooks.emit("card.deleted", snap.id, {}, snap);
+    } else if (dto.action === "move") {
+      for (const c of cards) if (c.columnId !== dto.columnId) await this.webhooks.emit("card.moved", c.id, { from: c.column.title });
+    } else {
+      for (const id of ids) await this.webhooks.emit("card.updated", id, { changes: [dto.action] });
+    }
     return { count: ids.length };
   }
 
@@ -317,6 +332,7 @@ export class CardsService {
     });
     await this.notifications.commented(cardId, userId, text || t("api.cards.file"), mentionIds);
     await this.realtime.cardChanged(cardId);
+    await this.webhooks.emit("comment.created", cardId, { comment: { id: comment.id, text: comment.text, author: comment.author } });
     return comment;
   }
 

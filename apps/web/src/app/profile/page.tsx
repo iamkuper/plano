@@ -5,7 +5,8 @@ import { LOCALES, currentLocale, type Locale, type UserDto } from "@plano/shared
 import { AppShell } from "@/components/app-shell";
 import { Avatar } from "@/components/avatar";
 import { languageName, setUiLanguage } from "@/components/locale-gate";
-import { Button, Card, Checkbox, Field, Input, PageHeader, Select } from "@/components/ui";
+import { Button, Card, Checkbox, ConfirmDialog, Field, Input, PageHeader, Select } from "@/components/ui";
+import { copyText } from "@/lib/clipboard";
 import { api } from "@/lib/api";
 import { imageToAvatarDataUrl } from "@/lib/image";
 import { toast } from "@/lib/toast";
@@ -234,6 +235,51 @@ function LanguageSection({ me }: { me: UserDto }) {
   );
 }
 
+// The personal iCal feed: the address is a secret, so it is only revealed on request.
+function CalendarSection() {
+  const [url, setUrl] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const show = () => api.calendarFeed().then((r) => setUrl(r.url)).catch((e) => toast((e as Error).message, "error"));
+  return (
+    <Card title={t("profile.calendar.title")} description={t("profile.calendar.description")}>
+      {url ? (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Input aria-label={t("profile.calendar.address")} readOnly value={url} onFocus={(e) => e.currentTarget.select()} />
+            <Button variant="outline" onClick={() => copyText(url)}>
+              {t("common.copy")}
+            </Button>
+          </div>
+          <p className="text-sm text-ink-faint">{t("profile.calendar.howTo")}</p>
+          <Button variant="outline" onClick={() => setConfirming(true)}>
+            {t("profile.calendar.reset")}
+          </Button>
+        </div>
+      ) : (
+        <Button variant="outline" onClick={show}>
+          {t("profile.calendar.show")}
+        </Button>
+      )}
+      {confirming && (
+        <ConfirmDialog
+          title={t("profile.calendar.resetTitle")}
+          body={t("profile.calendar.resetBody")}
+          confirmLabel={t("profile.calendar.reset")}
+          onConfirm={async () => {
+            try {
+              setUrl((await api.resetCalendarFeed()).url);
+            } catch (e) {
+              toast((e as Error).message, "error");
+            }
+            setConfirming(false);
+          }}
+          onClose={() => setConfirming(false)}
+        />
+      )}
+    </Card>
+  );
+}
+
 function OnboardingSection() {
   return (
     <Card title={t("common.gettingStarted")} description={t("profile.hintsOnTheHomePage")}>
@@ -273,6 +319,7 @@ export default function ProfilePage() {
             <DetailsSection key={`${me.name}|${me.email}`} me={me} onSaved={saved} />
             <PasswordSection />
             <LanguageSection me={me} />
+            <CalendarSection />
             <OnboardingSection />
           </>
         ) : (

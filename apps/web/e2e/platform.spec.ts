@@ -17,7 +17,7 @@ test("the owner finds a workspace and grants it a plan", async ({ page }) => {
   const token = await ownerToken();
   expect(OWNER.email).toBe("owner@e2e.test");
   await signIn(page, token, "/platform");
-  await page.getByLabel("Поиск").fill(acc.company);
+  await page.getByRole("textbox", { name: "Поиск" }).fill(acc.company);
   const row = page.getByRole("row", { name: new RegExp(acc.company) });
   await expect(row).toBeVisible();
   await row.click();

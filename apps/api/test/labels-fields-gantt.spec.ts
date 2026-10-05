@@ -21,7 +21,7 @@ describe("labels", () => {
     await A.post("/labels", { name: "срочно", color: "blue" }).expect(409);
     await A.post("/labels", { name: "x", color: "magenta" }).expect(400);
     await A.post("/labels", { name: "", color: "red" }).expect(400);
-    expect((await A.get("/labels").expect(200)).body).toEqual([{ id: label.id, name: "Срочно", color: "red" }]);
+    expect((await A.get("/labels").expect(200)).body.map((l: { name: string }) => l.name)).toEqual(["Ошибка", "Срочно", "Улучшение", "Фича"]); // three starter labels and the new one
 
     const updated = (await m.patch(`/cards/${cards[0].id}`, { labelIds: [label.id] }).expect(200)).body;
     expect(updated.labels[0].label).toMatchObject({ name: "Срочно", color: "red" });

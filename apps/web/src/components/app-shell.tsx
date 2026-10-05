@@ -25,7 +25,9 @@ import { useSettings } from "@/lib/settings";
 import { SUPPORT } from "@/lib/support";
 import { useAuth } from "@/lib/use-auth";
 import { Avatar, LetterMark } from "./avatar";
+import { CommandPalette } from "./command-palette";
 import { HeaderSearch } from "./header-search";
+import { openPalette } from "@/lib/palette";
 import { NotificationBell } from "./notification-bell";
 import { LocaleGate } from "./locale-gate";
 import { Toaster } from "./toaster";
@@ -266,6 +268,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen bg-chrome">
+      <CommandPalette />
       <aside
         className={`flex shrink-0 flex-col pb-2 transition-[width] duration-150 ${collapsed ? "w-[52px] items-center px-1.5" : "w-[232px] px-2"}`}
       >
@@ -316,7 +319,7 @@ function Shell({ children }: { children: React.ReactNode }) {
             </Tooltip>
             <Tooltip label={t("appShell.searchK")}>
               <button
-                onClick={toggleCollapsed}
+                onClick={openPalette}
                 aria-label={t("common.search")}
                 className="grid size-[30px] place-items-center rounded-md text-chrome-ink-faint transition-colors hover:bg-chrome-hover hover:text-chrome-ink"
               >

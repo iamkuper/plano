@@ -9,6 +9,8 @@ export interface AuthenticatedUser {
   email: string;
   role: UserRole;
   permissions: string[];
+  // The request is made with an API token, not a signed-in session.
+  viaToken?: boolean;
 }
 
 export const CurrentUser = createParamDecorator((_: unknown, ctx: ExecutionContext): AuthenticatedUser => {

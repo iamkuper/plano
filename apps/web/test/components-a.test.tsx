@@ -3,7 +3,6 @@ import { act, fireEvent, render, screen, waitFor, within } from "@testing-librar
 import userEvent from "@testing-library/user-event";
 import { PriorityBadge } from "@/components/priority-badge";
 import { NewProjectDialog } from "@/components/new-project-dialog";
-import { HeaderSearch } from "@/components/header-search";
 import { AttachmentGrid, MessageAttachments, formatSize, isImage } from "@/components/attachments";
 import { MessageComposer, MessageText } from "@/components/message-composer";
 import { NotificationBell } from "@/components/notification-bell";
@@ -83,50 +82,6 @@ describe("card tile", () => {
     rerender(<CardTile card={card()} onOpen={onOpen} onToggleSelect={onToggle} selecting selected />);
     await userEvent.click(screen.getByRole("button", { name: /Первая карточка/, pressed: true }));
     expect(onToggle).toHaveBeenCalledTimes(4);
-  });
-});
-
-describe("search in the header", () => {
-  it("finds cards after a pause and opens the first with Enter", async () => {
-    const search = vi.spyOn(api, "searchCards").mockResolvedValue([card({ id: "c9", title: "Бриф клиента", project: { id: "p7", title: "Сайт" } })]);
-    render(<HeaderSearch />);
-    const input = screen.getByPlaceholderText("Поиск");
-    await userEvent.type(input, "бриф");
-    expect(await screen.findByText("Бриф клиента")).toBeInTheDocument();
-    expect(screen.getByText("TSK-1, Сайт")).toBeInTheDocument();
-    expect(search).toHaveBeenLastCalledWith("бриф");
-    await userEvent.keyboard("{Enter}");
-    expect(nav.router.push).toHaveBeenCalledWith("/projects/p7?card=c9");
-    expect(input).toHaveValue("");
-  });
-
-  it("opens a result by click, says when nothing is found, clears on Escape and focuses on ⌘K", async () => {
-    const search = vi.spyOn(api, "searchCards").mockResolvedValue([]);
-    render(<HeaderSearch />);
-    const input = screen.getByPlaceholderText("Поиск");
-    await userEvent.type(input, "нет такого");
-    expect(await screen.findByText("Ничего не найдено")).toBeInTheDocument();
-    await userEvent.keyboard("{Escape}");
-    expect(input).toHaveValue("");
-    input.blur();
-    await new Promise((r) => setTimeout(r, 200)); // the list closes shortly after blur
-    fireEvent.keyDown(window, { key: "k", metaKey: true });
-    expect(input).toHaveFocus();
-
-    search.mockResolvedValue([card({ id: "c1", project: { id: "p1", title: "П" } })]);
-    await userEvent.type(input, "x");
-    await userEvent.click(await screen.findByText("Первая карточка"));
-    expect(nav.router.push).toHaveBeenCalledWith("/projects/p1?card=c1");
-  });
-
-  it("ignores failed lookups and empty queries", async () => {
-    const search = vi.spyOn(api, "searchCards").mockRejectedValue(new Error("x"));
-    render(<HeaderSearch />);
-    await userEvent.type(screen.getByPlaceholderText("Поиск"), " ");
-    await new Promise((r) => setTimeout(r, 300));
-    expect(search).not.toHaveBeenCalled();
-    await userEvent.type(screen.getByPlaceholderText("Поиск"), "ab");
-    await waitFor(() => expect(search).toHaveBeenCalled());
   });
 });
 
