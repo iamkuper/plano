@@ -97,20 +97,11 @@ function useUrgentCount(user: UserDto | null) {
   const [count, setCount] = useState(0);
   useEffect(() => {
     if (!user) return;
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
     api
-      .teamBoard(user.id)
-      .then((cols) => {
-        const endOfToday = new Date();
-        endOfToday.setHours(23, 59, 59, 999);
-        // Last column = done.
-        setCount(
-          cols
-            .slice(0, -1)
-            .flatMap((c) => c.cards)
-            .filter((c) => c.dueDate && new Date(c.dueDate) <= endOfToday)
-            .length,
-        );
-      })
+      .urgentCount(endOfToday)
+      .then((r) => setCount(r.count))
       .catch(() => {});
   }, [user]);
   return count;

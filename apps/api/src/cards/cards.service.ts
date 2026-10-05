@@ -6,11 +6,12 @@ import { NotificationsService } from "../notifications/notifications.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import { AttachmentsService, withUrl } from "../attachments/attachments.service";
 import { cardTileInclude } from "../boards/boards.service";
+import { attachCounts } from "../boards/card-counts";
 import { CreateCardDto } from "./dto/create-card.dto";
 import { UpdateCardDto } from "./dto/update-card.dto";
 import { MoveCardDto } from "./dto/move-card.dto";
 import { BulkCardsDto } from "./dto/bulk.dto";
-import { CARD_FIELDS } from "../prisma/tenant";
+import { CARD_FIELDS, currentWorkspaceId } from "../prisma/tenant";
 import { caseVariants } from "../prisma/case-variants";
 import { BillingService } from "../billing/billing.service";
 import { AuditService } from "../audit/audit.service";
@@ -58,12 +59,28 @@ export class CardsService {
     return this.prisma.activityLog.create({ data: { cardId, userId, action, payload } });
   }
 
+  // How many open cards of the user are due by `before` (or overdue): the
+  // counter in the side menu. Open = not in the last column of its board.
+  // One count instead of loading the user's whole task list.
+  async urgentCount(userId: string, before: Date) {
+    const rows = await this.prisma.$queryRaw<{ n: bigint }[]>`
+      SELECT COUNT(*) AS n
+      FROM "Card" c
+      JOIN "Project" p ON p."id" = c."projectId" AND p."status" = 'ACTIVE'
+      JOIN "Column" col ON col."id" = c."columnId"
+      WHERE c."workspaceId" = ${currentWorkspaceId()}
+        AND c."dueDate" IS NOT NULL AND c."dueDate" <= ${before}
+        AND EXISTS (SELECT 1 FROM "CardAssignee" a WHERE a."cardId" = c."id" AND a."userId" = ${userId})
+        AND col."position" < (SELECT MAX(o."position") FROM "Column" o WHERE o."boardId" = col."boardId")`;
+    return { count: Number(rows[0]?.n ?? 0) };
+  }
+
   // Header search: by title/description, or by key ("TSK-12" / "12").
-  search(q: string) {
+  async search(q: string) {
     const term = q.trim();
     if (!term) return [];
     const key = term.match(/^(?:[a-zа-яё0-9]+-)?(\d+)$/i);
-    return this.prisma.card.findMany({
+    const cards = await this.prisma.card.findMany({
       where: {
         OR: [
           ...caseVariants(term).flatMap((v) => [
@@ -77,6 +94,7 @@ export class CardsService {
       take: 10,
       include: cardTileInclude,
     });
+    return attachCounts(this.prisma, cards);
   }
 
   async get(id: string) {
@@ -101,6 +119,7 @@ export class CardsService {
     if (!card) throw new NotFoundException(t("common.cardNotFound"));
     return {
       ...card,
+      _count: { comments: card.comments.length, attachments: card.attachments.length },
       attachments: card.attachments.map(withUrl),
       comments: card.comments.map((c) => ({ ...c, attachments: c.attachments.map(withUrl) })),
     };
@@ -137,7 +156,7 @@ export class CardsService {
     if (dto.assigneeIds?.length) await this.notifications.assigned(card.id, userId, dto.assigneeIds);
     this.realtime.boardChanged(card.projectId);
     await this.webhooks.emit("card.created", card.id);
-    return card;
+    return (await attachCounts(this.prisma, [card]))[0];
   }
 
   async update(id: string, dto: UpdateCardDto, userId: string) {
@@ -169,7 +188,7 @@ export class CardsService {
     if (assigneeIds) await this.notifications.assigned(id, userId, assigneeIds.filter((uid) => !before.includes(uid)));
     await this.realtime.cardChanged(id, card.projectId);
     await this.webhooks.emit("card.updated", id, { changes: Object.entries(dto).filter(([, v]) => v !== undefined).map(([k]) => k) });
-    return card;
+    return (await attachCounts(this.prisma, [card]))[0];
   }
 
   // The client computes the new fractional position from its neighbours
@@ -205,7 +224,7 @@ export class CardsService {
     }
     await this.realtime.cardChanged(id, moved.projectId);
     if (card.columnId !== dto.columnId) await this.webhooks.emit("card.moved", id, { from: card.column.title, to: target.title });
-    return moved;
+    return (await attachCounts(this.prisma, [moved]))[0];
   }
 
   async remove(id: string) {

@@ -3,7 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { AlertTriangle, CalendarDays, CheckCircle2 } from "lucide-react";
-import { cardKey, type CardTileDto, type TeamBoardColumnDto, type UserDto, type UserRefDto, t, intlTag } from "@plano/shared";
+import { cardKey, type CardTileDto, type TeamBoardColumnDto, type TeamStageCountDto, type UserDto, type UserRefDto, t, intlTag } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Avatar, LetterMark } from "@/components/avatar";
 import { CardModal } from "@/components/card-modal";
@@ -94,7 +94,7 @@ function TaskRow({ task, total, bucket, onOpen }: { task: Task; total: number; b
 function Dashboard() {
   const [me, setMe] = useState<UserDto | null>(null);
   const [mine, setMine] = useState<TeamBoardColumnDto[] | null>(null);
-  const [team, setTeam] = useState<TeamBoardColumnDto[] | null>(null);
+  const [team, setTeam] = useState<TeamStageCountDto[] | null>(null);
   const [time, setTime] = useState<TimeEntry[] | null>(null);
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [cardId, setCardId] = useCardParam();
@@ -108,7 +108,7 @@ function Dashboard() {
   const load = useCallback(() => {
     if (!me) return;
     api.teamBoard(me.id).then(setMine).catch(() => setMine([]));
-    api.teamBoard().then(setTeam).catch(() => setTeam([]));
+    api.teamSummary().then(setTeam).catch(() => setTeam([]));
     api.timeReport(week[0], week[1]).then((r) => setTime(r as TimeEntry[])).catch(() => setTime([]));
   }, [me, week]);
   useEffect(load, [load]);
@@ -137,7 +137,7 @@ function Dashboard() {
   }, [time]);
 
   // Open cards per stage across all active projects.
-  const stages = useMemo(() => (team ?? []).map((c) => ({ title: c.title, color: c.color, count: c.cards.length })), [team]);
+  const stages = useMemo(() => (team ?? []).map((c) => ({ title: c.title, color: c.color, count: c.count })), [team]);
   const teamOpen = stages.slice(0, -1).reduce((n, s) => n + s.count, 0);
   const stageMax = Math.max(1, ...stages.map((s) => s.count));
 

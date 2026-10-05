@@ -12,12 +12,12 @@ vi.mock("socket.io-client", () => ({ io: vi.fn(() => ({ connected: true, on: vi.
 const project = (id: string, title: string, openCards = 3) => ({ id, title, status: "ACTIVE", openCards, _count: { cards: 5 } }) as never;
 const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString();
 
-function setup({ me = user(), projects = [project("p1", "Сайт"), project("p2", "Приложение", 0)], locked = false, columns = [] as ReturnType<typeof column>[] } = {}) {
+function setup({ me = user(), projects = [project("p1", "Сайт"), project("p2", "Приложение", 0)], locked = false, urgent = 0 } = {}) {
   setToken("tok");
   vi.spyOn(api, "me").mockResolvedValue(me);
   vi.spyOn(api, "settings").mockResolvedValue({ workspaceName: "Ромашка", cardPrefix: "TSK", defaultColumns: ["А"] } as never);
   vi.spyOn(api, "projects").mockResolvedValue(projects);
-  vi.spyOn(api, "teamBoard").mockResolvedValue(columns as never);
+  vi.spyOn(api, "urgentCount").mockResolvedValue({ count: urgent });
   vi.spyOn(api, "notifications").mockResolvedValue({ items: [], unread: 0 } as never);
   vi.spyOn(api, "billing").mockResolvedValue(billing({ locked }));
   render(<AppShell><p>Содержимое страницы</p></AppShell>);
@@ -45,10 +45,10 @@ describe("app shell", () => {
 
   it("marks the current page and project, and counts my urgent cards", async () => {
     nav.path = "/projects/p1";
-    setup({ columns: [column({ cards: [card({ id: "a", dueDate: day(-1) }), card({ id: "b", dueDate: day(10) }), card({ id: "c", dueDate: null })] }), column({ id: "done", cards: [card({ id: "d", dueDate: day(-3) })] })] });
+    setup({ urgent: 1 });
     expect(await screen.findByTitle("Сайт")).toHaveAttribute("aria-current", "page");
     expect(screen.getByRole("link", { name: /Главная/ })).not.toHaveAttribute("aria-current");
-    await waitFor(() => expect(screen.getByRole("link", { name: /Главная/ })).toHaveTextContent("1")); // only the overdue open card
+    await waitFor(() => expect(screen.getByRole("link", { name: /Главная/ })).toHaveTextContent("1")); // the server counts: one number instead of the whole task list
   });
 
   it("highlights Главная on dashboard, team and report pages", async () => {

@@ -78,6 +78,8 @@ describe("request wrapper", () => {
     const last = () => f.mock.calls.at(-1) as unknown as [string, RequestInit];
     await api.projects("ARCHIVED");
     expect(last()[0]).toContain("/projects?status=ARCHIVED");
+    await api.urgentCount(new Date("2026-10-05T20:59:59.999Z"));
+    expect(last()[0]).toContain("/cards/urgent-count?before=2026-10-05T20%3A59%3A59.999Z");
     await api.teamBoard("u1");
     expect(last()[0]).toContain("/team-board?assigneeId=u1");
     await api.timeReport("2026-10-01", "2026-10-31", "u1");

@@ -45,7 +45,8 @@ describe("dashboard", () => {
     vi.spyOn(api, "me").mockResolvedValue(user());
     vi.spyOn(api, "projects").mockResolvedValue([{ id: "p1" }] as never);
     vi.spyOn(api, "onboarding").mockResolvedValue(onboarding({ closed: true }));
-    const team = vi.spyOn(api, "teamBoard").mockImplementation((async (assignee?: string) => (assignee ? (over.mine ?? []) : (over.team ?? []))) as never);
+    const team = vi.spyOn(api, "teamBoard").mockImplementation((async () => over.mine ?? []) as never);
+    vi.spyOn(api, "teamSummary").mockResolvedValue(((over.team ?? []) as { title: string; color: null; cards: unknown[] }[]).map((c) => ({ title: c.title, color: c.color, count: c.cards.length })));
     vi.spyOn(api, "timeReport").mockResolvedValue((over.time ?? []) as never);
     return team;
   };
@@ -85,6 +86,7 @@ describe("dashboard", () => {
     vi.spyOn(api, "projects").mockRejectedValue(new Error("x"));
     vi.spyOn(api, "onboarding").mockResolvedValue(onboarding({ closed: true }));
     vi.spyOn(api, "teamBoard").mockRejectedValue(new Error("x"));
+    vi.spyOn(api, "teamSummary").mockRejectedValue(new Error("x"));
     vi.spyOn(api, "timeReport").mockRejectedValue(new Error("x"));
     render(<DashboardPage />);
     expect(await screen.findByText("Открытых задач нет")).toBeInTheDocument();
@@ -180,7 +182,7 @@ describe("team board", () => {
     const board = setup();
     render(<TeamBoardPage />);
     expect(await screen.findByText("Задача А")).toBeInTheDocument();
-    expect(board).toHaveBeenCalledWith(undefined);
+    expect(board).toHaveBeenCalledWith(undefined, 200); // cards come in pages per stage
     expect(screen.getAllByText("Проект").length).toBeGreaterThan(0);
     expect(screen.getByText("2 карточки")).toBeInTheDocument();
     expect(within(screen.getByRole("tablist", { name: "Чьи задачи" })).getByRole("tab", { name: "Все" })).toHaveAttribute("aria-selected", "true");
@@ -190,7 +192,7 @@ describe("team board", () => {
     nav.search = "mine=1";
     const board = setup();
     render(<TeamBoardPage />);
-    await waitFor(() => expect(board).toHaveBeenCalledWith("u1"));
+    await waitFor(() => expect(board).toHaveBeenCalledWith("u1", 200));
     const whose = within(screen.getByRole("tablist", { name: "Чьи задачи" }));
     await userEvent.click(whose.getByRole("tab", { name: "Все" }));
     expect(nav.router.replace).toHaveBeenCalledWith("/team");
@@ -205,6 +207,15 @@ describe("team board", () => {
     await userEvent.type(screen.getByLabelText("Найти карточку на доске"), "Б");
     await waitFor(() => expect(screen.queryByText("Задача А")).toBeNull());
     expect(screen.getByText("Задача Б")).toBeInTheDocument();
+  });
+
+  it("loads big stages in pages: shows how many are shown and fetches more on request", async () => {
+    const board = setup();
+    board.mockResolvedValue([{ ...cols[0], total: 450 }, cols[1]] as never);
+    render(<TeamBoardPage />);
+    expect(await screen.findByText("Показано 2 из 450")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Показать ещё (200)" }));
+    await waitFor(() => expect(board).toHaveBeenLastCalledWith(undefined, 400));
   });
 
   it("explains an empty team board", async () => {

@@ -176,6 +176,14 @@ export interface TeamBoardColumnDto {
   title: string;
   color: LabelColor | null;
   cards: CardTileDto[];
+  // With a page limit: all cards of the stage, loaded or not.
+  total?: number;
+}
+
+export interface TeamStageCountDto {
+  title: string;
+  color: LabelColor | null;
+  count: number;
 }
 
 export interface TemplateListItemDto {

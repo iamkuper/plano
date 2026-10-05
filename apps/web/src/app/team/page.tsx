@@ -20,12 +20,16 @@ import { t } from "@plano/shared";
 // Cards of all active projects grouped by column title. "Мои задачи"
 // (?mine=1) narrows it to the current user. Cards are moved on their
 // project's own board; here they're opened and edited in the modal.
+const PAGE = 200;
+
 function TeamBoard() {
   const mine = useSearchParams().get("mine") === "1";
   const router = useRouter();
   const [me, setMe] = useState<UserDto | null>(null);
   const [users, setUsers] = useState<UserDto[]>([]);
   const [columns, setColumns] = useState<TeamBoardColumnDto[] | null>(null);
+  // Cards are loaded in pages per stage: a big team has thousands of them.
+  const [pageSize, setPageSize] = useState(PAGE);
   const [cardId, setCardId] = useCardParam();
   const [filters, setFilters] = useFilters(mine ? "plano.filters.mine" : "plano.filters.team");
 
@@ -36,8 +40,8 @@ function TeamBoard() {
 
   const load = useCallback(() => {
     if (mine && !me) return;
-    api.teamBoard(mine ? me!.id : undefined).then(setColumns).catch(() => {});
-  }, [mine, me]);
+    api.teamBoard(mine ? me!.id : undefined, pageSize).then(setColumns).catch(() => {});
+  }, [mine, me, pageSize]);
 
   useEffect(load, [load]);
 
@@ -82,6 +86,14 @@ function TeamBoard() {
               {visible.map((card) => (
                 <CardTile key={card.id} card={card} showProject onOpen={() => setCardId(card.id)} />
               ))}
+              {column.total !== undefined && column.total > column.cards.length && (
+                <div className="px-1 pb-2 pt-1 text-center text-xs text-ink-faint">
+                  <p>{t("team.shownOf", { shown: column.cards.length, total: column.total })}</p>
+                  <button type="button" onClick={() => setPageSize((n) => n + PAGE)} className="mt-1 text-accent hover:underline">
+                    {t("team.showMore", { count: Math.min(PAGE, column.total - column.cards.length) })}
+                  </button>
+                </div>
+              )}
             </ColumnShell>
           );
         })}

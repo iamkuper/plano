@@ -179,12 +179,16 @@ describe("benchmark", () => {
       { name: "GET /projects (150)", call: get("/projects") },
       { name: "GET /team-board?assigneeId=admin (urgent counter, ~2000 cards)", call: (c) => send("get", `/team-board?assigneeId=${c.userId}`, c.token) },
       { name: "GET /team-board?assigneeId=member (~500 cards)", who: "member", call: (c) => send("get", `/team-board?assigneeId=${c.userId}`, c.token) },
+      { name: "GET /cards/urgent-count (admin, ~2000 cards)", runs: 40, call: (c) => send("get", `/cards/urgent-count?before=${encodeURIComponent(new Date().toISOString())}`, c.token) },
+      { name: "GET /team-board/summary (home page stage counts)", runs: 30, call: get("/team-board/summary") },
+      { name: "GET /team-board?limit=200 (team page, per stage)", runs: 10, call: get("/team-board?limit=200") },
       { name: "GET /team-board (everything active)", runs: 6, call: get("/team-board") },
       { name: "GET board, regular project (100 cards)", call: (c) => send("get", `/projects/${regular().id}/board`, c.token) },
       { name: "GET board, big project (800 cards)", call: (c) => send("get", `/projects/${proj(1).id}/board`, c.token) },
       { name: "GET board, mega project (3000 cards)", runs: 10, call: (c) => send("get", `/projects/${mega().id}/board`, c.token) },
       { name: "GET /projects/:mega/dependencies", call: (c) => send("get", `/projects/${mega().id}/dependencies`, c.token) },
       { name: "GET /cards/search?q=платёж", call: get("/cards/search?q=" + encodeURIComponent("платёж")) },
+      { name: "GET /cards/search?q=%2331337 (rare word)", call: get("/cards/search?q=" + encodeURIComponent("#31337")) },
       { name: "GET /cards/search?q=TSK-1500", call: get("/cards/search?q=TSK-1500") },
       { name: "GET /cards/:id (with 6 comments)", call: async (c) => send("get", `/cards/${(await t.db.comment.findFirstOrThrow({ select: { cardId: true }, where: { card: { workspaceId: big.workspaceId } } })).cardId}`, c.token) },
       { name: "GET /reports/time (30 days)", call: get(`/reports/time?from=${monthAgo}&to=${today}`) },
@@ -209,7 +213,7 @@ describe("benchmark", () => {
     // What the app fires when you open the dashboard (all at once).
     const load = () =>
       Promise.all(
-        ["/users/me", "/settings", "/billing", "/users", `/team-board?assigneeId=${big.userId}`, "/projects?status=ACTIVE", "/notifications", "/labels"].map((path) => send("get", path, big.token)),
+        ["/users/me", "/settings", "/billing", "/users", `/cards/urgent-count?before=${encodeURIComponent(new Date().toISOString())}`, "/projects?status=ACTIVE", "/notifications", "/labels"].map((path) => send("get", path, big.token)),
       );
     await load();
     const times: number[] = [];
@@ -225,7 +229,7 @@ describe("benchmark", () => {
       const start = process.hrtime.bigint();
       await Promise.all(Array.from({ length: n }, (_, i) => (i % 2 ? (send("get", `/projects/${tenant.projects[1 + (i % Math.min(9, tenant.projects.length - 1))].id}/board`, member.token)) : (send("get", `/team-board?assigneeId=${big.userId}`, big.token)))));
       const total = Number(process.hrtime.bigint() - start) / 1e6;
-      report.push(`**${n} heavy requests at once** (boards of 800 cards and the urgent counter): ${total.toFixed(0)} ms in total (${(total / n).toFixed(0)} ms per request on average).`);
+      report.push(`**${n} heavy requests at once** (boards of 800 cards and the admin's team board): ${total.toFixed(0)} ms in total (${(total / n).toFixed(0)} ms per request on average).`);
     }
   });
 

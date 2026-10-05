@@ -28,6 +28,7 @@ import type {
   RoleDto,
   SettingsDto,
   TeamBoardColumnDto,
+  TeamStageCountDto,
   TemplateListItemDto,
   TimeEntryDto,
   UserDto,
@@ -324,8 +325,14 @@ export const api = {
   project: (id: string) => apiFetch<ProjectListItemDto>(`/projects/${id}`),
   projectStats: (id: string) => apiFetch<{ hoursBudget: number | null; loggedMinutes: number }>(`/projects/${id}/stats`),
   projectBoard: (id: string) => apiFetch<BoardDto>(`/projects/${id}/board`),
-  teamBoard: (assigneeId?: string) =>
-    apiFetch<TeamBoardColumnDto[]>(`/team-board${assigneeId ? `?assigneeId=${assigneeId}` : ""}`),
+  // `limit` loads that many cards per stage (and each stage's total).
+  teamBoard: (assigneeId?: string, limit?: number) => {
+    const query = new URLSearchParams();
+    if (assigneeId) query.set("assigneeId", assigneeId);
+    if (limit) query.set("limit", String(limit));
+    return apiFetch<TeamBoardColumnDto[]>(`/team-board${query.size ? `?${query}` : ""}`);
+  },
+  teamSummary: (assigneeId?: string) => apiFetch<TeamStageCountDto[]>(`/team-board/summary${assigneeId ? `?assigneeId=${assigneeId}` : ""}`),
   templates: () => apiFetch<TemplateListItemDto[]>("/templates"),
 
   addColumn: (boardId: string, title: string) => post<ColumnDto>(`/boards/${boardId}/columns`, { title }),
@@ -424,6 +431,7 @@ export const api = {
     apiFetch<UserDto>("/users/me/avatar", { method: "PUT", body: JSON.stringify({ avatarUrl }) }),
 
   card: (id: string) => apiFetch<CardDetailDto>(`/cards/${id}`),
+  urgentCount: (before: Date | string) => apiFetch<{ count: number }>(`/cards/urgent-count?before=${encodeURIComponent(typeof before === "string" ? before : before.toISOString())}`),
   searchCards: (q: string) => apiFetch<CardTileDto[]>(`/cards/search?q=${encodeURIComponent(q)}`),
   createCard: (columnId: string, title: string) => post<CardTileDto>("/cards", { columnId, title }),
   moveCard: (id: string, columnId: string, position?: number) =>

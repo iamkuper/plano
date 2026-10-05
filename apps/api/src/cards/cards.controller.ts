@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, ForbiddenException, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
@@ -19,6 +19,14 @@ import {
 @UseGuards(JwtAuthGuard, PermissionGuard)
 export class CardsController {
   constructor(private readonly cards: CardsService) {}
+
+  // Declared before cards/:id so "urgent-count" isn't captured as an id.
+  @Get("cards/urgent-count")
+  urgentCount(@CurrentUser() user: AuthenticatedUser, @Query("before") before?: string) {
+    const date = before ? new Date(before) : new Date();
+    if (Number.isNaN(date.getTime())) throw new BadRequestException(t("api.cards.invalidDate"));
+    return this.cards.urgentCount(user.userId, date);
+  }
 
   // Declared before cards/:id so "search" isn't captured as an id.
   @Get("cards/search")

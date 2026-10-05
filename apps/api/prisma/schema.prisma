@@ -1,10 +1,13 @@
 generator client {
-  provider = "prisma-client-js"
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  // Trigram indexes make "contains" search over cards fast (see Card).
+  extensions = [pg_trgm]
 }
 
 // Multi-tenant: every top-level row (User, Project, Card, Template, Role)
@@ -214,6 +217,9 @@ model Card {
   @@unique([workspaceId, number])
   @@index([columnId, position])
   @@index([projectId])
+  // Header search: ILIKE '%text%' over title and description.
+  @@index([title(ops: raw("gin_trgm_ops"))], type: Gin, map: "Card_title_trgm_idx")
+  @@index([description(ops: raw("gin_trgm_ops"))], type: Gin, map: "Card_description_trgm_idx")
 }
 
 model CardAssignee {
@@ -223,6 +229,8 @@ model CardAssignee {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@id([cardId, userId])
+  // "Cards of this person": the urgent counter, the team board, the calendar feed.
+  @@index([userId])
 }
 
 model ChecklistItem {
@@ -262,6 +270,8 @@ model TimeEntry {
 
   @@index([cardId])
   @@index([userId, date])
+  // Reports over a period for everyone.
+  @@index([date])
 }
 
 model Template {
