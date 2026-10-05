@@ -1,3 +1,4 @@
+import { Bot } from "lucide-react";
 import { series } from "@/design/tokens";
 
 function colorFor(id: string) {
@@ -17,7 +18,7 @@ function initials(name: string) {
 
 // People: tinted circle with initials in a stable series colour. The tint is
 // opaque (mixed with white) so overlapping avatars never show through.
-export function Avatar({ user, size = 24 }: { user: { id: string; name: string; avatarUrl?: string | null }; size?: number }) {
+export function Avatar({ user, size = 24 }: { user: { id: string; name: string; avatarUrl?: string | null; kind?: "HUMAN" | "AGENT" }; size?: number }) {
   const color = colorFor(user.id);
   if (user.avatarUrl) {
     return (
@@ -41,7 +42,7 @@ export function Avatar({ user, size = 24 }: { user: { id: string; name: string; 
       className="inline-flex shrink-0 items-center justify-center rounded-full font-semibold"
       style={{ width: size, height: size, fontSize: Math.max(9, size * 0.4), background: `color-mix(in srgb, ${color} 14%, #ffffff)`, color }}
     >
-      {initials(user.name) || "?"}
+      {user.kind === "AGENT" ? <Bot size={Math.round(size * 0.6)} strokeWidth={2} aria-hidden /> : initials(user.name) || "?"}
     </span>
   );
 }

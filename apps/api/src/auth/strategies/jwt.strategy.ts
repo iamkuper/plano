@@ -31,7 +31,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   // immediately.
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     const user = await this.prisma.user.findUnique({ where: { id: payload.sub }, include: { customRole: true, workspace: { select: { subscription: true } } } });
-    if (!user?.isActive) {
+    if (!user?.isActive || user.kind === "AGENT") {
       throw new UnauthorizedException();
     }
     // Beyond the paid seats: no access until a seat is bought or freed.

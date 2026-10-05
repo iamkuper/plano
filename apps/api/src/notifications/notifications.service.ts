@@ -3,6 +3,9 @@ import { Prisma } from "@prisma/client";
 import { PrismaService } from "../prisma/prisma.service";
 import { RealtimeService } from "../realtime/realtime.service";
 import { MailableNotification, NotificationMailer } from "./notification-mailer";
+import { AgentEvents } from "../agents/agent-events";
+import { currentLocale } from "@plano/shared";
+import { currentWorkspaceId } from "../prisma/tenant";
 
 const excerpt = (text: string) => (text.length > 140 ? `${text.slice(0, 139)}…` : text);
 
@@ -12,6 +15,7 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly realtime: RealtimeService,
     private readonly mailer: NotificationMailer,
+    private readonly agents: AgentEvents,
   ) {}
 
   async list(userId: string) {
@@ -44,6 +48,19 @@ export class NotificationsService {
     for (const userId of new Set(rows.map((r) => r.userId))) this.realtime.notify(userId);
     // Mail copies go out in the background.
     void this.mailer.send(rows as MailableNotification[]);
+    await this.wakeAgents(rows);
+  }
+
+  // AI agents among the recipients are told to look at the card.
+  private async wakeAgents(rows: Prisma.NotificationCreateManyInput[]) {
+    const workspaceId = currentWorkspaceId();
+    if (!workspaceId) return;
+    const agents = await this.prisma.user.findMany({ where: { id: { in: rows.map((r) => r.userId) }, kind: "AGENT", isActive: true }, select: { id: true } });
+    const ids = new Set(agents.map((a) => a.id));
+    for (const r of rows) {
+      if (!ids.has(r.userId)) continue;
+      this.agents.publish({ workspaceId, agentId: r.userId, cardId: r.cardId, actorId: r.actorId ?? null, type: r.type, text: r.text ?? null, locale: currentLocale() });
+    }
   }
 
   // People newly added as assignees (the actor doesn't notify themselves).

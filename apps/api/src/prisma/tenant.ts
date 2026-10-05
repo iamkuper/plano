@@ -38,6 +38,8 @@ const SCOPE: Record<string, (ws: string) => Where> = {
   CardDependency: (ws) => ({ card: { workspaceId: ws } }),
   CustomField: (ws) => ({ workspaceId: ws }),
   TaskType: (ws) => ({ workspaceId: ws }),
+  AgentProfile: (ws) => ({ user: { workspaceId: ws } }),
+  AgentRun: (ws) => ({ workspaceId: ws }),
   AuditLog: (ws) => ({ workspaceId: ws }),
   CardFieldValue: (ws) => ({ card: { workspaceId: ws } }),
   Payment: (ws) => ({ workspaceId: ws }),
@@ -57,7 +59,7 @@ const SCOPE: Record<string, (ws: string) => Where> = {
 
 // Models that carry workspaceId themselves: it is set from the context on
 // create, never taken from the caller.
-const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment", "Invitation", "Label", "CustomField", "TaskType", "AuditLog"]);
+const OWN = new Set(["User", "Project", "Card", "Template", "Role", "Subscription", "Payment", "Invitation", "Label", "CustomField", "TaskType", "AgentRun", "AuditLog"]);
 
 // Shared catalogue, not tenant data: readable by everyone, never writable here.
 const GLOBAL_READ = new Set(["Plan"]);
@@ -83,6 +85,8 @@ const PARENTS: Record<string, Record<string, string>> = {
   CardDependency: { cardId: "Card", dependsOnId: "Card" },
   CardFieldValue: { cardId: "Card", fieldId: "CustomField" },
   AuditLog: { userId: "User" },
+  AgentProfile: { userId: "User" },
+  AgentRun: { agentId: "User", cardId: "Card" },
   Attachment: { cardId: "Card", commentId: "Comment", uploaderId: "User" },
 };
 

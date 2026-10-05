@@ -3,6 +3,8 @@ import { lazyLabels, t } from "./i18n";
 // enums) so the web app doesn't depend on @prisma/client.
 
 export type UserRole = "ADMIN" | "MEMBER";
+// AGENT: an AI teammate. It takes a seat like a person but never signs in.
+export type UserKind = "HUMAN" | "AGENT";
 export type ProjectStatus = "ACTIVE" | "ON_HOLD" | "DONE" | "ARCHIVED";
 export type CardPriority = "LOW" | "MEDIUM" | "HIGH";
 // Task type: configured per workspace (settings → task types); every
@@ -53,6 +55,7 @@ export const PERMISSIONS = [
   { key: "labels.manage", get label() { return t("shared.editAndDeleteLabels"); }, get hint() { return t("shared.anyEmployeeCanCreateAnd"); } },
   { key: "fields.manage", get label() { return t("shared.configureCustomCardFields"); } },
   { key: "types.manage", get label() { return t("shared.configureTaskTypes"); } },
+  { key: "agents.manage", get label() { return t("shared.manageAiAgents"); }, get hint() { return t("shared.manageAiAgentsHint"); } },
   { key: "audit.view", get label() { return t("shared.viewTheActivityLog"); } },
   { key: "billing.manage", get label() { return t("shared.manageThePlanAndBilling"); } },
   { key: "time.viewAll", get label() { return t("shared.seeTheTimeOfAll"); }, get hint() { return t("shared.withoutThisPermissionTheReport"); } },
@@ -100,6 +103,7 @@ export interface UserDto {
   avatarUrl?: string | null;
   emailNotifications?: boolean;
   locale?: Locale;
+  kind?: UserKind;
   // Active but beyond the paid seats: can't sign in (staff list only).
   overSeat?: boolean;
 }
@@ -108,6 +112,8 @@ export interface UserRefDto {
   id: string;
   name: string;
   avatarUrl?: string | null;
+  // AGENT shows a robot instead of initials.
+  kind?: UserKind;
 }
 
 export interface ClientDto {
@@ -430,3 +436,50 @@ export function formatRub(kopecks: number) {
 }
 
 export * from "./i18n";
+
+// ---- AI agents ----
+
+export type AgentProvider = "ANTHROPIC" | "OPENAI" | "GOOGLE" | "OPENAI_COMPATIBLE";
+
+// Providers an agent can call with the customer's own key. Models are
+// suggestions only: any model id the provider accepts can be typed in.
+export const AGENT_PROVIDERS: readonly { id: AgentProvider; name: string; models: string[]; needsBaseUrl: boolean }[] = [
+  { id: "ANTHROPIC", name: "Anthropic (Claude)", models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-4-5-20251001"], needsBaseUrl: false },
+  { id: "OPENAI", name: "OpenAI", models: ["gpt-4o", "gpt-4o-mini"], needsBaseUrl: false },
+  { id: "GOOGLE", name: "Google Gemini", models: ["gemini-2.0-flash", "gemini-1.5-pro"], needsBaseUrl: false },
+  { id: "OPENAI_COMPATIBLE", name: "OpenAI-compatible (OpenRouter, DeepSeek, own server…)", models: [], needsBaseUrl: true },
+];
+
+export type AgentRunStatus = "RUNNING" | "DONE" | "FAILED" | "SKIPPED";
+
+export interface AgentRunDto {
+  id: string;
+  status: AgentRunStatus;
+  trigger: NotificationType;
+  error: string | null;
+  steps: number;
+  inputTokens: number;
+  outputTokens: number;
+  createdAt: string;
+  card: { id: string; number: number; title: string; projectId: string };
+}
+
+export interface AgentDto {
+  id: string;
+  name: string;
+  avatarUrl: string | null;
+  roleId: string | null;
+  roleName: string;
+  // Deactivated agents free their seat.
+  isActive: boolean;
+  provider: AgentProvider;
+  model: string;
+  baseUrl: string | null;
+  // Last characters of the stored key; the key itself is never returned.
+  keyHint: string;
+  instructions: string;
+  enabled: boolean;
+  // Active but beyond the paid seats: does not react until a seat is added.
+  overSeat: boolean;
+  lastRun: AgentRunDto | null;
+}

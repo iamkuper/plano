@@ -88,7 +88,7 @@ export class CardsService {
         checklist: { orderBy: { position: "asc" } },
         comments: {
           orderBy: { createdAt: "asc" },
-          include: { author: { select: { id: true, name: true, avatarUrl: true } }, attachments: { orderBy: { createdAt: "asc" } } },
+          include: { author: { select: { id: true, name: true, avatarUrl: true, kind: true } }, attachments: { orderBy: { createdAt: "asc" } } },
         },
         attachments: { orderBy: { createdAt: "desc" }, include: { uploader: { select: { id: true, name: true, avatarUrl: true } } } },
         recurringRule: { select: { id: true, frequency: true, interval: true, active: true } },

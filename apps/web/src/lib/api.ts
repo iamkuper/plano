@@ -6,6 +6,9 @@ import type {
   CardTileDto,
   CardPriority,
   TaskTypeDto,
+  AgentDto,
+  AgentProvider,
+  AgentRunDto,
   TaskTypeRefDto,
   ChecklistItemDto,
   ColumnDto,
@@ -189,6 +192,17 @@ export function uploadAttachment(cardId: string, file: File, onProgress?: (pct: 
 }
 
 
+export interface AgentInput {
+  name: string;
+  roleId?: string | null;
+  provider: AgentProvider;
+  model: string;
+  baseUrl?: string | null;
+  apiKey?: string;
+  instructions?: string;
+  enabled?: boolean;
+}
+
 export interface TemplateCardInput {
   title: string;
   description?: string | null;
@@ -339,6 +353,12 @@ export const api = {
   acceptInvite: (token: string, name: string, password: string) => post<{ accessToken: string }>("/auth/accept-invite", { token, name, password }),
   forgotPassword: (email: string) => post<void>("/auth/forgot", { email }),
   resetPassword: (token: string, password: string) => post<void>("/auth/reset", { token, password }),
+  agents: () => apiFetch<AgentDto[]>("/agents"),
+  createAgent: (data: AgentInput) => post<AgentDto>("/agents", data),
+  updateAgent: (id: string, data: Partial<AgentInput> & { isActive?: boolean }) => patch<AgentDto>(`/agents/${id}`, data),
+  deleteAgent: (id: string) => del(`/agents/${id}`),
+  agentRuns: (id: string) => apiFetch<AgentRunDto[]>(`/agents/${id}/runs`),
+  testAgent: (data: { agentId?: string; provider: AgentProvider; model: string; baseUrl?: string | null; apiKey?: string }) => post<{ ok: true; reply: string }>("/agents/test", data),
   taskTypes: () => apiFetch<TaskTypeDto[]>("/task-types"),
   createTaskType: (name: string, color: LabelColor | null) => post<TaskTypeDto>("/task-types", { name, color }),
   updateTaskType: (id: string, data: Partial<{ name: string; color: LabelColor | null; isDefault: boolean }>) => patch<TaskTypeDto>(`/task-types/${id}`, data),

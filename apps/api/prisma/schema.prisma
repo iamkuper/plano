@@ -23,6 +23,25 @@ enum ProjectStatus {
   ARCHIVED
 }
 
+enum UserKind {
+  HUMAN
+  AGENT
+}
+
+enum AgentProvider {
+  ANTHROPIC
+  OPENAI
+  GOOGLE
+  OPENAI_COMPATIBLE
+}
+
+enum AgentRunStatus {
+  RUNNING
+  DONE
+  FAILED
+  SKIPPED
+}
+
 enum CardPriority {
   LOW
   MEDIUM
@@ -56,41 +75,46 @@ model Workspace {
   labels       Label[]
   customFields CustomField[]
   taskTypes    TaskType[]
+  agentRuns    AgentRun[]
   auditLog     AuditLog[]
 }
 
 model User {
-  id           String   @id @default(cuid())
-  workspaceId  String
-  workspace    Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  id                 String        @id @default(cuid())
+  workspaceId        String
+  workspace          Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   // Globally unique: one account belongs to one workspace.
-  email        String   @unique
-  passwordHash String
-  name         String
-  role         UserRole @default(MEMBER)
+  email              String        @unique
+  passwordHash       String
+  name               String
+  role               UserRole      @default(MEMBER)
   // For MEMBER: which custom role grants the permissions. ADMIN ignores it.
-  roleId       String?
-  customRole   Role?    @relation(fields: [roleId], references: [id], onDelete: SetNull)
-  isActive     Boolean  @default(true)
+  roleId             String?
+  customRole         Role?         @relation(fields: [roleId], references: [id], onDelete: SetNull)
+  isActive           Boolean       @default(true)
   // UI and email language.
-  locale       String   @default("ru")
+  locale             String        @default("ru")
+  // AGENT: an AI teammate (no password, works through its AgentProfile).
+  kind               UserKind      @default(HUMAN)
+  agentProfile       AgentProfile?
+  agentRuns          AgentRun[]
   // Mail copies of notifications (assignments, mentions, due dates).
-  emailNotifications Boolean @default(true)
+  emailNotifications Boolean       @default(true)
   // Onboarding: the welcome dialog was shown / the checklist was closed.
   welcomeSeenAt      DateTime?
   onboardingClosedAt DateTime?
   // Small square photo as a data: URL (resized client-side to 256px).
-  avatarUrl    String?
-  createdAt    DateTime @default(now())
+  avatarUrl          String?
+  createdAt          DateTime      @default(now())
 
-  assignedCards CardAssignee[]
-  comments      Comment[]
-  timeEntries   TimeEntry[]
-  activity      ActivityLog[]
-  notifications Notification[] @relation("NotificationRecipient")
-  notified      Notification[] @relation("NotificationActor")
-  cardReads     CardRead[]
-  attachments   Attachment[]
+  assignedCards  CardAssignee[]
+  comments       Comment[]
+  timeEntries    TimeEntry[]
+  activity       ActivityLog[]
+  notifications  Notification[]  @relation("NotificationRecipient")
+  notified       Notification[]  @relation("NotificationActor")
+  cardReads      CardRead[]
+  attachments    Attachment[]
   passwordResets PasswordReset[]
   auditEntries   AuditLog[]
 
@@ -128,9 +152,9 @@ model Board {
 }
 
 model Column {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   boardId  String
-  board    Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  board    Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
   title    String
   // Fractional ordering: inserting between a and b takes (a + b) / 2, so a
   // move updates one row instead of renumbering the whole column.
@@ -145,27 +169,27 @@ model Column {
 }
 
 model Card {
-  id             String    @id @default(cuid())
+  id              String         @id @default(cuid())
   // Human-facing key, shown as <prefix>-<number> (like Jira issue keys).
-  workspaceId    String
-  workspace      Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workspaceId     String
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   // Per-workspace key number, assigned in src/prisma/tenant.ts.
-  number         Int
-  projectId      String
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  columnId       String
-  column         Column    @relation(fields: [columnId], references: [id], onDelete: Cascade)
-  title          String
-  description    String?
-  typeId         String
-  type           TaskType  @relation(fields: [typeId], references: [id], onDelete: Restrict)
-  priority       CardPriority @default(MEDIUM)
-  position       Float
-  startDate      DateTime?
-  dueDate        DateTime?
-  estimateHours  Int?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  number          Int
+  projectId       String
+  project         Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  columnId        String
+  column          Column         @relation(fields: [columnId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  typeId          String
+  type            TaskType       @relation(fields: [typeId], references: [id], onDelete: Restrict)
+  priority        CardPriority   @default(MEDIUM)
+  position        Float
+  startDate       DateTime?
+  dueDate         DateTime?
+  estimateHours   Int?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   // Set when the card was created by a recurring rule.
   recurringRuleId String?
   recurringRule   RecurringRule? @relation(fields: [recurringRuleId], references: [id], onDelete: SetNull)
@@ -177,6 +201,7 @@ model Card {
   activity      ActivityLog[]
   notifications Notification[]
   reads         CardRead[]
+  agentRuns     AgentRun[]
   attachments   Attachment[]
   labels        CardLabel[]
   // This card can start only after the cards in `dependsOn` (Gantt arrows).
@@ -241,16 +266,16 @@ model TimeEntry {
 // Task type: a workspace-level classifier of cards. Every workspace has at
 // least one (the default, "Задача"); more are configured in settings.
 model TaskType {
-  id          String   @id @default(cuid())
+  id          String    @id @default(cuid())
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   name        String
   // Hex colour of the marker; null = neutral grey.
   color       String?
-  position    Int      @default(0)
+  position    Int       @default(0)
   // Cards without an explicit type get this one. Exactly one per workspace.
-  isDefault   Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
 
   cards          Card[]
   templateCards  TemplateCard[]
@@ -264,10 +289,10 @@ model Template {
   id          String    @id @default(cuid())
   workspaceId String
   workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  name      String
+  name        String
   // Column titles, in order, created on the new project's board.
-  columns   String[]
-  createdAt DateTime @default(now())
+  columns     String[]
+  createdAt   DateTime  @default(now())
 
   cards TemplateCard[]
 
@@ -412,8 +437,8 @@ model Role {
   name        String
   permissions String[]
   // Given to new staff when no role is chosen.
-  isDefault   Boolean  @default(false)
-  createdAt   DateTime @default(now())
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
 
   users User[]
 
@@ -455,17 +480,17 @@ enum PaymentKind {
 // Prices are in kopecks per user per month. Storage limit =
 // storageMbBase + storageMbPerSeat * active users. Null limit = unlimited.
 model Plan {
-  id                String   @id
-  name              String
-  position          Int
-  priceKopecks      Int
-  maxUsers          Int?
-  maxProjects       Int?
-  maxRecurring      Int?
-  storageMbBase     Int      @default(0)
-  storageMbPerSeat  Int      @default(0)
+  id               String   @id
+  name             String
+  position         Int
+  priceKopecks     Int
+  maxUsers         Int?
+  maxProjects      Int?
+  maxRecurring     Int?
+  storageMbBase    Int      @default(0)
+  storageMbPerSeat Int      @default(0)
   // time, roles, audit, export, api
-  features          String[]
+  features         String[]
 
   subscriptions Subscription[]
   payments      Payment[]
@@ -503,32 +528,32 @@ model Subscription {
 }
 
 model Payment {
-  id            String          @id @default(cuid())
-  workspaceId   String
-  workspace     Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  kind          PaymentKind
-  planId        String
-  plan          Plan            @relation(fields: [planId], references: [id])
-  interval      BillingInterval
-  seats         Int
-  method        PaymentMethod   @default(CARD)
+  id                String          @id @default(cuid())
+  workspaceId       String
+  workspace         Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  kind              PaymentKind
+  planId            String
+  plan              Plan            @relation(fields: [planId], references: [id])
+  interval          BillingInterval
+  seats             Int
+  method            PaymentMethod   @default(CARD)
   // Invoice only: sequential number and the payer's details.
-  invoiceNumber Int?            @unique
-  payerName     String?
-  payerInn      String?
-  payerKpp      String?
-  payerAddress  String?
-  payerEmail    String?
+  invoiceNumber     Int?            @unique
+  payerName         String?
+  payerInn          String?
+  payerKpp          String?
+  payerAddress      String?
+  payerEmail        String?
   // Kopecks.
-  amount        Int
-  status        PaymentStatus   @default(PENDING)
+  amount            Int
+  status            PaymentStatus   @default(PENDING)
   // Our id sent to the bank as OrderId.
-  orderId       String          @unique
+  orderId           String          @unique
   providerPaymentId String?
-  paymentUrl    String?
-  failReason    String?
-  createdAt     DateTime        @default(now())
-  paidAt        DateTime?
+  paymentUrl        String?
+  failReason        String?
+  createdAt         DateTime        @default(now())
+  paidAt            DateTime?
 
   @@index([workspaceId, createdAt])
 }
@@ -659,5 +684,45 @@ model AuditLog {
   summary     String
   createdAt   DateTime  @default(now())
 
+  @@index([workspaceId, createdAt])
+}
+
+// Settings of an AI agent: which model it calls, with the customer's own key.
+model AgentProfile {
+  id           String        @id @default(cuid())
+  userId       String        @unique
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  provider     AgentProvider
+  model        String
+  // OPENAI_COMPATIBLE only (OpenRouter, DeepSeek, a local server...).
+  baseUrl      String?
+  // AES-256-GCM sealed API key; never leaves the server.
+  apiKeyEnc    String
+  keyHint      String
+  instructions String        @default("")
+  enabled      Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+// One reaction of an agent to an event on a card (for history, limits and cost).
+model AgentRun {
+  id           String           @id @default(cuid())
+  workspaceId  String
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  agentId      String
+  agent        User             @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  cardId       String
+  card         Card             @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  trigger      NotificationType
+  status       AgentRunStatus   @default(RUNNING)
+  error        String?
+  steps        Int              @default(0)
+  inputTokens  Int              @default(0)
+  outputTokens Int              @default(0)
+  createdAt    DateTime         @default(now())
+  finishedAt   DateTime?
+
+  @@index([agentId, cardId, createdAt])
   @@index([workspaceId, createdAt])
 }

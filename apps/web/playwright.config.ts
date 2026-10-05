@@ -39,6 +39,8 @@ export default defineConfig({
         SMTP_HOST: "",
         PLATFORM_ADMIN_EMAILS: "owner@e2e.test",
         UPLOAD_DIR: "/tmp/plano-e2e-uploads",
+        // The agents test points an agent at a model service on localhost.
+        AGENTS_ALLOW_PRIVATE_URLS: "1",
       },
     },
     {

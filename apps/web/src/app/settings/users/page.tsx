@@ -215,7 +215,7 @@ export default function UsersPage() {
   const [roles, setRoles] = useState<RoleDto[]>([]);
 
   const load = useCallback(() => {
-    api.users().then(setUsers).catch(() => {});
+    api.users().then((list) => setUsers(list.filter((u) => u.kind !== "AGENT"))).catch(() => {});
     api.roles().then(setRoles).catch(() => {});
     api.invitations().then(setInvitations).catch(() => {});
   }, []);

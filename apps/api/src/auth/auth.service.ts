@@ -63,7 +63,7 @@ export class AuthService {
 
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (!user?.isActive || !(await bcrypt.compare(dto.password, user.passwordHash))) {
+    if (!user?.isActive || user.kind === "AGENT" || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException(t("api.auth.wrongEmailOrPassword"));
     }
     if ((await this.billing.overSeatIds(user.workspaceId)).has(user.id)) throw new ForbiddenException(NO_SEAT_MESSAGE);
@@ -82,7 +82,7 @@ export class AuthService {
   // Always answers the same, so the form can't be used to find out who has an
   // account. At most one mail per minute per user.
   async forgotPassword(email: string) {
-    const user = await this.prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: "insensitive" }, isActive: true } });
+    const user = await this.prisma.user.findFirst({ where: { email: { equals: email.trim(), mode: "insensitive" }, isActive: true, kind: "HUMAN" } });
     if (!user) return;
     const recent = await this.prisma.passwordReset.findFirst({ where: { userId: user.id, createdAt: { gt: new Date(Date.now() - 60_000) } } });
     if (recent) return;

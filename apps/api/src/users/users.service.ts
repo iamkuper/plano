@@ -19,6 +19,7 @@ const publicFields = {
   avatarUrl: true,
   emailNotifications: true,
   locale: true,
+  kind: true,
   customRole: { select: { name: true, permissions: true } },
 } as const;
 
