@@ -11,7 +11,8 @@ const READ_ACTIONS = new Set(["findUnique", "findUniqueOrThrow", "findFirst", "f
 @Injectable()
 export class SystemPrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
   constructor() {
-    super();
+    // PRISMA_QUERY_LOG=1: emit query events (used by the benchmark in bench/).
+    super(process.env.PRISMA_QUERY_LOG === "1" ? { log: [{ emit: "event", level: "query" }] } : undefined);
     // Every write (also those made through the scoped client, which runs on
     // this one) to what the auth check reads drops its cache.
     this.$use(async (params, next) => {

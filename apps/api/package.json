@@ -11,7 +11,8 @@
     "db:up": "node scripts/dev-postgres.mjs",
     "db:down": "node scripts/dev-postgres.mjs down",
     "test": "jest",
-    "test:cov": "jest --coverage"
+    "test:cov": "jest --coverage",
+    "bench": "jest --config bench/jest.bench.config.js"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
