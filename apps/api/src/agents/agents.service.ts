@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "crypto";
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from "@nestjs/common";
 import * as bcrypt from "bcrypt";
-import { currentLocale, t, type AgentDto, type AgentProvider, type AgentRunDto } from "@plano/shared";
+import { currentLocale, t, type AgentDto, type AgentProvider, type AgentRunDto, type AgentUsage } from "@plano/shared";
 import { PrismaService } from "../prisma/prisma.service";
 import { OWN_FIELDS } from "../prisma/tenant";
 import { BillingService } from "../billing/billing.service";
@@ -50,7 +50,26 @@ export class AgentsService {
     private readonly audit: AuditService,
   ) {}
 
-  private async toDto(u: { id: string; name: string; avatarUrl: string | null; roleId: string | null; isActive: boolean; customRole: { name: string } | null; agentProfile: any }, over: Set<string>, lastRun: unknown): Promise<AgentDto> {
+  // Tokens spent per agent since `since`. Skipped runs never reach the model.
+  private async spent(since: Date, agentId?: string): Promise<Map<string, AgentUsage>> {
+    const rows = await this.prisma.agentRun.groupBy({
+      by: ["agentId"],
+      where: { createdAt: { gte: since }, status: { not: "SKIPPED" }, ...(agentId ? { agentId } : {}) },
+      _count: { _all: true },
+      _sum: { inputTokens: true, outputTokens: true },
+    });
+    return new Map(rows.map((r) => [r.agentId, { runs: r._count._all, inputTokens: r._sum.inputTokens ?? 0, outputTokens: r._sum.outputTokens ?? 0 }]));
+  }
+
+  private async usageFor(agentId?: string) {
+    const startOfDay = new Date();
+    startOfDay.setUTCHours(0, 0, 0, 0);
+    const [today, month] = await Promise.all([this.spent(startOfDay, agentId), this.spent(new Date(Date.now() - 30 * 86_400_000), agentId)]);
+    const none: AgentUsage = { runs: 0, inputTokens: 0, outputTokens: 0 };
+    return (id: string) => ({ today: today.get(id) ?? none, month: month.get(id) ?? none });
+  }
+
+  private async toDto(u: { id: string; name: string; avatarUrl: string | null; roleId: string | null; isActive: boolean; customRole: { name: string } | null; agentProfile: any }, over: Set<string>, lastRun: unknown, usage: AgentDto["usage"]): Promise<AgentDto> {
     const p = u.agentProfile;
     return {
       id: u.id,
@@ -67,6 +86,7 @@ export class AgentsService {
       enabled: p.enabled,
       overSeat: u.isActive && over.has(u.id),
       lastRun: (lastRun as AgentRunDto | null) ?? null,
+      usage,
     };
   }
 
@@ -74,11 +94,12 @@ export class AgentsService {
     const users = await this.prisma.user.findMany({ where: { kind: "AGENT" }, select: userSelect, orderBy: [{ isActive: "desc" }, { createdAt: "asc" }] });
     const ws = (await this.prisma.workspace.findFirstOrThrow({ select: { id: true } })).id;
     const over = await this.billing.overSeatIds(ws);
+    const usage = await this.usageFor();
     const out: AgentDto[] = [];
     for (const u of users) {
       if (!u.agentProfile) continue;
       const last = await this.prisma.agentRun.findFirst({ where: { agentId: u.id }, orderBy: { createdAt: "desc" }, select: runSelect });
-      out.push(await this.toDto(u, over, last));
+      out.push(await this.toDto(u, over, last, usage(u.id)));
     }
     return out;
   }
@@ -88,7 +109,7 @@ export class AgentsService {
     if (!u?.agentProfile) throw new NotFoundException(t("api.agents.notFound"));
     const ws = (await this.prisma.workspace.findFirstOrThrow({ select: { id: true } })).id;
     const last = await this.prisma.agentRun.findFirst({ where: { agentId: id }, orderBy: { createdAt: "desc" }, select: runSelect });
-    return this.toDto(u, await this.billing.overSeatIds(ws), last);
+    return this.toDto(u, await this.billing.overSeatIds(ws), last, (await this.usageFor(id))(id));
   }
 
   private validate(input: Pick<AgentInput, "provider" | "baseUrl">) {

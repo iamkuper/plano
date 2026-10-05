@@ -11,7 +11,7 @@ vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: 
 
 const agent = (over: Partial<AgentDto> = {}): AgentDto => ({
   id: "a1", name: "Мария-бот", avatarUrl: null, roleId: "r1", roleName: "Участник", isActive: true, provider: "ANTHROPIC", model: "claude-sonnet-5-5", baseUrl: null,
-  keyHint: "…1234", instructions: "Пиши кратко", enabled: true, overSeat: false, lastRun: null, ...over,
+  keyHint: "…1234", instructions: "Пиши кратко", enabled: true, overSeat: false, lastRun: null, usage: { today: { runs: 0, inputTokens: 0, outputTokens: 0 }, month: { runs: 0, inputTokens: 0, outputTokens: 0 } }, ...over,
 });
 const roles = [{ id: "r1", name: "Участник", permissions: [], isDefault: true, _count: { users: 1 } }];
 
@@ -43,6 +43,18 @@ describe("agents page", () => {
     expect(screen.getByText("нет оплаченного места")).toBeInTheDocument();
     expect(screen.getByText("удалён")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Удалить агента Старый" })).toBeNull();
+  });
+
+  it("shows what each agent spent and the total", async () => {
+    const used = (runs: number, input: number, output: number) => ({ runs, inputTokens: input, outputTokens: output });
+    setup([
+      agent({ usage: { today: used(1, 1200, 300), month: used(14, 40_000, 8_000) } }),
+      agent({ id: "a2", name: "Второй", usage: { today: used(0, 0, 0), month: used(2, 2_000, 500) } }),
+    ]);
+    render(<AgentsPage />);
+    expect(await screen.findByText(/сегодня: 1 запуск, 1,5 тыс\. токенов · за 30 дней: 14 запусков, 48 тыс\. токенов/)).toBeInTheDocument();
+    expect(screen.getByText(/сегодня: нет запусков · за 30 дней: 2 запуска, 2,5 тыс\. токенов/)).toBeInTheDocument();
+    expect(screen.getByText(/Всего за 30 дней: 16 запусков, 50,5 тыс\. токенов \(вход 42 тыс\., выход 8,5 тыс\.\)/)).toBeInTheDocument();
   });
 
   it("validates, checks the connection and connects a new agent", async () => {

@@ -955,6 +955,16 @@
   "settings.agents.triggerAssigned": "назначили на карточку",
   "settings.agents.triggerCommented": "новое сообщение",
   "settings.agents.triggerMentioned": "упомянули",
+  "settings.agents.usageLine": "сегодня: {today} · за 30 дней: {month}",
+  "settings.agents.usageNone": "нет запусков",
+  "settings.agents.usageTitle": "Вход: {input}, выход: {output} токенов за 30 дней",
+  "settings.agents.usageTotal": "Всего за 30 дней: {runs} запусков, {tokens} токенов (вход {input}, выход {output}). Расход идёт с ключей, которые вы указали у провайдеров.",
+  "settings.agents.usageValue": {
+    "one": "{count} запуск, {tokens} токенов",
+    "few": "{count} запуска, {tokens} токенов",
+    "many": "{count} запусков, {tokens} токенов",
+    "other": "{count} запуска, {tokens} токенов"
+  },
   "settings.audit.billing": "Оплата",
   "settings.audit.noEntriesYet": "Записей пока нет",
   "settings.audit.roles": "Роли",

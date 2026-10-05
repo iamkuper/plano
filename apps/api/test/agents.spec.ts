@@ -252,6 +252,38 @@ describe("agents: working on cards", () => {
   });
 });
 
+describe("agents: token usage", () => {
+  it("adds up tokens for today and the last 30 days, skipping runs that never reached the model", async () => {
+    const { a, A, agent, card } = await setup("ag15");
+    expect((await A.get("/agents").expect(200)).body[0].usage).toEqual({ today: { runs: 0, inputTokens: 0, outputTokens: 0 }, month: { runs: 0, inputTokens: 0, outputTokens: 0 } });
+
+    script = [() => ({ json: reply("Привет") })];
+    await A.patch(`/cards/${card.id}`, { assigneeIds: [agent.id] }).expect(200);
+    await settled(agent.id); // 100 in, 20 out
+
+    const make = (daysAgo: number, status: "DONE" | "SKIPPED", input: number, output: number) =>
+      t.db.agentRun.create({ data: { workspaceId: a.workspaceId, agentId: agent.id, cardId: card.id, trigger: "COMMENTED", status, inputTokens: input, outputTokens: output, createdAt: new Date(Date.now() - daysAgo * 86_400_000 - 3_600_000) } });
+    await make(5, "DONE", 1000, 200); // this month, not today
+    await make(40, "DONE", 5000, 900); // too old
+    await make(1, "SKIPPED", 777, 777); // never called the model
+
+    const usage = (await A.get("/agents").expect(200)).body[0].usage;
+    expect(usage.today).toEqual({ runs: 1, inputTokens: 100, outputTokens: 20 });
+    expect(usage.month).toEqual({ runs: 2, inputTokens: 1100, outputTokens: 220 });
+    // a single agent read (after an edit) carries the same numbers
+    expect((await A.patch(`/agents/${agent.id}`, { name: "Новое" }).expect(200)).body.usage.month.runs).toBe(2);
+  });
+
+  it("keeps the numbers of one workspace out of another", async () => {
+    const one = await setup("ag16");
+    script = [() => ({ json: reply("ок") })];
+    await one.A.patch(`/cards/${one.card.id}`, { assigneeIds: [one.agent.id] });
+    await settled(one.agent.id);
+    const other = await setup("ag17");
+    expect((await other.A.get("/agents").expect(200)).body[0].usage.month.runs).toBe(0);
+  });
+});
+
 describe("agents: limits and guards", () => {
   it("does nothing for disabled, deactivated, over-seat or locked agents", async () => {
     const { a, A, agent, card } = await setup("ag12");

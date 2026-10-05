@@ -482,4 +482,12 @@ export interface AgentDto {
   // Active but beyond the paid seats: does not react until a seat is added.
   overSeat: boolean;
   lastRun: AgentRunDto | null;
+  // Spent so far: today and over the last 30 days (skipped runs cost nothing).
+  usage: { today: AgentUsage; month: AgentUsage };
+}
+
+export interface AgentUsage {
+  runs: number;
+  inputTokens: number;
+  outputTokens: number;
 }

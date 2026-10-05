@@ -937,6 +937,14 @@
   "settings.agents.triggerAssigned": "assigned to a card",
   "settings.agents.triggerCommented": "new message",
   "settings.agents.triggerMentioned": "mentioned",
+  "settings.agents.usageLine": "today: {today} · last 30 days: {month}",
+  "settings.agents.usageNone": "no runs",
+  "settings.agents.usageTitle": "Input: {input}, output: {output} tokens over 30 days",
+  "settings.agents.usageTotal": "In the last 30 days: {runs} runs, {tokens} tokens (input {input}, output {output}). The cost is charged to the keys you set up with the providers.",
+  "settings.agents.usageValue": {
+    "one": "{count} run, {tokens} tokens",
+    "other": "{count} runs, {tokens} tokens"
+  },
   "settings.audit.billing": "Billing",
   "settings.audit.noEntriesYet": "No entries yet",
   "settings.audit.roles": "Roles",

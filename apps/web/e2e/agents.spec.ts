@@ -68,6 +68,7 @@ test("connect an AI agent, assign it a card, and it answers in the card", async 
 
   // The run is in the history.
   await page.goto("/settings/agents");
+  await expect(page.getByText(/сегодня: 1 запуск, 30 токенов/)).toBeVisible(); // two model calls of 10 in + 5 out
   await page.getByRole("button", { name: "Запуски агента «Мария-бот»" }).click();
   await expect(page.getByRole("dialog").getByText(/назначили на карточку · готово/)).toBeVisible();
 });

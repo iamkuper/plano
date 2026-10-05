@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Bot, History, Pencil, Plus, Trash2 } from "lucide-react";
-import { AGENT_PROVIDERS, intlTag, t, type AgentDto, type AgentProvider, type AgentRunDto, type RoleDto } from "@plano/shared";
+import { AGENT_PROVIDERS, intlTag, t, type AgentDto, type AgentProvider, type AgentUsage, type AgentRunDto, type RoleDto } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { Avatar } from "@/components/avatar";
 import { SettingsTabs } from "@/components/tab-links";
@@ -11,6 +11,9 @@ import { Button, Card, Checkbox, ConfirmDialog, Dialog, EmptyState, Field, IconB
 import { api } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { toast } from "@/lib/toast";
+
+const compact = (n: number) => new Intl.NumberFormat(intlTag(), { notation: "compact", maximumFractionDigits: 1 }).format(n);
+const spent = (u: AgentUsage) => (u.runs ? t("settings.agents.usageValue", { count: u.runs, tokens: compact(u.inputTokens + u.outputTokens) }) : t("settings.agents.usageNone"));
 
 const providerName = (id: AgentProvider) => AGENT_PROVIDERS.find((p) => p.id === id)?.name ?? id;
 
@@ -253,6 +256,9 @@ export default function AgentsPage() {
                       {a.isActive && !a.enabled && <span className="text-xs font-normal text-ink-ghost">{t("settings.agents.off")}</span>}
                       {a.overSeat && <span className="text-xs font-normal text-danger">{t("settings.agents.noSeat")}</span>}
                     </div>
+                    <div className="truncate text-xs text-ink-ghost" title={t("settings.agents.usageTitle", { input: a.usage.month.inputTokens, output: a.usage.month.outputTokens })}>
+                      {t("settings.agents.usageLine", { today: spent(a.usage.today), month: spent(a.usage.month) })}
+                    </div>
                     <div className="truncate text-sm text-ink-faint">
                       {providerName(a.provider)} · {a.model}
                       {a.lastRun && ` · ${t("settings.agents.lastRun", { when: when(a.lastRun.createdAt), status: t(`settings.agents.status${a.lastRun.status}`) })}`}
@@ -277,7 +283,17 @@ export default function AgentsPage() {
               ))}
             </ul>
           )}
-          <p className="mt-4 text-sm text-ink-faint">{t("settings.agents.seatNote")}</p>
+          {agents && agents.length > 0 && (
+            <p className="mt-4 text-sm text-ink-faint">
+              {t("settings.agents.usageTotal", {
+                runs: agents.reduce((n, a) => n + a.usage.month.runs, 0),
+                tokens: compact(agents.reduce((n, a) => n + a.usage.month.inputTokens + a.usage.month.outputTokens, 0)),
+                input: compact(agents.reduce((n, a) => n + a.usage.month.inputTokens, 0)),
+                output: compact(agents.reduce((n, a) => n + a.usage.month.outputTokens, 0)),
+              })}
+            </p>
+          )}
+          <p className="mt-2 text-sm text-ink-faint">{t("settings.agents.seatNote")}</p>
         </Card>
       </div>
       {editing && <AgentDialog agent={editing === "new" ? undefined : editing} roles={roles} onClose={() => setEditing(null)} onSaved={load} />}
