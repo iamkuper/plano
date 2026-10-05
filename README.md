@@ -180,3 +180,15 @@ pnpm pm2:logs      # логи;  pnpm pm2:stop — остановить
 - **Отчёт по времени**: `reports/time/summary` (итоги и группы), `reports/time/entries` (записи группы страницами), `reports/time/export.csv` (весь период потоком). Старый `GET /reports/time` отдаёт до 5000 записей.
 - **Кэш ответов на клиенте** (`lib/api.ts`, `cachedGet`): новый кэшируемый запрос — через `cachedGet(path, ms)`; все записи, кроме карточек, сбрасывают его (`afterWrite`).
 
+## Если оплата картой отвечает «Платёжный сервис недоступен» (502)
+
+Это значит, что сервер не смог связаться с банком (запрос `Init` не дошёл). Причину пишет лог API: `docker compose logs api | grep -E "Init|Charge"`, строка вида `Init https://securepay.tinkoff.ru/v2: fetch failed (КОД сообщение)`:
+
+- `ENOTFOUND` — сервер не разрешает имя: проверьте DNS на сервере и в контейнере;
+- `ECONNREFUSED`, `ETIMEDOUT`, `UND_ERR_CONNECT_TIMEOUT` — исходящий доступ к `securepay.tinkoff.ru:443` закрыт файрволом хостинга;
+- `UNABLE_TO_VERIFY_LEAF_SIGNATURE`, `CERT_*`, `SELF_SIGNED_*` — Node не доверяет сертификату банка: положите корневой сертификат в файл и задайте `NODE_EXTRA_CA_CERTS=/путь/к/ca.pem` в `deploy/api.env` (файл должен быть доступен в контейнере);
+- `TimeoutError` — банк не ответил за 20 секунд;
+- неправильный `TBANK_API_URL` (для тестового терминала — адрес тестового контура банка).
+
+Быстрая проверка из контейнера: `docker compose exec api node -e "fetch('https://securepay.tinkoff.ru/v2/Init',{method:'POST'}).then(r=>console.log(r.status)).catch(e=>console.log(e.cause))"` — любой HTTP-код значит, что связь есть; ошибка покажет причину.
+

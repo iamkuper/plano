@@ -6,6 +6,7 @@ import { MailService } from "../src/mail/mail.service";
 import { createProvider } from "../src/billing/billing.module";
 import { MOCK_PASSWORD, MockProvider, mockNotification } from "../src/billing/mock.provider";
 import { allowedWhileLocked, isLocked } from "../src/billing/subscription-state";
+import { Logger } from "@nestjs/common";
 import { TbankProvider, tbankToken } from "../src/billing/tbank.provider";
 import { api, createApp, makeProject, register, setPlan, TestApp, unique } from "./helpers/app";
 
@@ -326,6 +327,16 @@ describe("T-Bank provider", () => {
     await expect(new TbankProvider(cfg).init({ orderId: "o", amount: 1, description: "d", customerKey: "k", recurrent: false })).rejects.toBeInstanceOf(BadGatewayException);
     fetchMock.mockRejectedValue(new Error("network"));
     await expect(new TbankProvider(cfg).init({ orderId: "o", amount: 1, description: "d", customerKey: "k", recurrent: false })).rejects.toBeInstanceOf(BadGatewayException);
+
+    // the log names the real reason hidden in `cause`, and the call has a time limit
+    const logged: string[] = [];
+    const spy = jest.spyOn(Logger.prototype, "error").mockImplementation((m: unknown) => void logged.push(String(m)));
+    fetchMock.mockRejectedValue(Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error("getaddrinfo ENOTFOUND securepay.tinkoff.ru"), { code: "ENOTFOUND" }) }));
+    await expect(new TbankProvider(cfg).init({ orderId: "o", amount: 1, description: "d", customerKey: "k", recurrent: false })).rejects.toBeInstanceOf(BadGatewayException);
+    spy.mockRestore();
+    expect(logged[0]).toContain("Init");
+    expect(logged[0]).toContain("fetch failed (ENOTFOUND getaddrinfo ENOTFOUND securepay.tinkoff.ru)");
+    expect((fetchMock.mock.calls.at(-1)![1] as RequestInit).signal).toBeInstanceOf(AbortSignal);
   });
 
   it("Charge reports confirmation or the bank's reason", async () => {

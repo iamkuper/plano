@@ -41,8 +41,13 @@ export class TbankProvider implements PaymentProvider {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...payload, Token: tbankToken(payload, this.cfg.password) }),
+      // A hung connection must not hang the payment button.
+      signal: AbortSignal.timeout(20_000),
     }).catch((e) => {
-      this.log.error(`${method}: ${(e as Error).message}`);
+      // "fetch failed" alone says nothing: the reason (DNS, refused, certificate,
+      // timeout) is in `cause`.
+      const cause = (e as { cause?: { code?: string; message?: string } }).cause;
+      this.log.error(`${method} ${this.cfg.apiUrl}: ${(e as Error).message}${cause ? ` (${cause.code ?? ""} ${cause.message ?? ""})` : ""}`.trim());
       throw new BadGatewayException(t("api.billing.thePaymentServiceIsUnavailable"));
     });
     const data = (await res.json().catch(() => ({}))) as T;
