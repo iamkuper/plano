@@ -96,7 +96,7 @@ describe("kanban board", () => {
     renderBoard({}, state);
     const lane = screen.getByRole("region", { name: "В работе" });
     await userEvent.click(within(lane).getByTitle("Действия"));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Переименовать и задать лимит" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Название, лимит и цвет" }));
     const name = screen.getByLabelText("Название колонки");
     await userEvent.clear(name);
     await userEvent.type(name, "Делаем");
@@ -107,7 +107,7 @@ describe("kanban board", () => {
     expect(state.setColumns).toHaveBeenCalled();
 
     await userEvent.click(within(lane).getByTitle("Действия"));
-    await userEvent.click(screen.getByRole("menuitem", { name: "Переименовать и задать лимит" }));
+    await userEvent.click(screen.getByRole("menuitem", { name: "Название, лимит и цвет" }));
     await userEvent.click(screen.getByRole("button", { name: "Отмена" }));
     expect(screen.queryByLabelText("Название колонки")).toBeNull();
   });

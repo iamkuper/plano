@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Copy, Mail, Plus } from "lucide-react";
+import { Copy, Lock, Mail, Plus } from "lucide-react";
+import Link from "next/link";
 import type { RoleDto, UserDto, UserRole } from "@plano/shared";
 import { AppShell } from "@/components/app-shell";
 import { SettingsTabs } from "@/components/tab-links";
@@ -256,6 +257,22 @@ export default function UsersPage() {
       <div className="h-5" />
       {error && <p className="mb-3 text-sm text-danger">{error}</p>}
       {!users && <TableSkeleton />}
+      {users?.some((u) => u.overSeat) && (
+        <p className="mb-3 rounded-lg border border-danger/30 bg-danger-soft px-4 py-3 text-sm text-danger">
+          
+          {t("settings.users.thereAreMoreActiveStaff")} <Lock size={12} className="inline align-[-1px]" />  {t("settings.users.cannotSignInUntil")}{" "}
+          {isAdmin ? (
+            <Link href="/settings/billing" className="underline">
+              
+              {t("settings.users.youAddSeats")}
+            </Link>
+          ) : (
+            t("settings.users.anAdministratorAddsSeats")
+          )}{" "}
+          
+          {t("settings.users.orYouDeactivateSomeoneElse")}
+        </p>
+      )}
       {users && (
       <Panel className="mb-5 overflow-hidden">
         <table className="w-full border-collapse">
@@ -276,6 +293,16 @@ export default function UsersPage() {
                     <div>
                       <div className="font-medium">
                         {u.name}
+                        {u.overSeat && (
+                          <Lock
+                            size={13}
+                            strokeWidth={2}
+                            className="ml-1.5 inline align-[-1px] text-danger"
+                            aria-label={t("settings.users.noPaidSeat")}
+                          >
+                            <title>{t("settings.users.noPaidSeatCannotSign")}</title>
+                          </Lock>
+                        )}
                         {u.id === me?.id && <span className="ml-1.5 text-xs font-normal text-ink-faint">{t("settings.users.you")}</span>}
                       </div>
                       <div className="text-xs text-ink-faint">{u.email}</div>
@@ -298,7 +325,11 @@ export default function UsersPage() {
                   )}
                 </td>
                 <td className={td}>
-                  <Badge tone={u.isActive ? "success" : "default"}>{u.isActive ? t("settings.users.active") : t("settings.users.deactivated")}</Badge>
+                  {u.overSeat ? (
+                    <Badge tone="danger">{t("settings.users.noSeat")}</Badge>
+                  ) : (
+                    <Badge tone={u.isActive ? "success" : "default"}>{u.isActive ? t("settings.users.active") : t("settings.users.deactivated")}</Badge>
+                  )}
                 </td>
                 {isAdmin && (
                   <td className={`${td} text-right`}>

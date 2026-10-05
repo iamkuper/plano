@@ -34,8 +34,8 @@ export const plans: PlanDto[] = [
 
 export const billing = (over: Partial<BillingDto> = {}): BillingDto => ({
   plan: plans[1], plans, locked: false,
-  subscription: { planId: "PRO", status: "TRIALING", interval: "MONTH", trialEndsAt: "2026-10-16T00:00:00.000Z", currentPeriodEnd: null, cancelAtPeriodEnd: false, cardMask: null },
-  usage: { users: 2, projects: 1, recurring: 0, storageMb: 5 }, storageLimitMb: 40960, payments: [], testMode: true, ...over,
+  subscription: { planId: "PRO", status: "TRIALING", interval: "MONTH", trialEndsAt: "2026-10-16T00:00:00.000Z", currentPeriodEnd: null, cancelAtPeriodEnd: false, cardMask: null, seats: null },
+  seatLimit: null, usage: { users: 2, invitations: 0, projects: 1, recurring: 0, storageMb: 5 }, storageLimitMb: 40960, payments: [], lastPayer: null, invoicePdf: false, testMode: true, ...over,
 });
 
 export const onboarding = (over: Partial<OnboardingDto> = {}): OnboardingDto => ({

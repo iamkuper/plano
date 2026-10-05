@@ -36,6 +36,9 @@ export function cardKey(card: { number: number }) {
 }
 
 export interface SettingsDto {
+  id?: string;
+  // Public numeric account ID: quoted in invoices and when contacting support.
+  accountNumber?: number;
   workspaceName: string;
   cardPrefix: string;
   defaultColumns: string[];
@@ -97,6 +100,8 @@ export interface UserDto {
   avatarUrl?: string | null;
   emailNotifications?: boolean;
   locale?: Locale;
+  // Active but beyond the paid seats: can't sign in (staff list only).
+  overSeat?: boolean;
 }
 
 export interface UserRefDto {
@@ -165,6 +170,8 @@ export interface ColumnDto {
   title: string;
   position: number;
   wipLimit: number | null;
+  // Chosen colour; null = automatic by position (stageColor).
+  color: LabelColor | null;
   cards: CardTileDto[];
 }
 
@@ -176,6 +183,7 @@ export interface BoardDto {
 
 export interface TeamBoardColumnDto {
   title: string;
+  color: LabelColor | null;
   cards: CardTileDto[];
 }
 
@@ -337,6 +345,8 @@ export interface PlanDto {
 
 export interface BillingUsage {
   users: number;
+  // Pending invitations; each reserves a seat.
+  invitations: number;
   projects: number;
   recurring: number;
   storageMb: number;
@@ -344,7 +354,11 @@ export interface BillingUsage {
 
 export interface PaymentDto {
   id: string;
-  kind: "INITIAL" | "RENEWAL";
+  kind: "INITIAL" | "RENEWAL" | "SEATS";
+  method: "CARD" | "INVOICE";
+  invoiceNumber: number | null;
+  payerName: string | null;
+  failReason: string | null;
   planId: PlanId;
   interval: BillingInterval;
   seats: number;
@@ -352,6 +366,14 @@ export interface PaymentDto {
   status: PaymentStatus;
   createdAt: string;
   paidAt: string | null;
+}
+
+export interface InvoicePayer {
+  payerName: string;
+  payerInn: string;
+  payerKpp: string | null;
+  payerAddress: string;
+  payerEmail: string;
 }
 
 export interface BillingDto {
@@ -368,11 +390,19 @@ export interface BillingDto {
     currentPeriodEnd: string | null;
     cancelAtPeriodEnd: boolean;
     cardMask: string | null;
+    // Paid seats; null on FREE and during a trial.
+    seats: number | null;
   };
+  // Active users allowed right now; null = unlimited (trial, unlimited plan).
+  seatLimit: number | null;
   usage: BillingUsage;
   // Storage allowed on the current plan, MB (null = unlimited).
   storageLimitMb: number | null;
   payments: PaymentDto[];
+  // Details from the last invoice request, to prefill the next one.
+  lastPayer: InvoicePayer | null;
+  // The seller's details are set, so invoices come as PDF.
+  invoicePdf: boolean;
   // True when payments go to the built-in test provider instead of T-Bank.
   testMode: boolean;
 }
@@ -380,6 +410,19 @@ export interface BillingDto {
 // Amount in kopecks for `seats` users on a plan.
 export function planAmount(plan: Pick<PlanDto, "priceKopecks">, seats: number, interval: BillingInterval) {
   return plan.priceKopecks * seats * (interval === "YEAR" ? YEAR_MONTHS_CHARGED : 1);
+}
+
+// Days a prorated purchase is charged for: whole days left in the period,
+// at least one.
+export function daysLeft(periodEnd: Date | string, now = new Date()) {
+  return Math.max(1, Math.ceil((new Date(periodEnd).getTime() - now.getTime()) / 86_400_000));
+}
+
+// Extra seats bought mid-period: the plan's monthly price per seat (a year
+// is 10 months spread over 12) / 30 per day, for the days left. Kopecks.
+export function prorateSeats(plan: Pick<PlanDto, "priceKopecks">, interval: BillingInterval, extraSeats: number, periodEnd: Date | string, now = new Date()) {
+  const monthly = interval === "YEAR" ? (plan.priceKopecks * YEAR_MONTHS_CHARGED) / 12 : plan.priceKopecks;
+  return Math.max(100, Math.round((monthly / 30) * daysLeft(periodEnd, now) * extraSeats));
 }
 
 export function formatRub(kopecks: number) {

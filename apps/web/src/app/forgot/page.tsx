@@ -32,7 +32,7 @@ export default function ForgotPage() {
             {(a) => <Input {...a} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />}
           </Field>
           {error && <p className="text-base text-danger">{error}</p>}
-          <Button variant="primary" className="w-full py-2.5">{t("forgot.sendLink")}</Button>
+          <Button variant="primary" className="h-10 w-full text-sm">{t("forgot.sendLink")}</Button>
         </>
       )}
       <p className="text-center text-xs text-ink-faint">

@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import DashboardPage from "@/app/dashboard/page";
 import ProjectsPage from "@/app/projects/page";
 import TeamBoardPage from "@/app/team/page";
-import Home from "@/app/page";
-import { api } from "@/lib/api";
+import { SignedInRedirect } from "@/components/marketing/signed-in-redirect";
+import { api, setToken } from "@/lib/api";
 import { card, column, member, onboarding, user } from "./fixtures";
 import { nav } from "./nav";
 
@@ -30,8 +30,13 @@ const day = (offset: number) => {
 };
 
 describe("home", () => {
-  it("redirects to the dashboard", () => {
-    expect(() => Home()).toThrow("REDIRECT:/dashboard");
+  it("sends signed-in visitors on to the dashboard and leaves guests on the landing", () => {
+    const { unmount } = render(<SignedInRedirect />);
+    expect(nav.router.replace).not.toHaveBeenCalled();
+    unmount();
+    setToken("tok");
+    render(<SignedInRedirect />);
+    expect(nav.router.replace).toHaveBeenCalledWith("/dashboard");
   });
 });
 

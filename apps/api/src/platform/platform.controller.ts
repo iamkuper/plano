@@ -1,12 +1,13 @@
-import { Body, Controller, Get, Module, Param, Post, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, HttpCode, Module, StreamableFile, Param, Post, Query, UseGuards } from "@nestjs/common";
 import { IsIn, IsInt, IsOptional, IsString, Max, Min } from "class-validator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PlatformAdminGuard } from "./platform-admin.guard";
 import { PlatformService } from "./platform.service";
+import { BillingService } from "../billing/billing.service";
 
 class SubscriptionActionDto {
-  @IsIn(["grant", "extend-trial", "lock", "free"])
-  action!: "grant" | "extend-trial" | "lock" | "free";
+  @IsIn(["grant", "extend-trial", "lock", "free", "seats"])
+  action!: "grant" | "extend-trial" | "lock" | "free" | "seats";
 
   @IsOptional()
   @IsString()
@@ -17,6 +18,13 @@ class SubscriptionActionDto {
   @Min(1)
   @Max(3650)
   days?: number;
+
+  // Paid seats for "grant" and "seats".
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(10000)
+  seats?: number;
 }
 
 // Hidden back-office for the platform owner. Not linked anywhere in the app;
@@ -24,7 +32,10 @@ class SubscriptionActionDto {
 @Controller("platform")
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
 export class PlatformController {
-  constructor(private readonly platform: PlatformService) {}
+  constructor(
+    private readonly platform: PlatformService,
+    private readonly billing: BillingService,
+  ) {}
 
   @Get("stats")
   stats() {
@@ -40,6 +51,24 @@ export class PlatformController {
   @Get("workspaces/:id")
   workspace(@Param("id") id: string) {
     return this.platform.workspace(id);
+  }
+
+  // Invoice requests waiting for a bank transfer.
+  @Get("invoices")
+  invoices() {
+    return this.billing.pendingInvoices();
+  }
+
+  @Get("invoices/:id/pdf")
+  async invoicePdf(@Param("id") id: string) {
+    const { filename, content } = await this.billing.invoicePdf(id, true);
+    return new StreamableFile(content, { type: "application/pdf", disposition: `attachment; filename="${filename}"` });
+  }
+
+  @Post("invoices/:id/paid")
+  @HttpCode(204)
+  invoicePaid(@Param("id") id: string) {
+    return this.billing.markInvoicePaid(id);
   }
 
   @Post("workspaces/:id/subscription")

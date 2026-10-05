@@ -47,7 +47,7 @@ describe("pages in English", () => {
   it("sign-in and sign-up speak English, and sign-up sends the language", async () => {
     chooseBrowserLocale("en");
     const { unmount } = render(<LoginPage />);
-    expect(screen.getByRole("heading", { name: "Sign in" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome back" })).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     unmount();
     const register = vi.spyOn(api, "register").mockResolvedValue({ accessToken: "tok" });

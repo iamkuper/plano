@@ -27,6 +27,7 @@ import type {
   TimeEntryDto,
   UserDto,
   UserRole,
+  InvoicePayer,
 } from "@plano/shared";
 import { currentLocale, t, type Locale } from "@plano/shared";
 export interface InvitationDto {
@@ -70,6 +71,7 @@ export interface PlatformStats {
 
 export interface PlatformWorkspaceRow {
   id: string;
+  accountNumber: number;
   name: string;
   createdAt: string;
   owner: { email: string; name: string } | null;
@@ -85,14 +87,14 @@ export interface PlatformWorkspaceRow {
 
 export interface PlatformWorkspaceDetail {
   id: string;
+  accountNumber: number;
   name: string;
   createdAt: string;
   state: PlatformState;
   storageBytes: number;
-  subscription: { planId: string; status: string; interval: string; trialEndsAt: string | null; currentPeriodEnd: string | null; cardMask: string | null; cancelAtPeriodEnd: boolean } | null;
+  subscription: { planId: string; status: string; interval: string; trialEndsAt: string | null; currentPeriodEnd: string | null; cardMask: string | null; cancelAtPeriodEnd: boolean; seats: number | null } | null;
   users: { id: string; name: string; email: string; role: string; isActive: boolean; createdAt: string }[];
-  payments: { id: string; kind: string; planId: string; seats: number; amount: number; status: string; createdAt: string; paidAt: string | null }[];
-  auditLog: { id: string; action: string; summary: string; createdAt: string }[];
+  payments: { id: string; kind: string; method: string; invoiceNumber: number | null; planId: string; seats: number; amount: number; status: string; createdAt: string; paidAt: string | null }[];
   _count: { projects: number; cards: number };
 }
 
@@ -103,6 +105,24 @@ export interface AuditEntryDto {
   entityId: string | null;
   createdAt: string;
   user: { id: string; name: string; avatarUrl?: string | null } | null;
+}
+
+// Downloads an invoice PDF (own workspace, or any for the platform owner).
+export async function downloadInvoicePdf(id: string, number: number, platform = false) {
+  const token = getToken();
+  const res = await fetch(`${API_URL}${platform ? "/platform/invoices" : "/billing/invoice"}/${id}/pdf`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message ?? t("lib.api.couldNotDownloadTheInvoice", { status: res.status }));
+  }
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `Plano-schet-${number}.pdf`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Downloads a project's cards as CSV (Business).
@@ -184,6 +204,22 @@ export interface TemplateInput {
 export type TemplateDetailDto = TemplateInput & { id: string; cards: (TemplateCardInput & { id: string; position: number })[] };
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3101";
+export interface PlatformInvoice {
+  id: string;
+  invoiceNumber: number;
+  planId: string;
+  interval: BillingInterval;
+  seats: number;
+  amount: number;
+  createdAt: string;
+  payerName: string;
+  payerInn: string;
+  payerKpp: string | null;
+  payerAddress: string;
+  payerEmail: string;
+  workspace: { id: string; name: string; accountNumber: number };
+}
+
 export const BILLING_CHANGED = "plano:billing-changed";
 const TOKEN_KEY = "plano.token";
 
@@ -280,7 +316,7 @@ export const api = {
   templates: () => apiFetch<TemplateListItemDto[]>("/templates"),
 
   addColumn: (boardId: string, title: string) => post<ColumnDto>(`/boards/${boardId}/columns`, { title }),
-  updateColumn: (id: string, data: Partial<{ title: string; wipLimit: number | null; position: number }>) =>
+  updateColumn: (id: string, data: Partial<{ title: string; wipLimit: number | null; position: number; color: LabelColor | null }>) =>
     patch<ColumnDto>(`/columns/${id}`, data),
   updateProject: (
     id: string,
@@ -336,11 +372,17 @@ export const api = {
   platformWorkspaces: (params: { q?: string; state?: string; cursor?: string }) =>
     apiFetch<{ items: PlatformWorkspaceRow[]; next: string | null }>(`/platform/workspaces?${new URLSearchParams(Object.entries(params).filter(([, v]) => v) as [string, string][])}`),
   platformWorkspace: (id: string) => apiFetch<PlatformWorkspaceDetail>(`/platform/workspaces/${id}`),
-  platformChangeSubscription: (id: string, body: { action: "grant" | "extend-trial" | "lock" | "free"; planId?: string; days?: number }) =>
+  platformChangeSubscription: (id: string, body: { action: "grant" | "extend-trial" | "lock" | "free" | "seats"; planId?: string; days?: number; seats?: number }) =>
     post<PlatformWorkspaceDetail>(`/platform/workspaces/${id}/subscription`, body),
   billing: () => apiFetch<BillingDto>("/billing"),
-  checkout: (planId: string, interval: BillingInterval) => post<{ paymentUrl: string }>("/billing/checkout", { planId, interval }),
-  cancelSubscription: (cancel: boolean) => post<void>("/billing/cancel", { cancel }),
+  checkout: (planId: string, interval: BillingInterval, seats: number) =>
+    post<{ paymentUrl: string }>("/billing/checkout", { planId, interval, seats }),
+  requestInvoice: (body: { planId: string; interval: BillingInterval; seats: number; addSeats?: number } & InvoicePayer) =>
+    post<{ id: string; invoiceNumber: number; pdf: boolean }>("/billing/invoice", body),
+  buySeats: (seats: number) => post<{ paymentUrl: string }>("/billing/seats", { seats }),
+  cancelInvoice: (id: string) => post<void>(`/billing/invoice/${id}/cancel`, {}),
+  platformInvoices: () => apiFetch<PlatformInvoice[]>("/platform/invoices"),
+  platformInvoicePaid: (id: string) => post<void>(`/platform/invoices/${id}/paid`, {}),
   mockPay: (orderId: string, success: boolean) => post<void>(`/billing/dev/pay/${encodeURIComponent(orderId)}`, { success }),
   roles: () => apiFetch<RoleDto[]>("/roles"),
   createRole: (data: { name: string; permissions?: string[] }) => post<RoleDto>("/roles", data),

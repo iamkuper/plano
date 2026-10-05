@@ -15,7 +15,7 @@ async function expectEnglish(page: Page, where: string) {
 test("sign up in English: the whole product speaks English, the choice sticks", async ({ page }) => {
   await page.goto("/login");
   await page.getByRole("button", { name: "English" }).click();
-  await expect(page.getByRole("heading", { name: "Sign in" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
   await page.getByRole("link", { name: "Create a workspace" }).click();
   await page.getByLabel("Company name").fill(`Studio ${uid("e")}`);
   await page.getByLabel("Your name").fill("Ann Miller");
@@ -70,4 +70,20 @@ test("switching the language in the profile is saved on the account", async ({ p
   await page.getByLabel("Interface language").selectOption("ru");
   await expect(page.getByRole("heading", { name: "Профиль" })).toBeVisible();
   expect((await apiAs(acc.token).get("/users/me")).locale).toBe("ru");
+});
+
+test.describe("cookie notice", () => {
+  test.use({ storageState: { cookies: [], origins: [] } });
+
+  test("is shown in the visitor's language until accepted", async ({ page }) => {
+    await page.goto("/login");
+    await expect(page.getByRole("dialog", { name: "Использование cookie" })).toBeVisible();
+    await page.getByRole("button", { name: "English" }).click();
+    const banner = page.getByRole("dialog", { name: "Cookie notice" });
+    await expect(banner).toBeVisible();
+    await banner.getByRole("button", { name: "Accept" }).click();
+    await expect(banner).toBeHidden();
+    await page.reload();
+    await expect(page.getByRole("dialog", { name: "Cookie notice" })).toBeHidden();
+  });
 });

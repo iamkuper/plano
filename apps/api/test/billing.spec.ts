@@ -1,7 +1,8 @@
 import { createHash } from "crypto";
 import { BadGatewayException, UnauthorizedException } from "@nestjs/common";
 import request from "supertest";
-import { BillingService, MAX_RENEWAL_ATTEMPTS } from "../src/billing/billing.service";
+import { BillingService } from "../src/billing/billing.service";
+import { MailService } from "../src/mail/mail.service";
 import { createProvider } from "../src/billing/billing.module";
 import { MOCK_PASSWORD, MockProvider, mockNotification } from "../src/billing/mock.provider";
 import { allowedWhileLocked, isLocked } from "../src/billing/subscription-state";
@@ -33,7 +34,7 @@ describe("overview and the trial", () => {
     expect(o.plans.map((p: { id: string }) => p.id)).toEqual(["FREE", "PRO", "BUSINESS"]);
     expect(o.plans[2].features).toEqual(expect.arrayContaining(["gantt", "fields", "audit", "export"]));
     expect(o.plans[2].features).not.toContain("api");
-    expect(o.storageLimitMb).toBe(20480);
+    expect(o.storageLimitMb).toBe(10240);
     await api(t).get("/billing").expect(401);
   });
 });
@@ -68,8 +69,8 @@ describe("checkout and payment", () => {
     await A.post(`/billing/dev/pay/${order}`, { success: true }).expect(204);
     await A.post(`/billing/dev/pay/${order}`, { success: true }).expect(204); // repeated notification
     const s = await sub(a.workspaceId);
-    expect(s).toMatchObject({ planId: "PRO", status: "ACTIVE", trialEndsAt: null, cancelAtPeriodEnd: false, cardMask: "430000******0777" });
-    expect(s.rebillId).toBeTruthy();
+    expect(s).toMatchObject({ planId: "PRO", status: "ACTIVE", trialEndsAt: null, cancelAtPeriodEnd: false, cardMask: null });
+    expect(s.rebillId).toBeNull(); // one-off card payment, no saved card
     expect(s.currentPeriodEnd!.getTime()).toBeGreaterThan(Date.now() + 27 * DAY);
     expect(await t.db.payment.count({ where: { workspaceId: a.workspaceId, status: "PAID" } })).toBe(1);
     expect((await t.db.auditLog.findFirst({ where: { workspaceId: a.workspaceId, action: "billing.paid" } }))?.summary).toContain("Оплачен тариф PRO");
@@ -80,7 +81,6 @@ describe("checkout and payment", () => {
     const inv = await api(t, a.token).post("/invitations", { email: `${unique("m")}@iso.test` });
     const m = api(t, (await api(t).post("/auth/accept-invite", { token: inv.body.link.split("/").pop(), name: "М", password: "password-123" })).body.accessToken);
     await m.post("/billing/checkout", { planId: "PRO", interval: "MONTH" }).expect(403);
-    await m.post("/billing/cancel", { cancel: true }).expect(403);
     await m.post("/billing/free", {}).expect(403);
     await m.get("/billing").expect(200);
   });
@@ -122,45 +122,41 @@ describe("bank notifications (webhook)", () => {
   });
 });
 
-describe("renewals, cancellation and the lock", () => {
-  const paid = async (tag: string, planId: "PRO" | "BUSINESS" = "PRO") => {
+describe("paid periods and the lock", () => {
+  const paid = async (tag: string, planId: "PRO" | "BUSINESS" = "PRO", seats = 1) => {
     const a = await register(t, tag);
-    const co = (await api(t, a.token).post("/billing/checkout", { planId, interval: "MONTH" })).body;
+    const co = (await api(t, a.token).post("/billing/checkout", { planId, interval: "MONTH", seats })).body;
     await api(t, a.token).post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
     return a;
   };
   const expire = (workspaceId: string, extra: object = {}) => t.db.subscription.update({ where: { workspaceId }, data: { currentPeriodEnd: new Date(Date.now() - 3600_000), ...extra } });
 
-  it("renews from the old period end by the saved card, charging current seats", async () => {
-    const a = await paid("renew");
-    await api(t, a.token).post("/users", { email: `${unique("u")}@iso.test`, name: "U", password: "password-123" }).expect(201);
-    const before = new Date(Date.now() - 3600_000);
-    await expire(a.workspaceId);
+  it("never charges automatically: the period ends, then after the grace the workspace locks", async () => {
+    const a = await paid("noauto", "PRO", 2);
+    expect((await sub(a.workspaceId)).rebillId).toBeNull(); // no card is kept
+    await expire(a.workspaceId); // ended an hour ago: still within the grace
     await billing.runDue();
-    const s = await sub(a.workspaceId);
-    expect(s.status).toBe("ACTIVE");
-    expect(s.currentPeriodEnd!.getTime()).toBeGreaterThan(before.getTime() + 27 * DAY);
-    const renewal = await t.db.payment.findFirstOrThrow({ where: { workspaceId: a.workspaceId, kind: "RENEWAL" } });
-    expect([renewal.status, renewal.seats, renewal.amount]).toEqual(["PAID", 2, 2 * 49000]);
+    expect((await sub(a.workspaceId)).status).toBe("ACTIVE");
+    await expire(a.workspaceId, { currentPeriodEnd: new Date(Date.now() - 4 * DAY) });
+    await billing.runDue();
+    expect((await sub(a.workspaceId)).status).toBe("LOCKED");
+    expect(await t.db.payment.count({ where: { workspaceId: a.workspaceId, kind: "RENEWAL" } })).toBe(0);
   });
 
-  it("retries a declined renewal daily, then locks after the last attempt", async () => {
-    const a = await paid("declined");
-    useProvider(badCard());
-    for (let attempt = 1; attempt <= MAX_RENEWAL_ATTEMPTS; attempt++) {
-      await expire(a.workspaceId, { nextAttemptAt: null });
-      await billing.runDue();
-      const s = await sub(a.workspaceId);
-      if (attempt < MAX_RENEWAL_ATTEMPTS) expect([s.status, s.planId, s.failedAttempts]).toEqual(["PAST_DUE", "PRO", attempt]);
-      else expect([s.status, s.planId, s.rebillId]).toEqual(["LOCKED", "PRO", null]);
-    }
-    // the retry waits a day
-    const b = await paid("declined2");
-    useProvider(badCard());
-    await expire(b.workspaceId);
-    await billing.runDue();
-    await billing.runDue();
-    expect((await sub(b.workspaceId)).failedAttempts).toBe(1);
+  it("paying the same plan early extends from the current end; a change starts anew", async () => {
+    const a = await paid("prolong", "PRO", 2);
+    const end = (await sub(a.workspaceId)).currentPeriodEnd!;
+    const pay = async (body: object) => {
+      const co = (await api(t, a.token).post("/billing/checkout", { planId: "PRO", interval: "MONTH", ...body }).expect(201)).body;
+      await api(t, a.token).post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
+    };
+    await pay({ seats: 2 });
+    const extended = (await sub(a.workspaceId)).currentPeriodEnd!;
+    expect(extended.getTime()).toBeGreaterThan(end.getTime() + 27 * DAY);
+    await pay({ seats: 3 });
+    const fresh = await sub(a.workspaceId);
+    expect(fresh.seats).toBe(3);
+    expect(fresh.currentPeriodEnd!.getTime()).toBeLessThan(extended.getTime());
   });
 
   it("paying a locked or past-due workspace unlocks it", async () => {
@@ -171,27 +167,6 @@ describe("renewals, cancellation and the lock", () => {
     await api(t, a.token).post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
     expect((await api(t, a.token).get("/billing")).body.locked).toBe(false);
     await api(t, a.token).post("/projects", { title: "Снова можно" }).expect(201);
-  });
-
-  it("cancel at period end stops renewals and then locks; it can be undone", async () => {
-    const a = await paid("cancel");
-    const A = api(t, a.token);
-    await A.post("/billing/cancel", { cancel: true }).expect(204);
-    expect((await sub(a.workspaceId)).cancelAtPeriodEnd).toBe(true);
-    await A.post("/billing/cancel", { cancel: false }).expect(204);
-    await A.post("/billing/cancel", { cancel: true }).expect(204);
-    await expire(a.workspaceId);
-    await billing.runDue();
-    expect((await sub(a.workspaceId)).status).toBe("LOCKED");
-    expect(await t.db.payment.count({ where: { workspaceId: a.workspaceId, kind: "RENEWAL" } })).toBe(0);
-    await A.post("/billing/cancel", { cancel: true }).expect(400); // nothing left to cancel
-  });
-
-  it("cancel needs a paid subscription", async () => {
-    const a = await register(t, "cancel2");
-    await api(t, a.token).post("/billing/cancel", { cancel: true }).expect(400); // trial
-    await setPlan(t, a.workspaceId, "FREE");
-    await api(t, a.token).post("/billing/cancel", { cancel: true }).expect(400);
   });
 
   it("locks an expired trial when the scheduler runs", async () => {
@@ -400,5 +375,235 @@ describe("T-Bank provider", () => {
       expect(sent).toMatchObject({ NotificationURL: "https://api.test/billing/webhooks/tbank", SuccessURL: "https://app.test/settings/billing?paid=1" });
     });
     expect(createProvider({ MOCK_CHARGE_FAIL: "1" } as NodeJS.ProcessEnv)).toBeInstanceOf(MockProvider);
+  });
+});
+
+describe("paid seats", () => {
+  const pay = async (a: { token: string }, seats: number) => {
+    const co = (await api(t, a.token).post("/billing/checkout", { planId: "PRO", interval: "MONTH", seats }).expect(201)).body;
+    await api(t, a.token).post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
+  };
+  const addUser = (a: { token: string }) => api(t, a.token).post("/users", { email: `${unique("s")}@iso.test`, name: "S", password: "password-123" });
+
+  it("has no seat limit during the trial", async () => {
+    const a = await register(t, "trialseats");
+    for (let i = 0; i < 4; i++) await addUser(a).expect(201);
+    const o = (await api(t, a.token).get("/billing").expect(200)).body;
+    expect([o.seatLimit, o.subscription.seats, o.usage.users]).toEqual([null, null, 5]);
+  });
+
+  it("charges for the chosen seats and refuses users beyond them", async () => {
+    const a = await register(t, "seats");
+    await addUser(a).expect(201);
+    // fewer seats than active users is refused
+    await api(t, a.token).post("/billing/checkout", { planId: "PRO", interval: "MONTH", seats: 1 }).expect(400);
+    await pay(a, 3);
+    const payment = await t.db.payment.findFirstOrThrow({ where: { workspaceId: a.workspaceId, status: "PAID" } });
+    expect([payment.seats, payment.amount]).toEqual([3, 3 * 49000]);
+    const o = (await api(t, a.token).get("/billing").expect(200)).body;
+    expect([o.seatLimit, o.subscription.seats]).toEqual([3, 3]);
+
+    await addUser(a).expect(201); // 3 of 3
+    const refused = await addUser(a).expect(402);
+    expect(refused.body.message).toContain("Оплачено мест: 3");
+    await api(t, a.token).post("/invitations", { email: `${unique("inv")}@iso.test` }).expect(402);
+
+    // freeing a seat lets one back in; reactivating needs a free seat too
+    const users = (await api(t, a.token).get("/users").expect(200)).body as { id: string; role: string }[];
+    const member = users.find((u) => u.role !== "ADMIN")!;
+    await api(t, a.token).patch(`/users/${member.id}`, { isActive: false }).expect(200);
+    await api(t, a.token).post("/invitations", { email: `${unique("inv")}@iso.test` }).expect(201); // reserves the seat
+    await api(t, a.token).patch(`/users/${member.id}`, { isActive: true }).expect(402);
+  });
+
+  it("counts file storage from the paid seats, not the active users", async () => {
+    const a = await register(t, "seatstorage");
+    await pay(a, 3);
+    const o = (await api(t, a.token).get("/billing").expect(200)).body;
+    const pro = o.plans.find((p: { id: string }) => p.id === "PRO");
+    expect(o.usage.users).toBe(1);
+    expect(o.storageLimitMb).toBe(pro.storageMbBase + 3 * pro.storageMbPerSeat);
+  });
+
+});
+
+describe("users beyond the paid seats", () => {
+  it("locks out the newest extra users and flags them in the staff list", async () => {
+    const a = await register(t, "overseat");
+    const extra = [];
+    for (let i = 0; i < 2; i++) {
+      const email = `${unique("o")}@iso.test`;
+      await api(t, a.token).post("/users", { email, name: `O${i}`, password: "password-123" }).expect(201);
+      extra.push(email);
+    }
+    // 3 active users, but only 2 seats paid (e.g. an old subscription)
+    await setPlan(t, a.workspaceId, "PRO");
+    await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { seats: 2 } });
+    billing.forgetSeats(a.workspaceId);
+
+    const list = (await api(t, a.token).get("/users").expect(200)).body as { email: string; overSeat: boolean }[];
+    expect(list.filter((u) => u.overSeat).map((u) => u.email)).toEqual([extra[1]]);
+    const server = t.app.getHttpServer();
+    const refused = await request(server).post("/auth/login").send({ email: extra[1], password: "password-123" }).expect(403);
+    expect(refused.body.message).toContain("нет оплаченного места");
+    await request(server).post("/auth/login").send({ email: extra[0], password: "password-123" }).expect(201);
+
+    // freeing a seat lets them back in
+    const first = (await t.db.user.findUniqueOrThrow({ where: { email: extra[0] } })).id;
+    await api(t, a.token).patch(`/users/${first}`, { isActive: false }).expect(200);
+    await request(server).post("/auth/login").send({ email: extra[1], password: "password-123" }).expect(201);
+  });
+});
+
+describe("period-end reminders", () => {
+  it("mails billing managers before and after the end, once each", async () => {
+    const mail = t.app.get(MailService);
+    const sent: { to: string; subject: string }[] = [];
+    const spy = jest.spyOn(mail, "send").mockImplementation(async (to, subject) => {
+      sent.push({ to, subject });
+      return true;
+    });
+    try {
+      const a = await register(t, "remind");
+      const member = `${unique("m")}@iso.test`;
+      await api(t, a.token).post("/users", { email: member, name: "M", password: "password-123" }).expect(201);
+      const co = (await api(t, a.token).post("/billing/checkout", { planId: "PRO", interval: "MONTH", seats: 2 })).body;
+      await api(t, a.token).post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
+      const mine = () => sent.filter((m) => m.to === a.email);
+
+      await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { currentPeriodEnd: new Date(Date.now() + 2 * DAY) } });
+      await billing.runDue();
+      await billing.runDue();
+      expect(mine().map((m) => m.subject)).toEqual([expect.stringContaining("заканчивается")]);
+      expect(sent.some((m) => m.to === member)).toBe(false); // no billing.manage
+
+      await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { currentPeriodEnd: new Date(Date.now() - 3600_000) } });
+      await billing.runDue();
+      await billing.runDue();
+      expect(mine().map((m) => m.subject)).toEqual([expect.stringContaining("заканчивается"), expect.stringContaining("закончился")]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+});
+
+describe("bank transfer by invoice", () => {
+  const payer = { payerName: "ООО «Ромашка»", payerInn: "7701234567", payerKpp: "770101001", payerAddress: "Москва, ул. Пример, 1", payerEmail: "buh@romashka.test" };
+
+  it("records the request, mails the platform owner, and activates when marked paid", async () => {
+    const mail = t.app.get(MailService);
+    const sent: string[] = [];
+    const spy = jest.spyOn(mail, "send").mockImplementation(async (to) => {
+      sent.push(to);
+      return true;
+    });
+    const before = process.env.PLATFORM_ADMIN_EMAILS;
+    process.env.PLATFORM_ADMIN_EMAILS = "owner@plano.test";
+    try {
+      const a = await register(t, "invoice");
+      const A = api(t, a.token);
+      await A.post("/billing/invoice", { ...payer, payerInn: "123", planId: "PRO", interval: "MONTH", seats: 2 }).expect(400);
+      const first = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH", seats: 2 }).expect(201)).body;
+      const inv = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "YEAR", seats: 2 }).expect(201)).body;
+      expect(inv.invoiceNumber).toBeGreaterThan(first.invoiceNumber);
+      expect(sent).toEqual(expect.arrayContaining(["owner@plano.test", payer.payerEmail]));
+
+      const o = (await A.get("/billing").expect(200)).body;
+      expect(o.subscription.status).toBe("TRIALING"); // nothing changes until paid
+      expect(o.lastPayer).toMatchObject({ payerInn: payer.payerInn });
+      const states = Object.fromEntries(o.payments.map((p: { id: string; status: string }) => [p.id, p.status]));
+      expect([states[first.id], states[inv.id]]).toEqual(["FAILED", "PENDING"]); // replaced by the newer one
+
+      // only the platform owner can mark it paid
+      await A.post(`/platform/invoices/${inv.id}/paid`).expect(404);
+      const owner = await register(t, "owner");
+      await t.db.user.update({ where: { id: owner.userId }, data: { email: "owner@plano.test" } });
+      const O = api(t, (await request(t.app.getHttpServer()).post("/auth/login").send({ email: "owner@plano.test", password: owner.password })).body.accessToken);
+      expect((await O.get("/platform/invoices").expect(200)).body.map((p: { id: string }) => p.id)).toContain(inv.id);
+      await O.post(`/platform/invoices/${inv.id}/paid`).expect(204);
+      await O.post(`/platform/invoices/${inv.id}/paid`).expect(204); // idempotent
+      const s = await sub(a.workspaceId);
+      expect([s.status, s.planId, s.interval, s.seats]).toEqual(["ACTIVE", "PRO", "YEAR", 2]);
+      await O.post(`/platform/invoices/${first.id}/paid`).expect(400); // replaced invoice
+    } finally {
+      process.env.PLATFORM_ADMIN_EMAILS = before;
+      spy.mockRestore();
+    }
+  });
+
+  it("a pending invoice can be cancelled by the workspace", async () => {
+    const a = await register(t, "invcancel");
+    const inv = (await api(t, a.token).post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH" }).expect(201)).body;
+    await api(t, a.token).post(`/billing/invoice/${inv.id}/cancel`).expect(204);
+    await api(t, a.token).post(`/billing/invoice/${inv.id}/cancel`).expect(404);
+  });
+});
+
+describe("invoice PDF", () => {
+  const payer = { payerName: "ООО «Ромашка»", payerInn: "7701234567", payerAddress: "Москва, ул. Пример, 1", payerEmail: "buh@romashka.test" };
+  const seller = { SELLER_NAME: "ИП Тест", SELLER_INN: "771234567890", SELLER_BIK: "044525974", SELLER_ACCOUNT: "40802810000000000001" };
+
+  it("is unavailable until the seller's details are set, then downloads as PDF", async () => {
+    // Start from "no seller details", whatever the local .env says.
+    const saved = Object.fromEntries(Object.keys(process.env).filter((k) => k.startsWith("SELLER_")).map((k) => [k, process.env[k]]));
+    for (const k of Object.keys(saved)) delete process.env[k];
+    const a = await register(t, "pdf");
+    const A = api(t, a.token);
+    const plain = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH" }).expect(201)).body;
+    expect(plain.pdf).toBe(false);
+    await A.get(`/billing/invoice/${plain.id}/pdf`).expect(503);
+
+    Object.assign(process.env, seller);
+    try {
+      const inv = (await A.post("/billing/invoice", { ...payer, planId: "PRO", interval: "MONTH" }).expect(201)).body;
+      expect(inv.pdf).toBe(true);
+      const res = await A.get(`/billing/invoice/${inv.id}/pdf`).buffer(true).parse((r, cb) => {
+        const chunks: Buffer[] = [];
+        r.on("data", (c: Buffer) => chunks.push(c));
+        r.on("end", () => cb(null, Buffer.concat(chunks)));
+      }).expect(200);
+      expect(res.headers["content-type"]).toContain("application/pdf");
+      expect((res.body as Buffer).subarray(0, 4).toString()).toBe("%PDF");
+      // another workspace can't fetch it
+      const b = await register(t, "pdf2");
+      await api(t, b.token).get(`/billing/invoice/${inv.id}/pdf`).expect(404);
+    } finally {
+      for (const k of Object.keys(seller)) delete process.env[k];
+      Object.assign(process.env, saved);
+    }
+  });
+});
+
+describe("buying extra seats mid-period", () => {
+  it("charges price/30 per day left for the extra seats and keeps the period", async () => {
+    const a = await register(t, "addseats");
+    const A = api(t, a.token);
+    await A.post("/billing/seats", { seats: 1 }).expect(400); // trial: buy a whole plan instead
+    const co = (await A.post("/billing/checkout", { planId: "PRO", interval: "MONTH", seats: 2 })).body;
+    await A.post(`/billing/dev/pay/${orderOf(co.paymentUrl)}`, { success: true }).expect(204);
+    const end = new Date(Date.now() + 10 * DAY - 3600_000); // 10 days left
+    await t.db.subscription.update({ where: { workspaceId: a.workspaceId }, data: { currentPeriodEnd: end } });
+
+    const buy = (await A.post("/billing/seats", { seats: 3 }).expect(201)).body;
+    const p = await t.db.payment.findUniqueOrThrow({ where: { orderId: orderOf(buy.paymentUrl) } });
+    expect([p.kind, p.seats, p.amount]).toEqual(["SEATS", 3, Math.round((49000 / 30) * 10 * 3)]);
+    await A.post(`/billing/dev/pay/${p.orderId}`, { success: true }).expect(204);
+    const s = await sub(a.workspaceId);
+    expect([s.seats, s.currentPeriodEnd!.getTime()]).toEqual([5, end.getTime()]);
+
+    // by invoice too
+    const inv = (await A.post("/billing/invoice", { planId: "PRO", interval: "MONTH", addSeats: 1, payerName: "ООО Т", payerInn: "7701234567", payerAddress: "Москва, 1", payerEmail: "b@t.test" }).expect(201)).body;
+    const ip = await t.db.payment.findUniqueOrThrow({ where: { id: inv.id } });
+    expect([ip.kind, ip.seats, ip.amount]).toEqual(["SEATS", 1, Math.round((49000 / 30) * 10)]);
+    await billing.markInvoicePaid(inv.id);
+    expect((await sub(a.workspaceId)).seats).toBe(6);
+  });
+});
+
+describe("payment provider selection", () => {
+  it("never uses the test provider in production without a terminal", () => {
+    expect(createProvider({ NODE_ENV: "production" } as NodeJS.ProcessEnv).test).toBe(false);
+    expect(createProvider({ NODE_ENV: "production", ALLOW_MOCK_PAYMENTS: "1" } as NodeJS.ProcessEnv).test).toBe(true);
+    expect(createProvider({} as NodeJS.ProcessEnv).test).toBe(true);
   });
 });

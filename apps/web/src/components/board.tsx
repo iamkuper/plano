@@ -2,12 +2,13 @@
 
 import { useState } from "react";
 import { Plus } from "lucide-react";
-import type { CardTileDto, ColumnDto } from "@plano/shared";
+import type { CardTileDto, ColumnDto, LabelColor } from "@plano/shared";
 import { api } from "@/lib/api";
 import { applyFilters, isReordered, type CardFilters } from "@/lib/card-filters";
 import type { useBoard } from "@/lib/use-board";
 import { CardTile } from "./card-tile";
-import { stageColor } from "@/design/tokens";
+import { ColorSwatches } from "./color-swatches";
+import { columnColor, stageColor } from "@/design/tokens";
 import { Button, IconButton, Input, Menu, Skeleton } from "./ui";
 import { t } from "@plano/shared";
 // Fractional position for inserting a card at `index` among `cards` (which
@@ -57,22 +58,25 @@ function AddCardForm({ onAdd, onClose }: { onAdd: (title: string) => Promise<voi
 
 function ColumnEditForm({
   column,
+  autoColor,
   onSave,
   onClose,
 }: {
   column: ColumnDto;
-  onSave: (data: { title: string; wipLimit: number | null }) => void;
+  onSave: (data: { title: string; wipLimit: number | null; color: LabelColor | null }) => void;
+  autoColor: string;
   onClose: () => void;
 }) {
   const [title, setTitle] = useState(column.title);
   const [wip, setWip] = useState(column.wipLimit?.toString() ?? "");
+  const [color, setColor] = useState<LabelColor | null>(column.color);
   return (
     <form
       className="space-y-2 rounded-md border border-border bg-surface p-3"
       onSubmit={(e) => {
         e.preventDefault();
         if (!title.trim()) return;
-        onSave({ title: title.trim(), wipLimit: wip ? Math.max(1, Number(wip)) : null });
+        onSave({ title: title.trim(), wipLimit: wip ? Math.max(1, Number(wip)) : null, color });
         onClose();
       }}
     >
@@ -85,6 +89,7 @@ function ColumnEditForm({
         value={wip}
         onChange={(e) => setWip(e.target.value)}
       />
+      <ColorSwatches value={color} auto={autoColor} onChange={setColor} />
       <div className="flex gap-1.5">
         <Button variant="primary" size="sm">{t("common.save")}</Button>
         <Button type="button" variant="ghost" size="sm" onClick={onClose}>
@@ -198,7 +203,7 @@ export function ProjectFunnel({ columns }: { columns: ColumnDto[] }) {
       <div className="flex h-1.5 w-40 gap-px overflow-hidden rounded-full bg-surface-sunken">
         {columns.map((c, i) =>
           c.cards.length ? (
-            <span key={c.id} style={{ width: `${(c.cards.length / total) * 100}%`, background: stageColor(i, columns.length) }} />
+            <span key={c.id} style={{ width: `${(c.cards.length / total) * 100}%`, background: columnColor(c.color, i, columns.length) }} />
           ) : null,
         )}
       </div>
@@ -266,12 +271,12 @@ export function Board({
           <ColumnShell
             key={column.id}
             title={column.title}
-            color={stageColor(index, columns.length)}
+            color={columnColor(column.color, index, columns.length)}
             count={visible.length}
             wipLimit={column.wipLimit}
             highlighted={overColumn === column.id}
             onAdd={() => setAddingTo(column.id)}
-            menu={[{ label: t("board.renameAndSetALimit"), onClick: () => setEditing(column.id) }]}
+            menu={[{ label: t("board.nameLimitAndColour"), onClick: () => setEditing(column.id) }]}
             onDragOver={(e) => {
               e.preventDefault();
               if (overColumn !== column.id) setOverColumn(column.id);
@@ -281,6 +286,7 @@ export function Board({
             {editing === column.id && (
               <ColumnEditForm
                 column={column}
+                autoColor={stageColor(index, columns.length)}
                 onClose={() => setEditing(null)}
                 onSave={(data) => {
                   setColumns((cols) => cols.map((c) => (c.id === column.id ? { ...c, ...data } : c)));

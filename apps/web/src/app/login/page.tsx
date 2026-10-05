@@ -26,7 +26,7 @@ export default function LoginPage() {
   }
 
   return (
-    <AuthCard title={t("login.signIn")} subtitle={t("login.kanbanBoardsForYourTeam")} onSubmit={submit}>
+    <AuthCard title={t("login.welcomeBack")} subtitle={t("login.signInToYourPlano")} onSubmit={submit}>
       <Field label={t("common.email")}>
         {(a) => (
           <Input {...a} type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoFocus />
@@ -38,7 +38,7 @@ export default function LoginPage() {
         )}
       </Field>
       {error && <p className="text-base text-danger">{error}</p>}
-      <Button variant="primary" className="w-full py-2.5">{t("login.signIn2")}</Button>
+      <Button variant="primary" className="h-10 w-full text-sm">{t("login.signIn2")}</Button>
       <p className="text-center text-xs text-ink-faint">
         <Link href="/forgot" className="font-medium text-accent hover:underline">
           

@@ -1,18 +1,23 @@
 import { BadRequestException, HttpException, HttpStatus, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { randomBytes } from "crypto";
 import type { Payment, Plan, Subscription } from "@prisma/client";
-import { planAmount, type BillingDto, type BillingInterval, type PlanDto, type PlanFeature, t, intlTag } from "@plano/shared";
+import { daysLeft, planAmount, prorateSeats, type BillingDto, type BillingInterval, type PlanDto, type PlanFeature, t, translate, intlTag } from "@plano/shared";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
 import { currentWorkspaceId, runInWorkspace } from "../prisma/tenant";
 import { PAYMENT_PROVIDER, type PaymentNotification, type PaymentProvider } from "./payment-provider";
 import { mockNotification } from "./mock.provider";
-import { isLocked } from "./subscription-state";
+import { GRACE_AFTER_PERIOD_MS, isLocked } from "./subscription-state";
 import { AuditService } from "../audit/audit.service";
+import { appUrl } from "../auth/tokens";
+import { MailService } from "../mail/mail.service";
+import { platformAdminEmails } from "../platform/platform-admin.guard";
+import { plural } from "./amount-words";
+import { renderInvoicePdf, sellerFromEnv } from "./invoice-pdf";
 
 const DAY = 86_400_000;
 export const TRIAL_DAYS = 14;
-export const MAX_RENEWAL_ATTEMPTS = 3;
-const RETRY_AFTER_MS = DAY;
+// Days before the end of a trial or paid period when billing managers are reminded.
+export const REMIND_DAYS = 3;
 
 export type Limit = "users" | "projects" | "recurring" | "storage";
 
@@ -35,6 +40,7 @@ export class BillingService {
     private readonly db: SystemPrismaService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly audit: AuditService,
+    private readonly mail: MailService,
   ) {}
 
   private get ws() {
@@ -53,16 +59,77 @@ export class BillingService {
   }
 
   private async usage(workspaceId: string) {
-    const [users, projects, recurring, bytes] = await Promise.all([
+    const [users, invitations, projects, recurring, bytes] = await Promise.all([
       this.db.user.count({ where: { workspaceId, isActive: true } }),
+      this.db.invitation.count({ where: { workspaceId, acceptedAt: null, expiresAt: { gt: new Date() } } }),
       this.db.project.count({ where: { workspaceId, status: { not: "ARCHIVED" } } }),
       this.db.recurringRule.count({ where: { project: { workspaceId }, active: true } }),
       this.db.attachment.aggregate({ where: { card: { workspaceId } }, _sum: { size: true } }),
     ]);
-    return { users, projects, recurring, storageMb: Math.round(((bytes._sum.size ?? 0) / 1024 / 1024) * 10) / 10 };
+    return { users, invitations, projects, recurring, storageMb: Math.round(((bytes._sum.size ?? 0) / 1024 / 1024) * 10) / 10 };
   }
 
-  private storageLimitMb(plan: Plan, users: number) {
+  // How many active users the workspace may have: unlimited during a trial,
+  // the paid seats on a paid plan, the plan's cap on FREE.
+  seatLimit(sub: Subscription | null, plan: Plan): number | null {
+    if (sub?.status === "TRIALING" && !isLocked(sub)) return null;
+    if (plan.priceKopecks > 0 && sub?.seats != null) return plan.maxUsers === null ? sub.seats : Math.min(sub.seats, plan.maxUsers);
+    return plan.maxUsers;
+  }
+
+  // Active users beyond the paid seats. Seats go to administrators first,
+  // then by who joined earlier, so the newest extra people are the ones
+  // left out. Cached briefly: the auth check calls this on every request.
+  private overSeatCache = new Map<string, { at: number; ids: Set<string> }>();
+  async overSeatIds(workspaceId: string): Promise<Set<string>> {
+    const hit = this.overSeatCache.get(workspaceId);
+    if (hit && Date.now() - hit.at < 5000) return hit.ids;
+    const sub = await this.db.subscription.findUnique({ where: { workspaceId } });
+    const plan = await this.effectivePlan(workspaceId, sub);
+    const max = this.seatLimit(sub, plan);
+    let ids = new Set<string>();
+    if (max !== null) {
+      const users = await this.db.user.findMany({
+        where: { workspaceId, isActive: true },
+        orderBy: [{ role: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+        select: { id: true, role: true },
+      });
+      // UserRole enum order is ADMIN, MEMBER, so "asc" puts admins first.
+      ids = new Set(users.slice(max).map((u) => u.id));
+    }
+    this.overSeatCache.set(workspaceId, { at: Date.now(), ids });
+    return ids;
+  }
+
+  forgetSeats(workspaceId: string) {
+    this.overSeatCache.delete(workspaceId);
+  }
+
+  // Throws 402 unless one more active user fits. `invitations` reserve seats
+  // too, except when the person accepting one is that reservation.
+  async assertSeat(workspaceId: string, { countInvitations }: { countInvitations: boolean }) {
+    const sub = await this.db.subscription.findUnique({ where: { workspaceId } });
+    const plan = await this.effectivePlan(workspaceId, sub);
+    const max = this.seatLimit(sub, plan);
+    if (max === null) return;
+    const usage = await this.usage(workspaceId);
+    const taken = usage.users + (countInvitations ? usage.invitations : 0);
+    if (taken < max) return;
+    const invited = countInvitations && usage.invitations ? t("api.billing.ofThemInInvitations", { invitations: usage.invitations }) : "";
+    if (plan.priceKopecks > 0 && sub?.seats != null) {
+      this.deny(t("api.billing.paidSeatsAllTakenAdd", { max, invited }));
+    }
+    this.deny(t("api.billing.thePlanAllowsAtMost4", { name: plan.name, max, invited }));
+  }
+
+  // Seats that per-seat allowances (file storage) are counted from: the paid
+  // seats on a paid plan, otherwise the active users (Free, trial).
+  private paidSeats(sub: Subscription | null, plan: Plan): number | null {
+    return plan.priceKopecks > 0 && sub?.seats != null && sub.status !== "TRIALING" ? sub.seats : null;
+  }
+
+  private storageLimitMb(plan: Plan, sub: Subscription | null, users: number) {
+    users = this.paidSeats(sub, plan) ?? users;
     return plan.storageMbBase + plan.storageMbPerSeat * Math.max(users, 1);
   }
 
@@ -74,12 +141,12 @@ export class BillingService {
   // would exceed the plan. Existing data is never touched.
   async assertWithin(limit: Limit, bytes = 0) {
     const workspaceId = this.ws;
-    const [plan, usage] = await Promise.all([this.effectivePlan(workspaceId), this.usage(workspaceId)]);
+    const sub = await this.db.subscription.findUnique({ where: { workspaceId } });
+    const [plan, usage] = await Promise.all([this.effectivePlan(workspaceId, sub), this.usage(workspaceId)]);
     const hint = plan.id === "BUSINESS" ? "" : t("api.billing.switchToAHigherPlan");
     switch (limit) {
       case "users":
-        if (plan.maxUsers !== null && usage.users >= plan.maxUsers) this.deny(t("api.billing.thePlanAllowsAtMost", { name: plan.name, maxUsers: plan.maxUsers, hint }));
-        break;
+        return this.assertSeat(workspaceId, { countInvitations: true });
       case "projects":
         if (plan.maxProjects !== null && usage.projects >= plan.maxProjects) this.deny(t("api.billing.thePlanAllowsAtMost2", { name: plan.name, maxProjects: plan.maxProjects, hint }));
         break;
@@ -87,8 +154,12 @@ export class BillingService {
         if (plan.maxRecurring !== null && usage.recurring >= plan.maxRecurring) this.deny(t("api.billing.thePlanAllowsAtMost3", { name: plan.name, maxRecurring: plan.maxRecurring, hint }));
         break;
       case "storage": {
-        const limitMb = this.storageLimitMb(plan, usage.users);
-        if (usage.storageMb + bytes / 1024 / 1024 > limitMb) this.deny(t("api.billing.fileStorageIsFull", { value: limitMb >= 1024 ? t("common.gb", { value: limitMb / 1024 }) : t("api.billing.mb", { limitMb }), hint }));
+        const limitMb = this.storageLimitMb(plan, sub, usage.users);
+        const more =
+          this.paidSeats(sub, plan) !== null && plan.storageMbPerSeat
+            ? t("api.billing.eachPaidSeatAddsAdd", { value: plan.storageMbPerSeat >= 1024 ? t("common.gb", { value: plan.storageMbPerSeat / 1024 }) : t("api.billing.mb2", { storageMbPerSeat: plan.storageMbPerSeat }) })
+            : hint;
+        if (usage.storageMb + bytes / 1024 / 1024 > limitMb) this.deny(t("api.billing.fileStorageIsFull2", { value: limitMb >= 1024 ? t("common.gb", { value: limitMb / 1024 }) : t("api.billing.mb", { limitMb }), more }));
         break;
       }
     }
@@ -104,6 +175,11 @@ export class BillingService {
 
   // ---- the billing page ----
 
+  async publicPlans() {
+    const plans = await this.db.plan.findMany({ orderBy: { position: "asc" } });
+    return { plans: plans.map(toDto), trialDays: TRIAL_DAYS };
+  }
+
   async overview(): Promise<BillingDto> {
     const workspaceId = this.ws;
     const [sub, plans, payments, usage] = await Promise.all([
@@ -115,6 +191,7 @@ export class BillingService {
     const plan = await this.effectivePlan(workspaceId, sub);
     return {
       plan: toDto(plan),
+      seatLimit: this.seatLimit(sub, plan),
       plans: plans.map(toDto),
       locked: isLocked(sub),
       subscription: {
@@ -125,13 +202,17 @@ export class BillingService {
         currentPeriodEnd: sub.currentPeriodEnd?.toISOString() ?? null,
         cancelAtPeriodEnd: sub.cancelAtPeriodEnd,
         cardMask: sub.cardMask,
+        seats: sub.seats,
       },
       usage,
-      storageLimitMb: this.storageLimitMb(plan, usage.users),
+      storageLimitMb: this.storageLimitMb(plan, sub, usage.users),
       payments: payments.map((p) => ({
-        id: p.id, kind: p.kind, planId: p.planId as PlanDto["id"], interval: p.interval, seats: p.seats,
+        id: p.id, kind: p.kind, method: p.method, invoiceNumber: p.invoiceNumber, payerName: p.payerName, failReason: p.failReason,
+        planId: p.planId as PlanDto["id"], interval: p.interval, seats: p.seats,
         amount: p.amount, status: p.status, createdAt: p.createdAt.toISOString(), paidAt: p.paidAt?.toISOString() ?? null,
       })),
+      lastPayer: await this.lastPayer(workspaceId),
+      invoicePdf: this.canMakeInvoicePdf,
       testMode: this.provider.test,
     };
   }
@@ -144,24 +225,44 @@ export class BillingService {
 
   // Starts a payment of a paid plan: returns the bank's payment page URL.
   // The price covers the active users now; the period starts when paid.
-  async checkout(planId: string, interval: BillingInterval, email: string) {
-    const workspaceId = this.ws;
+  // Validates a purchase: a paid plan, seats not below the active users and
+  // not above the plan's cap.
+  private async purchase(workspaceId: string, planId: string, seatsWanted?: number) {
     const plan = await this.db.plan.findUnique({ where: { id: planId } });
     if (!plan || plan.priceKopecks <= 0) throw new BadRequestException(t("common.chooseAPaidPlan"));
-    const seats = await this.db.user.count({ where: { workspaceId, isActive: true } });
+    const active = await this.db.user.count({ where: { workspaceId, isActive: true } });
+    const seats = seatsWanted ?? Math.max(active, 1);
+    if (seats < Math.max(active, 1)) throw new BadRequestException(t("api.billing.seatsCannotBeFewerThan", { active }));
+    if (plan.maxUsers !== null && seats > plan.maxUsers) throw new BadRequestException(t("common.thePlanAllowsAtMost", { name: plan.name, maxUsers: plan.maxUsers }));
+    return { plan, seats };
+  }
+
+  // Extra seats inside a running paid period: only the days left are paid,
+  // the period stays as it is.
+  private async seatsPurchase(workspaceId: string, extra: number) {
+    const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId }, include: { plan: true } });
+    const now = new Date();
+    if (sub.plan.priceKopecks <= 0 || sub.status !== "ACTIVE" || sub.seats == null || !sub.currentPeriodEnd || sub.currentPeriodEnd <= now) {
+      throw new BadRequestException(t("api.billing.extraSeatsCanBeAdded"));
+    }
+    if (!Number.isInteger(extra) || extra < 1) throw new BadRequestException(t("common.enterHowManySeatsTo"));
+    if (sub.plan.maxUsers !== null && sub.seats + extra > sub.plan.maxUsers) throw new BadRequestException(t("common.thePlanAllowsAtMost", { name: sub.plan.name, maxUsers: sub.plan.maxUsers }));
+    return { sub, plan: sub.plan, amount: prorateSeats(sub.plan, sub.interval, extra, sub.currentPeriodEnd, now), days: daysLeft(sub.currentPeriodEnd, now) };
+  }
+
+  async buySeats(extra: number, email: string) {
+    const workspaceId = this.ws;
+    const { sub, plan, amount, days } = await this.seatsPurchase(workspaceId, extra);
     const payment = await this.db.payment.create({
-      data: {
-        workspaceId, kind: "INITIAL", planId: plan.id, interval, seats,
-        amount: planAmount(plan, seats, interval), orderId: this.newOrderId(),
-      },
+      data: { workspaceId, kind: "SEATS", planId: plan.id, interval: sub.interval, seats: extra, amount, orderId: this.newOrderId() },
     });
     try {
       const init = await this.provider.init({
         orderId: payment.orderId,
-        amount: payment.amount,
-        description: t("api.billing.planoPlanUsers", { name: plan.name, seats, value: interval === "YEAR" ? t("api.billing.year") : t("api.billing.month") }),
+        amount,
+        description: t("api.billing.planoPlanUsersForDays", { name: plan.name, extra, days }),
         customerKey: workspaceId,
-        recurrent: true,
+        recurrent: false,
         email,
       });
       await this.db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: init.providerPaymentId, paymentUrl: init.paymentUrl } });
@@ -172,13 +273,158 @@ export class BillingService {
     }
   }
 
-  async setCancel(cancel: boolean) {
+  async checkout(planId: string, interval: BillingInterval, seatsWanted: number | undefined, email: string) {
     const workspaceId = this.ws;
-    const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId } });
-    if (sub.planId === "FREE") throw new BadRequestException(t("api.billing.thereIsNoPaidSubscription"));
-    if (isLocked(sub)) throw new BadRequestException(t("api.billing.thePlanHasAlreadyEnded"));
-    if (sub.status === "TRIALING") throw new BadRequestException(t("api.billing.theTrialWillEndBy"));
-    await this.db.subscription.update({ where: { workspaceId }, data: { cancelAtPeriodEnd: cancel } });
+    const { plan, seats } = await this.purchase(workspaceId, planId, seatsWanted);
+    const payment = await this.db.payment.create({
+      data: {
+        workspaceId, kind: "INITIAL", planId: plan.id, interval, seats,
+        amount: planAmount(plan, seats, interval), orderId: this.newOrderId(),
+      },
+    });
+    try {
+      const init = await this.provider.init({
+        orderId: payment.orderId,
+        amount: payment.amount,
+        description: t("api.billing.planoPlanUsers", { name: plan.name, seats, value: interval === "YEAR" ? t("common.periodYear") : t("common.periodMonth") }),
+        customerKey: workspaceId,
+        recurrent: false,
+        email,
+      });
+      await this.db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: init.providerPaymentId, paymentUrl: init.paymentUrl } });
+      return { paymentUrl: init.paymentUrl };
+    } catch (e) {
+      await this.db.payment.update({ where: { id: payment.id }, data: { status: "FAILED", failReason: t("api.billing.couldNotCreateThePayment") } });
+      throw e;
+    }
+  }
+
+
+  // ---- bank transfer by invoice ----
+
+  private async lastPayer(workspaceId: string) {
+    const p = await this.db.payment.findFirst({ where: { workspaceId, method: "INVOICE" }, orderBy: { createdAt: "desc" } });
+    if (!p?.payerName) return null;
+    return { payerName: p.payerName, payerInn: p.payerInn ?? "", payerKpp: p.payerKpp, payerAddress: p.payerAddress ?? "", payerEmail: p.payerEmail ?? "" };
+  }
+
+  // A company asks for an invoice instead of paying by card. The request is
+  // a PENDING payment; the platform owner issues the invoice from the
+  // details, and marks it paid when the money arrives (markInvoicePaid).
+  // A newer request replaces an unpaid older one.
+  async requestInvoice(
+    dto: { planId: string; interval: BillingInterval; seats?: number; addSeats?: number; payerName: string; payerInn: string; payerKpp?: string; payerAddress: string; payerEmail: string },
+    requester: { email: string },
+  ) {
+    const workspaceId = this.ws;
+    const extra = dto.addSeats ? await this.seatsPurchase(workspaceId, dto.addSeats) : null;
+    const { plan, seats } = extra ? { plan: extra.plan, seats: dto.addSeats! } : await this.purchase(workspaceId, dto.planId, dto.seats);
+    const interval = extra ? extra.sub.interval : dto.interval;
+    await this.db.payment.updateMany({
+      where: { workspaceId, method: "INVOICE", status: "PENDING" },
+      data: { status: "FAILED", failReason: t("api.billing.replacedByANewInvoice") },
+    });
+    const last = await this.db.payment.aggregate({ _max: { invoiceNumber: true } });
+    const payment = await this.db.payment.create({
+      data: {
+        workspaceId, kind: extra ? "SEATS" : "INITIAL", method: "INVOICE", planId: plan.id, interval, seats,
+        amount: extra ? extra.amount : planAmount(plan, seats, interval), orderId: this.newOrderId(),
+        invoiceNumber: (last._max.invoiceNumber ?? 0) + 1,
+        payerName: dto.payerName.trim(), payerInn: dto.payerInn.trim(), payerKpp: dto.payerKpp?.trim() || null,
+        payerAddress: dto.payerAddress.trim(), payerEmail: dto.payerEmail.trim(),
+      },
+      include: { workspace: { select: { name: true, accountNumber: true } } },
+    });
+    const amount = (payment.amount / 100).toLocaleString(intlTag());
+    const period = extra ? t("api.billing.extraPaymentForDaysUntil", { days: extra.days }) : interval === "YEAR" ? t("common.periodYear") : t("common.periodMonth");
+    const pdf = await this.invoicePdfOf(payment).catch(() => null);
+    const files = pdf ? [{ filename: pdf.filename, content: pdf.content }] : undefined;
+    await this.audit.record("billing.invoice", t("api.billing.invoiceNoRequestedPlanUsers", { invoiceNumber: payment.invoiceNumber, name: plan.name, value: extra ? "+" : "", seats, period, amount }), payment.id);
+
+    const details = [
+      t("api.billing.invoiceNoFor", { invoiceNumber: payment.invoiceNumber, amount }),
+      t("api.billing.workspaceAccountId", { name: payment.workspace.name, accountNumber: payment.workspace.accountNumber }),
+      t("api.billing.planUsers", { name: plan.name, value: extra ? "+" : "", seats, period }),
+      "",
+      t("api.billing.payer", { payerName: payment.payerName }),
+      t("api.billing.taxId", { payerInn: payment.payerInn, value: payment.payerKpp ? t("api.billing.registrationCode", { payerKpp: payment.payerKpp }) : "" }),
+      t("api.billing.address", { payerAddress: payment.payerAddress }),
+      t("api.billing.invoiceEmail", { payerEmail: payment.payerEmail }),
+      t("api.billing.requestedBy", { email: requester.email }),
+    ].join("\n");
+    for (const to of platformAdminEmails()) {
+      await this.mail.send(to, t("api.billing.planoInvoiceNoRequested", { invoiceNumber: payment.invoiceNumber, payerName: payment.payerName }), t("api.billing.whenThePaymentArrivesMark", { details, appUrl: appUrl() }), files);
+    }
+    await this.mail.send(
+      payment.payerEmail!,
+      t("api.billing.planoInvoiceNoAccepted", { invoiceNumber: payment.invoiceNumber }),
+      pdf
+        ? t("api.billing.theInvoiceIsAttachedThe", { details })
+        : t("api.billing.weWillSendTheInvoice", { details }),
+      files,
+    );
+    return { id: payment.id, invoiceNumber: payment.invoiceNumber, pdf: !!pdf };
+  }
+
+  // PDF of an invoice made from the seller's details (SELLER_* env).
+  private async invoicePdfOf(p: Payment) {
+    const seller = sellerFromEnv();
+    if (!seller) throw new HttpException(t("api.billing.sellerDetailsAreNotSet"), HttpStatus.SERVICE_UNAVAILABLE);
+    const plan = await this.db.plan.findUniqueOrThrow({ where: { id: p.planId } });
+    const period = p.interval === "YEAR" ? t("api.billing.12Months") : t("api.billing.1Month");
+    const sub = p.kind === "SEATS" ? await this.db.subscription.findUnique({ where: { workspaceId: p.workspaceId } }) : null;
+    const until = sub?.currentPeriodEnd?.toLocaleDateString(intlTag(), { timeZone: "Europe/Moscow" });
+    const content = await renderInvoicePdf(seller, {
+      number: p.invoiceNumber!,
+      accountNumber: (await this.db.workspace.findUniqueOrThrow({ where: { id: p.workspaceId }, select: { accountNumber: true } })).accountNumber,
+      date: p.createdAt,
+      payer: { name: p.payerName ?? "", inn: p.payerInn ?? "", kpp: p.payerKpp, address: p.payerAddress ?? "" },
+      item:
+        p.kind === "SEATS"
+          ? translate("ru", "api.billing.extraSeatsInPlanoPlan", { name: plan.name, seats: p.seats, plural: plural(p.seats, "пользователь", "пользователя", "пользователей"), value: until ? translate("ru", "api.billing.until", { until }) : "" })
+          : translate("ru", "api.billing.accessToPlanoPlan", { name: plan.name, seats: p.seats, plural: plural(p.seats, "пользователь", "пользователя", "пользователей"), period }),
+      amount: p.amount,
+    });
+    return { filename: `Plano-schet-${p.invoiceNumber}.pdf`, content };
+  }
+
+  // The workspace's own invoice; `anyWorkspace` for the platform owner.
+  async invoicePdf(id: string, anyWorkspace = false) {
+    const p = await this.db.payment.findFirst({ where: { id, method: "INVOICE", ...(anyWorkspace ? {} : { workspaceId: this.ws }) } });
+    if (!p) throw new NotFoundException(t("api.billing.invoiceNotFound"));
+    return this.invoicePdfOf(p);
+  }
+
+  get canMakeInvoicePdf() {
+    return !!sellerFromEnv();
+  }
+
+  async cancelInvoice(id: string) {
+    const done = await this.db.payment.updateMany({
+      where: { id, workspaceId: this.ws, method: "INVOICE", status: "PENDING" },
+      data: { status: "FAILED", failReason: t("common.cancelled") },
+    });
+    if (!done.count) throw new NotFoundException(t("api.billing.invoiceNotFoundOrAlready"));
+    await this.audit.record("billing.invoice.cancel", t("common.invoiceRequestCancelled"), id);
+  }
+
+  // Platform owner: the transfer arrived. Activates the plan like a card
+  // payment (same prolong-or-start rules). Idempotent.
+  async markInvoicePaid(id: string) {
+    const payment = await this.db.payment.findUnique({ where: { id } });
+    if (!payment || payment.method !== "INVOICE") throw new NotFoundException(t("api.billing.invoiceNotFound"));
+    if (payment.status === "PAID") return;
+    if (payment.status !== "PENDING") throw new BadRequestException(t("api.billing.invoiceCancelled"));
+    const settled = await this.db.payment.updateMany({ where: { id, status: "PENDING" }, data: { status: "PAID", paidAt: new Date() } });
+    if (settled.count) await this.activate(payment);
+  }
+
+  pendingInvoices() {
+    return this.db.payment.findMany({
+      where: { method: "INVOICE", status: "PENDING" },
+      orderBy: { createdAt: "asc" },
+      include: { workspace: { select: { id: true, name: true, accountNumber: true } } },
+    });
   }
 
   // ---- bank notifications ----
@@ -211,24 +457,40 @@ export class BillingService {
   }
 
   private async activate(payment: Payment, n?: Pick<PaymentNotification, "rebillId" | "cardMask">) {
+    this.forgetSeats(payment.workspaceId);
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId: payment.workspaceId } });
     const now = new Date();
-    // A renewal continues the paid period; a first payment starts it now.
-    const start = payment.kind === "RENEWAL" && sub.currentPeriodEnd && sub.currentPeriodEnd > now ? sub.currentPeriodEnd : now;
+    if (payment.kind === "SEATS") {
+      // Same period, more seats.
+      const seats = (sub.seats ?? 0) + payment.seats;
+      await this.db.subscription.update({ where: { workspaceId: payment.workspaceId }, data: { seats } });
+      await runInWorkspace(payment.workspaceId, () =>
+        this.audit.record("billing.seats", t("api.billing.seatsAddedNowPaid", { seats: payment.seats, seats2: seats, toLocaleString: (payment.amount / 100).toLocaleString(intlTag()) }), payment.id),
+      );
+      return;
+    }
+    // Paying the same plan, period and seats before it ends extends it from
+    // the current end; any change (plan, period, seats) starts a new period now.
+    const prolong =
+      sub.status === "ACTIVE" && sub.planId === payment.planId && sub.interval === payment.interval && sub.seats === payment.seats &&
+      !!sub.currentPeriodEnd && sub.currentPeriodEnd > now;
+    const start = prolong ? sub.currentPeriodEnd! : now;
     await this.db.subscription.update({
       where: { workspaceId: payment.workspaceId },
       data: {
         planId: payment.planId,
         status: "ACTIVE",
         interval: payment.interval,
+        seats: payment.seats,
         trialEndsAt: null,
         currentPeriodStart: start,
         currentPeriodEnd: addInterval(start, payment.interval),
         cancelAtPeriodEnd: false,
         failedAttempts: 0,
         nextAttemptAt: null,
-        ...(n?.rebillId ? { rebillId: n.rebillId } : {}),
-        ...(n?.cardMask ? { cardMask: n.cardMask } : {}),
+        // No recurring charges: nothing about the card is kept.
+        rebillId: null,
+        cardMask: null,
       },
     });
     // Webhooks and the scheduler have no request, so enter the workspace.
@@ -257,6 +519,7 @@ export class BillingService {
 
   // Trial or paid period over and not renewed: read-only until paid.
   private async lock(workspaceId: string) {
+    this.forgetSeats(workspaceId);
     await this.db.subscription.update({
       where: { workspaceId },
       data: { status: "LOCKED", cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null },
@@ -268,78 +531,84 @@ export class BillingService {
   // Existing data stays; only creating beyond the Free limits is refused.
   async switchToFree() {
     const workspaceId = this.ws;
+    this.forgetSeats(workspaceId);
     const sub = await this.db.subscription.findUniqueOrThrow({ where: { workspaceId } });
     const paidActive = sub.planId !== "FREE" && sub.status !== "TRIALING" && sub.status !== "LOCKED" && !isLocked(sub);
     if (paidActive) throw new BadRequestException(t("api.billing.thePaidPlanStaysActive"));
     await this.db.subscription.update({
       where: { workspaceId },
       data: {
-        planId: "FREE", status: "ACTIVE", trialEndsAt: null, currentPeriodStart: null, currentPeriodEnd: null,
+        planId: "FREE", status: "ACTIVE", seats: null, trialEndsAt: null, currentPeriodStart: null, currentPeriodEnd: null,
         cancelAtPeriodEnd: false, rebillId: null, cardMask: null, failedAttempts: 0, nextAttemptAt: null,
       },
     });
     await this.audit.record("billing.free", t("api.billing.theFreePlanIsSelected"));
   }
 
-  // Renews paid periods that ended, locks cancelled and unpaid ones.
-  async runDue(now = new Date()) {
-    // Trials that ran out without a payment.
-    const trials = await this.db.subscription.findMany({ where: { status: "TRIALING", trialEndsAt: { lte: now } } });
-    for (const t of trials) await this.lock(t.workspaceId);
-
-    const due = await this.db.subscription.findMany({
+  // Without auto-renewal people forget to pay, so whoever manages billing
+  // gets a letter REMIND_DAYS before the trial or paid period ends and one
+  // more once it has ended (during the grace, before the lock). Each is sent
+  // once per end date. The in-app banner is on the web side.
+  private async remindEnding(now: Date) {
+    const soon = new Date(now.getTime() + REMIND_DAYS * DAY);
+    const subs = await this.db.subscription.findMany({
       where: {
-        status: { in: ["ACTIVE", "PAST_DUE"] },
         planId: { not: "FREE" },
-        currentPeriodEnd: { lte: now },
-        OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
+        status: { in: ["TRIALING", "ACTIVE", "PAST_DUE"] },
+        OR: [
+          { status: "TRIALING", trialEndsAt: { lte: soon } },
+          { status: { not: "TRIALING" }, currentPeriodEnd: { lte: soon } },
+        ],
       },
-      include: { plan: true },
+      include: { plan: true, workspace: { select: { name: true } } },
     });
-    for (const sub of due) {
-      try {
-        await this.renew(sub, now);
-      } catch (e) {
-        this.log.error(`Renewal of ${sub.workspaceId} failed: ${(e as Error).message}`);
-      }
+    for (const sub of subs) {
+      const trial = sub.status === "TRIALING";
+      const end = trial ? sub.trialEndsAt : sub.currentPeriodEnd;
+      // An ended trial has no grace: it locks in this same run, right after the letter.
+      if (!end || (!trial && isLocked(sub, now))) continue;
+      const stage = end > now ? 1 : 2;
+      const already = sub.endReminderFor?.getTime() === end.getTime() ? sub.endReminderStage : 0;
+      if (already >= stage) continue;
+      await this.db.subscription.update({ where: { id: sub.id }, data: { endReminderFor: end, endReminderStage: stage } });
+
+      const recipients = await this.db.user.findMany({
+        where: {
+          workspaceId: sub.workspaceId,
+          isActive: true,
+          OR: [{ role: "ADMIN" }, { customRole: { permissions: { has: "billing.manage" } } }],
+        },
+        select: { email: true },
+      });
+      const what = trial ? t("api.billing.planTrial", { name: sub.plan.name }) : t("api.billing.planPaidPeriod", { name: sub.plan.name });
+      const day = end.toLocaleDateString(intlTag(), { day: "numeric", month: "long", timeZone: "UTC" });
+      const lockDay = new Date(end.getTime() + (trial ? 0 : GRACE_AFTER_PERIOD_MS)).toLocaleDateString(intlTag(), { day: "numeric", month: "long", timeZone: "UTC" });
+      const subject =
+        stage === 1 ? t("api.billing.planoEndsOn", { value: trial ? t("api.billing.trial") : t("api.billing.plan"), day }) : t("api.billing.plano", { value: trial ? t("api.billing.trialEnded") : t("api.billing.planEnded") });
+      const body = [
+        t("api.billing.workspace", { name: sub.workspace.name }),
+        stage === 1
+          ? t("api.billing.endsOnThereAreNo", { what, day })
+          : trial
+            ? t("api.billing.endedOnTheWorkspaceIs", { what, day })
+            : t("api.billing.endedOnOnTheWorkspace", { what, day, lockDay }),
+        "",
+        t("api.billing.paySettingsBilling", { appUrl: appUrl() }),
+      ].join("\n");
+      for (const r of recipients) await this.mail.send(r.email, subject, body);
     }
-    return { trials: trials.length, renewals: due.length };
   }
 
-  private async renew(sub: Subscription & { plan: Plan }, now: Date) {
-    if (sub.cancelAtPeriodEnd || !sub.rebillId) return this.lock(sub.workspaceId);
-
-    const seats = await this.db.user.count({ where: { workspaceId: sub.workspaceId, isActive: true } });
-    const payment = await this.db.payment.create({
-      data: {
-        workspaceId: sub.workspaceId, kind: "RENEWAL", planId: sub.planId, interval: sub.interval, seats,
-        amount: planAmount(sub.plan, seats, sub.interval), orderId: this.newOrderId(),
-      },
+  // No automatic renewals: a trial or paid period that ran out (paid ones
+  // after a short grace) makes the workspace read-only until paid by card.
+  async runDue(now = new Date()) {
+    await this.remindEnding(now);
+    const trials = await this.db.subscription.findMany({ where: { status: "TRIALING", trialEndsAt: { lte: now } } });
+    for (const t of trials) await this.lock(t.workspaceId);
+    const ended = await this.db.subscription.findMany({
+      where: { status: { in: ["ACTIVE", "PAST_DUE"] }, planId: { not: "FREE" }, currentPeriodEnd: { lte: new Date(now.getTime() - GRACE_AFTER_PERIOD_MS) } },
     });
-    let failure: string | undefined;
-    try {
-      const init = await this.provider.init({
-        orderId: payment.orderId, amount: payment.amount, customerKey: sub.workspaceId, recurrent: false,
-        description: t("api.billing.planoPlanRenewalUsers", { name: sub.plan.name, seats }),
-      });
-      await this.db.payment.update({ where: { id: payment.id }, data: { providerPaymentId: init.providerPaymentId } });
-      const result = await this.provider.charge(init.providerPaymentId, sub.rebillId);
-      if (result.confirmed) {
-        const settled = await this.db.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "PAID", paidAt: now } });
-        if (settled.count) await this.activate(payment);
-        return;
-      }
-      failure = result.reason;
-    } catch (e) {
-      failure = (e as Error).message;
-    }
-
-    await this.db.payment.updateMany({ where: { id: payment.id, status: "PENDING" }, data: { status: "FAILED", failReason: failure } });
-    const attempts = sub.failedAttempts + 1;
-    if (attempts >= MAX_RENEWAL_ATTEMPTS) return this.lock(sub.workspaceId);
-    await this.db.subscription.update({
-      where: { workspaceId: sub.workspaceId },
-      data: { status: "PAST_DUE", failedAttempts: attempts, nextAttemptAt: new Date(now.getTime() + RETRY_AFTER_MS) },
-    });
+    for (const e of ended) await this.lock(e.workspaceId);
+    return { trials: trials.length, ended: ended.length };
   }
 }

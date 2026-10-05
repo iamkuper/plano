@@ -1,10 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import BillingPage from "@/app/settings/billing/page";
 import FieldsPage from "@/app/settings/fields/page";
 import AuditPage from "@/app/settings/audit/page";
 import PlatformPage from "@/app/platform/page";
+import * as lib from "@/lib/api";
 import { api } from "@/lib/api";
 import { onToast } from "@/lib/toast";
 import { billing, plans, user } from "./fixtures";
@@ -15,7 +16,7 @@ vi.mock("@/components/app-shell", () => ({ AppShell: ({ children }: { children: 
 const asAdmin = () => vi.spyOn(api, "me").mockResolvedValue(user());
 const asMember = () => vi.spyOn(api, "me").mockResolvedValue(user({ role: "MEMBER", permissions: [] }));
 describe("billing page", () => {
-  it("shows the trial, usage and the three plans", async () => {
+  it("shows the trial, usage and the plans with the pay buttons", async () => {
     asAdmin();
     vi.spyOn(api, "billing").mockResolvedValue(billing());
     render(<BillingPage />);
@@ -23,14 +24,14 @@ describe("billing page", () => {
     expect(screen.getByText(/Пробный период до 16 октября 2026/)).toBeInTheDocument();
     expect(screen.getByText("Платежи идут через тестовый режим: реальные деньги не списываются.")).toBeInTheDocument();
     expect(screen.getByRole("progressbar", { name: "Пользователи" })).toBeInTheDocument();
-    expect(screen.getAllByRole("button", { name: "Выбрать" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Оплатить картой" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Оплатить по счёту" })).toHaveLength(2);
     expect(screen.getByText("Дополнительные поля карточек")).toBeInTheDocument();
     expect(screen.getByText("Диаграмма Ганта")).toBeInTheDocument();
     expect(screen.getByText("Платежей пока нет.")).toBeInTheDocument();
-    expect(screen.queryByText(/webhook/)).toBeNull(); // the unbuilt API is not advertised
   });
 
-  it("starts a payment for the chosen plan and period, then goes to the bank page", async () => {
+  it("starts a card payment for the chosen plan, period and seats, then goes to the bank page", async () => {
     asAdmin();
     vi.spyOn(api, "billing").mockResolvedValue(billing());
     const checkout = vi.spyOn(api, "checkout").mockResolvedValue({ paymentUrl: "https://pay.test/1" });
@@ -38,12 +39,26 @@ describe("billing page", () => {
     vi.stubGlobal("location", { ...window.location, set href(v: string) { assign(v); } });
     render(<BillingPage />);
     await screen.findByText("Тариф Pro");
-    expect(screen.getAllByText(/Сейчас к оплате 980 ₽ за месяц \(2 польз\.\)/)).toHaveLength(1);
+    expect(screen.getAllByText(/К оплате 980 ₽ за месяц \(2 польз\.\)/)).toHaveLength(1);
     await userEvent.click(screen.getByRole("tab", { name: "Год" }));
-    expect(screen.getByText(/Сейчас к оплате 9\s?800 ₽ за год/)).toBeInTheDocument();
-    await userEvent.click(screen.getAllByRole("button", { name: "Выбрать" })[0]);
+    expect(screen.getByText(/К оплате 9\s?800 ₽ за год/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Больше мест" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "Оплатить картой" })[0]);
     await waitFor(() => expect(assign).toHaveBeenCalledWith("https://pay.test/1"));
-    expect(checkout).toHaveBeenCalledWith("PRO", "YEAR");
+    expect(checkout).toHaveBeenCalledWith("PRO", "YEAR", 3);
+  });
+
+  it("keeps the seat count between the active users and the cap", async () => {
+    asAdmin();
+    vi.spyOn(api, "billing").mockResolvedValue(billing());
+    render(<BillingPage />);
+    await screen.findByText("Тариф Pro");
+    const count = screen.getByLabelText("Количество пользователей");
+    expect(screen.getByRole("button", { name: "Меньше мест" })).toBeDisabled(); // 2 active users
+    fireEvent.change(count, { target: { value: "7" } });
+    expect(count).toHaveValue("7");
+    await userEvent.click(screen.getByRole("button", { name: "Меньше мест" }));
+    expect(count).toHaveValue("6");
   });
 
   it("reports a payment that couldn't be started", async () => {
@@ -54,8 +69,39 @@ describe("billing page", () => {
     onToast((t) => messages.push(t.message));
     render(<BillingPage />);
     await screen.findByText("Тариф Pro");
-    await userEvent.click(screen.getAllByRole("button", { name: "Выбрать" })[0]);
+    await userEvent.click(screen.getAllByRole("button", { name: "Оплатить картой" })[0]);
     await waitFor(() => expect(messages).toContain("Платёжный сервис недоступен"));
+  });
+
+  it("requests an invoice with the company details and downloads the PDF", async () => {
+    asAdmin();
+    vi.spyOn(api, "billing").mockResolvedValue(billing({ invoicePdf: true, lastPayer: { payerName: "ООО «Ромашка»", payerInn: "7701234567", payerKpp: null, payerAddress: "Москва", payerEmail: "buh@romashka.ru" } }));
+    const request = vi.spyOn(api, "requestInvoice").mockResolvedValue({ id: "pay1", invoiceNumber: 17, pdf: true } as never);
+    const download = vi.spyOn(lib, "downloadInvoicePdf").mockResolvedValue(undefined);
+    const messages: string[] = [];
+    onToast((t) => messages.push(t.message));
+    render(<BillingPage />);
+    await screen.findByText("Тариф Pro");
+    await userEvent.click(screen.getAllByRole("button", { name: "Оплатить по счёту" })[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Организация или ИП")).toHaveValue("ООО «Ромашка»"); // prefilled from the last request
+    await userEvent.click(within(dialog).getByRole("button", { name: "Запросить счёт" }));
+    await waitFor(() => expect(request).toHaveBeenCalledWith(expect.objectContaining({ planId: "PRO", interval: "MONTH", seats: 2, payerInn: "7701234567", payerKpp: null })));
+    await waitFor(() => expect(download).toHaveBeenCalledWith("pay1", 17));
+    expect(messages.some((m) => m.includes("Счёт №17 скачан"))).toBe(true);
+  });
+
+  it("explains a refused invoice request and the e-mail-only delivery", async () => {
+    asAdmin();
+    vi.spyOn(api, "billing").mockResolvedValue(billing());
+    vi.spyOn(api, "requestInvoice").mockRejectedValue(new Error("Укажите юридический адрес"));
+    render(<BillingPage />);
+    await screen.findByText("Тариф Pro");
+    await userEvent.click(screen.getAllByRole("button", { name: "Оплатить по счёту" })[0]);
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText(/Пришлём счёт на эту почту/)).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Запросить счёт" }));
+    expect(await within(dialog).findByText("Укажите юридический адрес")).toBeInTheDocument();
   });
 
   it("tells people without the right that only an admin can pay", async () => {
@@ -64,7 +110,7 @@ describe("billing page", () => {
     render(<BillingPage />);
     await screen.findByText("Тариф Pro");
     expect(screen.getByText(/Менять тариф может администратор/)).toBeInTheDocument();
-    for (const b of screen.getAllByRole("button", { name: "Выбрать" })) expect(b).toBeDisabled();
+    for (const b of screen.getAllByRole("button", { name: "Оплатить картой" })) expect(b).toBeDisabled();
     expect(screen.queryByRole("button", { name: "Перейти на бесплатный" })).toBeNull();
   });
 
@@ -81,58 +127,71 @@ describe("billing page", () => {
   it("shows the read-only state of a lapsed workspace with a way out", async () => {
     asAdmin();
     vi.spyOn(api, "billing").mockResolvedValue(
-      billing({ locked: true, subscription: { planId: "PRO", status: "LOCKED", interval: "MONTH", trialEndsAt: null, currentPeriodEnd: "2026-09-30T00:00:00.000Z", cancelAtPeriodEnd: false, cardMask: null } }),
+      billing({ locked: true, subscription: { planId: "PRO", status: "LOCKED", interval: "MONTH", trialEndsAt: null, currentPeriodEnd: "2026-09-30T00:00:00.000Z", cancelAtPeriodEnd: false, cardMask: null, seats: 2 } }),
     );
     render(<BillingPage />);
     expect(await screen.findByText("Тариф Pro закончился")).toBeInTheDocument();
     expect(screen.getByText(/Данные доступны только для чтения, оплата открыта/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Перейти на бесплатный" })).toBeInTheDocument();
     expect(screen.queryByText("Текущий тариф")).toBeNull(); // nothing is "current" while locked
-    expect(screen.getAllByRole("button", { name: "Выбрать" })).toHaveLength(2);
+    expect(screen.getAllByRole("button", { name: "Оплатить картой" })).toHaveLength(2);
   });
 
-  it("describes a paid plan, cancelling and resuming renewal", async () => {
+  it("describes a paid plan and its payment history, with invoices", async () => {
     asAdmin();
     const paid = billing({
-      subscription: { planId: "PRO", status: "ACTIVE", interval: "MONTH", trialEndsAt: null, currentPeriodEnd: "2026-11-02T00:00:00.000Z", cancelAtPeriodEnd: false, cardMask: "430000******0777" },
+      subscription: { planId: "PRO", status: "ACTIVE", interval: "MONTH", trialEndsAt: null, currentPeriodEnd: "2026-11-02T00:00:00.000Z", cancelAtPeriodEnd: false, cardMask: null, seats: 2 },
+      seatLimit: 2,
       payments: [
-        { id: "p1", kind: "INITIAL", planId: "PRO", interval: "MONTH", seats: 2, amount: 98000, status: "PAID", createdAt: "2026-10-02T00:00:00.000Z", paidAt: "2026-10-02T00:00:00.000Z" },
-        { id: "p2", kind: "RENEWAL", planId: "PRO", interval: "MONTH", seats: 2, amount: 98000, status: "FAILED", createdAt: "2026-10-03T00:00:00.000Z", paidAt: null },
-        { id: "p3", kind: "INITIAL", planId: "BUSINESS", interval: "YEAR", seats: 1, amount: 990000, status: "PENDING", createdAt: "2026-10-04T00:00:00.000Z", paidAt: null },
+        { id: "p1", kind: "INITIAL", method: "CARD", invoiceNumber: null, payerName: null, failReason: null, planId: "PRO", interval: "MONTH", seats: 2, amount: 98000, status: "PAID", createdAt: "2026-10-02T00:00:00.000Z", paidAt: "2026-10-02T00:00:00.000Z" },
+        { id: "p2", kind: "RENEWAL", method: "CARD", invoiceNumber: null, payerName: null, failReason: null, planId: "PRO", interval: "MONTH", seats: 2, amount: 98000, status: "FAILED", createdAt: "2026-10-03T00:00:00.000Z", paidAt: null },
+        { id: "p3", kind: "INITIAL", method: "INVOICE", invoiceNumber: 5, payerName: "ООО «Ромашка»", failReason: null, planId: "BUSINESS", interval: "YEAR", seats: 1, amount: 990000, status: "PENDING", createdAt: "2026-10-04T00:00:00.000Z", paidAt: null },
+        { id: "p4", kind: "SEATS", method: "INVOICE", invoiceNumber: 6, payerName: null, failReason: "Заменён новым счётом", planId: "PRO", interval: "MONTH", seats: 1, amount: 10000, status: "FAILED", createdAt: "2026-10-05T00:00:00.000Z", paidAt: null },
       ],
     });
-    const load = vi.spyOn(api, "billing").mockResolvedValue(paid);
-    const cancel = vi.spyOn(api, "cancelSubscription").mockResolvedValue(undefined);
+    vi.spyOn(api, "billing").mockResolvedValue(paid);
+    const download = vi.spyOn(lib, "downloadInvoicePdf").mockResolvedValue(undefined);
+    const cancel = vi.spyOn(api, "cancelInvoice").mockResolvedValue(undefined);
     render(<BillingPage />);
-    expect(await screen.findByText(/Оплачен до 2 ноября 2026 г\., дальше спишем автоматически с карты 430000\*\*\*\*\*\*0777/)).toBeInTheDocument();
+    expect(await screen.findByText(/Оплачен до 2 ноября 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/Автоматических списаний нет/)).toBeInTheDocument();
     expect(screen.getByText("Оплачен")).toBeInTheDocument();
     expect(screen.getByText("Не прошёл")).toBeInTheDocument();
-    expect(screen.getByText("Ожидает оплаты")).toBeInTheDocument();
-    expect(screen.getByText("Текущий тариф")).toBeInTheDocument();
+    expect(screen.getByText("Ждём оплату по счёту")).toBeInTheDocument();
+    expect(screen.getByText("Заменён новым счётом")).toBeInTheDocument();
+    expect(screen.getByText(/докупка мест/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Продлить картой" })).toBeInTheDocument(); // same plan, period and seats
 
-    await userEvent.click(screen.getByRole("button", { name: "Отключить продление" }));
-    await userEvent.click(within(screen.getByRole("alertdialog")).getByRole("button", { name: "Отключить" }));
-    await waitFor(() => expect(cancel).toHaveBeenCalledWith(true));
-
-    load.mockResolvedValue({ ...paid, subscription: { ...paid.subscription, cancelAtPeriodEnd: true } });
-    await userEvent.click(screen.getByRole("button", { name: "Отключить продление" }).isConnected ? screen.getByRole("button", { name: "Отключить продление" }) : screen.getByRole("button", { name: "Включить продление" }));
+    await userEvent.click(screen.getAllByRole("button", { name: /Скачать счёт/ })[0]);
+    await waitFor(() => expect(download).toHaveBeenCalledWith("p3", 5));
+    await userEvent.click(screen.getByRole("button", { name: "Отменить" }));
+    await waitFor(() => expect(cancel).toHaveBeenCalledWith("p3"));
   });
 
-  it("shows other states: past due, cancelled, free", async () => {
+  it("offers extra seats pro rata inside a paid period", async () => {
+    asAdmin();
+    const future = new Date(Date.now() + 20 * 86_400_000).toISOString();
+    vi.spyOn(api, "billing").mockResolvedValue(
+      billing({ subscription: { planId: "PRO", status: "ACTIVE", interval: "MONTH", trialEndsAt: null, currentPeriodEnd: future, cancelAtPeriodEnd: false, cardMask: null, seats: 2 }, seatLimit: 2 }),
+    );
+    const buy = vi.spyOn(api, "buySeats").mockResolvedValue({ paymentUrl: "https://pay.test/seats" });
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, set href(v: string) { assign(v); } });
+    render(<BillingPage />);
+    await screen.findByText("Тариф Pro");
+    await userEvent.click(screen.getByRole("button", { name: "Больше мест" }));
+    expect(screen.getByText(/Докупить 1 место до/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Докупить картой" }));
+    await waitFor(() => expect(buy).toHaveBeenCalledWith(1));
+    expect(assign).toHaveBeenCalledWith("https://pay.test/seats");
+  });
+
+  it("shows other states: past due, free", async () => {
     asAdmin();
     const base = billing();
-    const sub = (over: object) => ({ ...base.subscription, status: "ACTIVE" as const, trialEndsAt: null, currentPeriodEnd: "2026-11-02T00:00:00.000Z", ...over });
+    const sub = (over: object) => ({ ...base.subscription, status: "ACTIVE" as const, trialEndsAt: null, currentPeriodEnd: "2026-11-02T00:00:00.000Z", seats: 2, ...over });
     const spy = vi.spyOn(api, "billing");
-    spy.mockResolvedValue(billing({ subscription: sub({ status: "PAST_DUE" }) }));
-    const first = render(<BillingPage />);
-    expect(await screen.findByText(/Не удалось списать оплату/)).toBeInTheDocument();
-    first.unmount();
-    spy.mockResolvedValue(billing({ subscription: sub({ cancelAtPeriodEnd: true }) }));
-    const second = render(<BillingPage />);
-    expect(await screen.findByText(/продление отключено/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Включить продление" })).toBeInTheDocument();
-    second.unmount();
-    spy.mockResolvedValue(billing({ plan: plans[0], subscription: sub({ planId: "FREE", currentPeriodEnd: null }) }));
+    spy.mockResolvedValue(billing({ plan: plans[0], subscription: sub({ planId: "FREE", currentPeriodEnd: null, seats: null }) }));
     render(<BillingPage />);
     expect(await screen.findByText("Бесплатный тариф")).toBeInTheDocument();
   });
@@ -335,15 +394,20 @@ describe("platform back-office", () => {
     expect(within(dialog).getByText(/Анна/)).toBeInTheDocument();
     expect(within(dialog).getByText(/отключён/)).toBeInTheDocument();
     expect(within(dialog).getByText(/980 ₽/)).toBeInTheDocument();
-    expect(within(dialog).getByText("Создан проект «Сайт»")).toBeInTheDocument();
 
     await userEvent.selectOptions(within(dialog).getByLabelText("Тариф"), "BUSINESS");
     await userEvent.clear(within(dialog).getByLabelText("Дней"));
     await userEvent.type(within(dialog).getByLabelText("Дней"), "45");
     await userEvent.click(within(dialog).getByRole("button", { name: "Выдать тариф" }));
-    await waitFor(() => expect(change).toHaveBeenCalledWith("w1", { action: "grant", planId: "BUSINESS", days: 45 }));
+    await waitFor(() => expect(change).toHaveBeenCalledWith("w1", { action: "grant", planId: "BUSINESS", seats: 1, days: 45 }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Продлить пробный" }));
     await waitFor(() => expect(change).toHaveBeenCalledWith("w1", { action: "extend-trial", days: 45 }));
+    const seats = within(dialog).getByLabelText("Мест");
+    fireEvent.change(seats, { target: { value: "5" } });
+    const seatsButton = within(dialog).getByRole("button", { name: "Изменить места" });
+    await waitFor(() => expect(seatsButton).toBeEnabled()); // the previous change is done
+    await userEvent.click(seatsButton);
+    await waitFor(() => expect(change).toHaveBeenCalledWith("w1", { action: "seats", seats: 5 }));
     await userEvent.click(within(dialog).getByRole("button", { name: "На Free" }));
     await userEvent.click(within(dialog).getByRole("button", { name: "Заблокировать" }));
     await waitFor(() => expect(change).toHaveBeenCalledWith("w1", { action: "lock" }));

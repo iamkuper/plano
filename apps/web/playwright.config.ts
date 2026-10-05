@@ -14,6 +14,8 @@ export default defineConfig({
   use: {
     baseURL: `http://localhost:${WEB}`,
     locale: "ru-RU",
+    // The cookie notice is covered by its own test; it only gets in the way of the rest.
+    storageState: { cookies: [], origins: [{ origin: `http://localhost:${WEB}`, localStorage: [{ name: "plano.cookie-consent", value: "accepted" }] }] },
     viewport: { width: 1360, height: 860 },
     screenshot: "only-on-failure",
     launchOptions: { executablePath: process.env.CHROMIUM_PATH ?? "/opt/pw-browsers/chromium" },

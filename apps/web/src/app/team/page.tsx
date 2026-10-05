@@ -10,7 +10,7 @@ import { CardModal } from "@/components/card-modal";
 import { CardTile } from "@/components/card-tile";
 import { HomeTabs } from "@/components/tab-links";
 import { PageHeader, Segmented } from "@/components/ui";
-import { stageColor } from "@/design/tokens";
+import { columnColor, stageColor } from "@/design/tokens";
 import { api } from "@/lib/api";
 import { applyFilters } from "@/lib/card-filters";
 import { useCardParam } from "@/lib/use-card-param";
@@ -78,7 +78,7 @@ function TeamBoard() {
         {columns?.map((column, index) => {
           const visible = applyFilters(column.cards, filters);
           return (
-            <ColumnShell key={column.title} title={column.title} color={stageColor(index, columns.length)} count={visible.length}>
+            <ColumnShell key={column.title} title={column.title} color={columnColor(column.color, index, columns.length)} count={visible.length}>
               {visible.map((card) => (
                 <CardTile key={card.id} card={card} showProject onOpen={() => setCardId(card.id)} />
               ))}

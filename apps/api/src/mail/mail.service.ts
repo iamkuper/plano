@@ -27,13 +27,13 @@ export class MailService {
 
   // Never throws: a mail outage must not break inviting or resetting; the
   // caller gets `false` and can show the link instead.
-  async send(to: string, subject: string, text: string): Promise<boolean> {
+  async send(to: string, subject: string, text: string, attachments?: { filename: string; content: Buffer }[]): Promise<boolean> {
     if (!this.transport) {
-      this.log.log(`(mail not configured) to ${to}: ${subject}\n${text}`);
+      this.log.log(`(mail not configured) to ${to}: ${subject}${attachments?.length ? ` [+${attachments.map((a) => a.filename).join(", ")}]` : ""}\n${text}`);
       return false;
     }
     try {
-      await this.transport.sendMail({ from: this.from, to, subject, text });
+      await this.transport.sendMail({ from: this.from, to, subject, text, attachments });
       return true;
     } catch (e) {
       this.log.error(`Sending to ${to} failed: ${(e as Error).message}`);

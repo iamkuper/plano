@@ -13,17 +13,17 @@ test("paying through the test terminal activates the plan", async ({ page }) => 
   const acc = await signUp("pay");
   await signIn(page, acc.token, "/settings/billing");
   await expect(page.getByText("Платежи идут через тестовый режим")).toBeVisible();
-  await page.getByRole("button", { name: "Выбрать" }).first().click();
+  await page.getByRole("button", { name: "Оплатить картой" }).first().click();
   await mockPay(page, "Оплатить");
   await expect(page).toHaveURL(/\/settings\/billing\?paid=1/);
-  await expect(page.getByRole("button", { name: "Текущий тариф" }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "Продлить картой" }).first()).toBeVisible();
   await expect(page.getByText("Платежи", { exact: true })).toBeVisible();
 });
 
 test("a declined payment leaves the plan unchanged", async ({ page }) => {
   const acc = await signUp("decl");
   await signIn(page, acc.token, "/settings/billing");
-  await page.getByRole("button", { name: "Выбрать" }).first().click();
+  await page.getByRole("button", { name: "Оплатить картой" }).first().click();
   await mockPay(page, "Отклонить платёж");
   await expect(page).toHaveURL(/paid=0/);
   const b = await apiAs(acc.token).get("/billing");
@@ -54,7 +54,7 @@ test("an expired plan locks the workspace to read-only but keeps billing open", 
   await expect(page.getByRole("button", { name: "Перейти на бесплатный" })).toBeVisible();
 
   // Paying brings the workspace back to life.
-  await page.getByRole("button", { name: "Выбрать" }).first().click();
+  await page.getByRole("button", { name: "Оплатить картой" }).first().click();
   await mockPay(page, "Оплатить");
   await expect(page).toHaveURL(/paid=1/);
   await expect(page.getByRole("main").getByRole("alert")).toBeHidden();

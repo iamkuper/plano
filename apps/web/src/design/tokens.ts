@@ -116,3 +116,8 @@ export const layout = {
   column: 288,
   sheet: 960,
 } as const;
+
+// Colour of a board column: the one the team chose, else automatic by position.
+export function columnColor(color: string | null | undefined, index: number, count: number) {
+  return (color && labelColor[color as keyof typeof labelColor]) || stageColor(index, count);
+}

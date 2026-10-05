@@ -10,7 +10,7 @@ import { CardModal } from "@/components/card-modal";
 import { Onboarding } from "@/components/onboarding";
 import { HomeTabs } from "@/components/tab-links";
 import { Card, EmptyState, Kpi, PageHeader, ShareBar, Skeleton } from "@/components/ui";
-import { stageColor } from "@/design/tokens";
+import { columnColor, stageColor } from "@/design/tokens";
 import { api } from "@/lib/api";
 import { useDebounced, useRealtime } from "@/lib/realtime";
 import { useCardParam } from "@/lib/use-card-param";
@@ -23,7 +23,7 @@ interface TimeEntry {
   card: { id: string; number: number; title: string; project: { id: string; title: string } };
 }
 
-type Task = CardTileDto & { stage: string; stageIndex: number };
+type Task = CardTileDto & { stage: string; stageIndex: number; stageColor: string | null };
 type Bucket = "overdue" | "today" | "week" | "later";
 
 const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -66,7 +66,7 @@ const dueLabel = (due: string) => new Date(due).toLocaleDateString(intlTag(), { 
 function openTasks(columns: TeamBoardColumnDto[]): Task[] {
   return columns
     .slice(0, -1)
-    .flatMap((c, i) => c.cards.map((card) => ({ ...card, stage: c.title, stageIndex: i })));
+    .flatMap((c, i) => c.cards.map((card) => ({ ...card, stage: c.title, stageIndex: i, stageColor: c.color })));
 }
 
 function TaskRow({ task, total, bucket, onOpen }: { task: Task; total: number; bucket: Bucket; onOpen: () => void }) {
@@ -81,7 +81,7 @@ function TaskRow({ task, total, bucket, onOpen }: { task: Task; total: number; b
         <span className="block truncate text-xs text-ink-faint">{task.project.title}</span>
       </span>
       <span className="flex items-center gap-1.5 text-xs text-ink-faint">
-        <span className="size-2 rounded-full" style={{ background: stageColor(task.stageIndex, total) }} />
+        <span className="size-2 rounded-full" style={{ background: columnColor(task.stageColor, task.stageIndex, total) }} />
         {task.stage}
       </span>
       <span className={`text-right text-xs ${bucket === "overdue" ? "font-medium text-danger" : "text-ink-faint"}`}>
@@ -137,7 +137,7 @@ function Dashboard() {
   }, [time]);
 
   // Open cards per stage across all active projects.
-  const stages = useMemo(() => (team ?? []).map((c) => ({ title: c.title, count: c.cards.length })), [team]);
+  const stages = useMemo(() => (team ?? []).map((c) => ({ title: c.title, color: c.color, count: c.cards.length })), [team]);
   const teamOpen = stages.slice(0, -1).reduce((n, s) => n + s.count, 0);
   const stageMax = Math.max(1, ...stages.map((s) => s.count));
 
@@ -249,11 +249,11 @@ function Dashboard() {
                   {stages.map((s, i) => (
                     <div key={s.title} className="grid grid-cols-[minmax(0,1fr)_96px_32px] items-center gap-2 text-sm">
                       <span className="flex min-w-0 items-center gap-2">
-                        <span className="size-2 shrink-0 rounded-full" style={{ background: stageColor(i, stages.length) }} />
+                        <span className="size-2 shrink-0 rounded-full" style={{ background: columnColor(s.color, i, stages.length) }} />
                         <span className="truncate">{s.title}</span>
                       </span>
                       <span className="h-1.5 overflow-hidden rounded-full bg-surface-sunken">
-                        <span className="block h-full rounded-full" style={{ width: `${(s.count / stageMax) * 100}%`, background: stageColor(i, stages.length) }} />
+                        <span className="block h-full rounded-full" style={{ width: `${(s.count / stageMax) * 100}%`, background: columnColor(s.color, i, stages.length) }} />
                       </span>
                       <span className="text-right text-ink-faint">{s.count}</span>
                     </div>

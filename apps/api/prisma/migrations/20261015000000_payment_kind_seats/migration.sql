@@ -1,0 +1,1 @@
+ALTER TYPE "PaymentKind" ADD VALUE 'SEATS';

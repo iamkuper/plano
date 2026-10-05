@@ -31,6 +31,9 @@ enum CardPriority {
 
 model Workspace {
   id             String   @id @default(cuid())
+  // Public account number (100001, 100002…): shown to customers, quoted in
+  // invoices and support requests. The cuid stays the internal key.
+  accountNumber  Int      @unique @default(autoincrement())
   name           String   @default("Канбан")
   // Card key prefix: TSK → TSK-12.
   cardPrefix     String   @default("TSK")
@@ -133,6 +136,8 @@ model Column {
   // move updates one row instead of renumbering the whole column.
   position Float
   wipLimit Int?
+  // LABEL_COLORS key chosen by the team; null = automatic by position.
+  color    String?
 
   cards Card[]
 
@@ -435,9 +440,15 @@ enum PaymentStatus {
   FAILED
 }
 
+enum PaymentMethod {
+  CARD // paid on the bank's page
+  INVOICE // bank transfer by an invoice; marked paid by the platform owner
+}
+
 enum PaymentKind {
   INITIAL // first payment, the customer pays on the bank's page
-  RENEWAL // recurring charge by the saved card
+  RENEWAL // recurring charge by the saved card (no longer created)
+  SEATS // extra seats for the rest of the current paid period; `seats` = how many added
 }
 
 // Global catalogue (not tenant data), edited in the DB or by migrations.
@@ -469,6 +480,8 @@ model Subscription {
   plan               Plan               @relation(fields: [planId], references: [id])
   status             SubscriptionStatus @default(ACTIVE)
   interval           BillingInterval    @default(MONTH)
+  // Paid user seats. null on FREE and during a trial (no seat limit then).
+  seats              Int?
   trialEndsAt        DateTime?
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
@@ -477,6 +490,10 @@ model Subscription {
   // T-Bank token of the saved card, for recurring charges.
   rebillId           String?
   cardMask           String?
+  // Period-end reminders already mailed for `endReminderFor`:
+  // 1 = "ends in a few days", 2 = "ended, workspace locks soon".
+  endReminderFor     DateTime?
+  endReminderStage   Int                @default(0)
   failedAttempts     Int                @default(0)
   nextAttemptAt      DateTime?
   createdAt          DateTime           @default(now())
@@ -494,6 +511,14 @@ model Payment {
   plan          Plan            @relation(fields: [planId], references: [id])
   interval      BillingInterval
   seats         Int
+  method        PaymentMethod   @default(CARD)
+  // Invoice only: sequential number and the payer's details.
+  invoiceNumber Int?            @unique
+  payerName     String?
+  payerInn      String?
+  payerKpp      String?
+  payerAddress  String?
+  payerEmail    String?
   // Kopecks.
   amount        Int
   status        PaymentStatus   @default(PENDING)

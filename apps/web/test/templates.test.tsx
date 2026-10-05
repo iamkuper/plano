@@ -56,7 +56,7 @@ describe("template editor", () => {
     await userEvent.selectOptions(screen.getByLabelText("Тип"), "tt2");
     await userEvent.type(screen.getByLabelText("Оценка, ч"), "3");
     await userEvent.type(screen.getByLabelText("Описание"), " текст ");
-    await userEvent.type(screen.getByLabelText("Чек-лист"), "а{enter}{enter}б");
+    await userEvent.type(screen.getByLabelText("Новая подзадача"), "а{enter}{enter}б{enter}");
     await userEvent.click(screen.getByRole("button", { name: "Создать шаблон" }));
     await waitFor(() => expect(create).toHaveBeenCalledWith({
       name: "Магазин", columns: ["Бэклог", "В работе", "На проверке", "Готово", "Приёмка"],
@@ -91,8 +91,9 @@ describe("template editor", () => {
     expect(saveButton).toBeDisabled();
     expect(screen.getByText("3 ч, 2 пункта")).toBeInTheDocument();
     await userEvent.click(screen.getByText("Бриф"));
-    expect(screen.getByLabelText("Чек-лист")).toHaveValue("встреча\nцели");
-    await userEvent.click(screen.getAllByTitle("Ниже")[screen.getAllByTitle("Ниже").length - 2]); // move the first card down
+    expect(screen.getByLabelText("Подзадача 1")).toHaveValue("встреча");
+    expect(screen.getByLabelText("Подзадача 2")).toHaveValue("цели");
+    await userEvent.click(within(screen.getByText("Бриф").closest(".border-b") as HTMLElement).getAllByTitle("Ниже")[0]); // move the first card down
     expect(saveButton).toBeEnabled();
     await userEvent.click(saveButton);
     await waitFor(() => expect(save).toHaveBeenCalledWith("t1", expect.objectContaining({ cards: [expect.objectContaining({ title: "Запуск" }), expect.objectContaining({ title: "Бриф", checklist: ["встреча", "цели"] })] })));

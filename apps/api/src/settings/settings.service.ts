@@ -17,8 +17,8 @@ export class SettingsService {
   }
 
   async get() {
-    const { id, name, cardPrefix, defaultColumns, updatedAt } = await this.prisma.workspace.findUniqueOrThrow({ where: { id: this.id } });
-    return { id, workspaceName: name, cardPrefix, defaultColumns, updatedAt };
+    const { id, accountNumber, name, cardPrefix, defaultColumns, updatedAt } = await this.prisma.workspace.findUniqueOrThrow({ where: { id: this.id } });
+    return { id, accountNumber, workspaceName: name, cardPrefix, defaultColumns, updatedAt };
   }
 
   async update(dto: UpdateSettingsDto) {

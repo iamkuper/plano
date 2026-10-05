@@ -12,6 +12,16 @@
     "db:up": "pnpm --filter @plano/api db:up",
     "db:down": "pnpm --filter @plano/api db:down",
     "db:migrate": "pnpm --filter @plano/api prisma migrate dev",
-    "db:seed": "pnpm --filter @plano/api prisma db seed"
+    "db:seed": "pnpm --filter @plano/api prisma db seed",
+    "local:setup": "bash scripts/local-setup.sh",
+    "pm2:start": "pm2 start ecosystem.json",
+    "pm2:stop": "pm2 stop ecosystem.json",
+    "pm2:restart": "pm2 restart ecosystem.json",
+    "pm2:delete": "pm2 delete ecosystem.json",
+    "pm2:logs": "pm2 logs",
+    "pm2:status": "pm2 status"
+  },
+  "devDependencies": {
+    "pm2": "^7.0.4"
   }
 }

@@ -1,0 +1,17 @@
+# HTTPS certificates are issued and renewed automatically (Let's Encrypt).
+{$DOMAIN} {
+	encode zstd gzip
+	reverse_proxy web:3100
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+api.{$DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 25MB
+	}
+	reverse_proxy api:3101
+}

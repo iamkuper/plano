@@ -69,6 +69,7 @@ export class InvitationsService {
 
   async preview(token: string) {
     const inv = await this.find(token);
+    this.billing.forgetSeats(inv.workspaceId);
     return { email: inv.email, workspaceName: inv.workspace.name };
   }
 
@@ -100,9 +101,11 @@ export class InvitationsService {
   private async assertRoom(workspaceId: string) {
     const sub = await this.system.subscription.findUnique({ where: { workspaceId } });
     if (isLocked(sub)) throw new BadRequestException(t("api.invitations.theWorkspaceIsReadOnly"));
-    const plan = await this.billing.effectivePlan(workspaceId);
-    if (plan.maxUsers === null) return;
-    const users = await this.system.user.count({ where: { workspaceId, isActive: true } });
-    if (users >= plan.maxUsers) throw new BadRequestException(t("api.invitations.theWorkspaceAlreadyHasUsers", { users, name: plan.name }));
+    try {
+      // This invitation already holds a seat, so count active users only.
+      await this.billing.assertSeat(workspaceId, { countInvitations: false });
+    } catch {
+      throw new BadRequestException(t("api.invitations.theWorkspaceHasRunOut"));
+    }
   }
 }

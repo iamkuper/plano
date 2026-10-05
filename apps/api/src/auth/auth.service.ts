@@ -1,4 +1,6 @@
-import { BadRequestException, ConflictException, Injectable, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, UnauthorizedException, ForbiddenException } from "@nestjs/common";
+import { BillingService } from "../billing/billing.service";
+import { NO_SEAT_MESSAGE } from "./strategies/jwt.strategy";
 import { JwtService } from "@nestjs/jwt";
 import * as bcrypt from "bcrypt";
 import { SystemPrismaService } from "../prisma/system-prisma.service";
@@ -20,6 +22,7 @@ export class AuthService {
     private readonly jwt: JwtService,
     private readonly invitations: InvitationsService,
     private readonly mail: MailService,
+    private readonly billing: BillingService,
   ) {}
 
   private async issueToken(userId: string, email: string) {
@@ -63,6 +66,7 @@ export class AuthService {
     if (!user?.isActive || !(await bcrypt.compare(dto.password, user.passwordHash))) {
       throw new UnauthorizedException(t("api.auth.wrongEmailOrPassword"));
     }
+    if ((await this.billing.overSeatIds(user.workspaceId)).has(user.id)) throw new ForbiddenException(NO_SEAT_MESSAGE);
     return this.issueToken(user.id, user.email);
   }
 

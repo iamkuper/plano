@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ChevronUp,
   House,
+  LifeBuoy,
   FolderKanban,
   LogOut,
   PanelLeftClose,
@@ -16,18 +17,20 @@ import {
   UserCog,
   type LucideIcon,
 } from "lucide-react";
-import type { ProjectListItemDto, UserDto } from "@plano/shared";
+import type { BillingDto, ProjectListItemDto, UserDto } from "@plano/shared";
 import { BILLING_CHANGED, api, setToken } from "@/lib/api";
 import { useCan } from "@/lib/permissions";
 import { onProjectsChanged } from "@/lib/projects-events";
 import { useSettings } from "@/lib/settings";
+import { SUPPORT } from "@/lib/support";
 import { useAuth } from "@/lib/use-auth";
 import { Avatar, LetterMark } from "./avatar";
 import { HeaderSearch } from "./header-search";
 import { NotificationBell } from "./notification-bell";
+import { LocaleGate } from "./locale-gate";
 import { Toaster } from "./toaster";
 import { Popover, Tooltip } from "./ui";
-import { t } from "@plano/shared";
+import { t, intlTag } from "@plano/shared";
 const COLLAPSED_KEY = "plano.sidebar-collapsed";
 
 function NavItem({
@@ -129,20 +132,56 @@ function useActiveProjects() {
 // useSearchParams needs a Suspense boundary for static rendering.
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <Suspense>
-      <Shell>{children}</Shell>
-    </Suspense>
+    <LocaleGate>
+      <Suspense>
+        <Shell>{children}</Shell>
+      </Suspense>
+    </LocaleGate>
   );
 }
 
-// Shown on every page once the trial or paid period has ended unpaid: the
+const DAY_MS = 86_400_000;
+// Paid periods lock this long after their end (GRACE_AFTER_PERIOD_MS on the API).
+const GRACE_MS = 3 * DAY_MS;
+const REMIND_DAYS = 3;
+const longDate = (d: Date) => d.toLocaleDateString(intlTag(), { day: "numeric", month: "long" });
+
+// What the billing banner says, or null. No auto-renewal, so it warns
+// REMIND_DAYS before the trial or paid period ends, during the grace after
+// it, and once the workspace is read-only.
+function billingNotice(b: BillingDto, now = Date.now()): { tone: "danger" | "warning"; text: string; action: string } | null {
+  const s = b.subscription;
+  if (b.locked) return { tone: "danger", text: t("appShell.thePlanHasEndedData2"), action: t("appShell.payForThePlan") };
+  if (s.planId === "FREE") return null;
+  const trial = s.status === "TRIALING";
+  const endIso = trial ? s.trialEndsAt : s.currentPeriodEnd;
+  if (!endIso) return null;
+  const end = new Date(endIso);
+  const left = end.getTime() - now;
+  if (left > REMIND_DAYS * DAY_MS) return null;
+  if (left <= 0) {
+    return {
+      tone: "danger",
+      text: t("appShell.thePaidPeriodEndedOn", { longDate: longDate(end), longDate2: longDate(new Date(end.getTime() + GRACE_MS)) }),
+      action: t("appShell.renewPlan"),
+    };
+  }
+  const days = Math.max(1, Math.ceil(left / DAY_MS));
+  return {
+    tone: "warning",
+    text: t("appShell.endsOnThereAreNo", { value: trial ? t("appShell.trial") : t("appShell.paidPeriod"), longDate: longDate(end), left: t("appShell.daysLeft", { count: days }) }),
+    action: trial ? t("settings.billing.chooseAPlan") : t("appShell.renewPlan"),
+  };
+}
+
+// Shown on every page: the period is about to end, has ended, or the
 // workspace is read-only until the plan is paid.
-function LockedBanner() {
+function BillingBanner() {
   const can = useCan();
   const pathname = usePathname();
-  const [locked, setLocked] = useState(false);
+  const [billing, setBilling] = useState<BillingDto | null>(null);
   useEffect(() => {
-    const check = () => api.billing().then((b) => setLocked(b.locked)).catch(() => {});
+    const check = () => api.billing().then(setBilling).catch(() => {});
     check();
     window.addEventListener("focus", check);
     window.addEventListener(BILLING_CHANGED, check);
@@ -151,14 +190,27 @@ function LockedBanner() {
       window.removeEventListener(BILLING_CHANGED, check);
     };
   }, [pathname]);
-  if (!locked) return null;
+  const notice = billing && billingNotice(billing);
+  if (!notice) return null;
+  const manager = can("billing.manage");
   return (
-    <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-danger-soft px-6 py-2.5 text-sm text-danger">
-      <span> {t("appShell.thePlanHasEndedData", { value: can("billing.manage") ? t("appShell.payToContinue") : t("appShell.askAdminToPay") })} </span>
-      {can("billing.manage") && pathname !== "/settings/billing" && (
+    <div
+      role={notice.tone === "danger" ? "alert" : "status"}
+      className={`flex flex-wrap items-center justify-between gap-3 border-b border-border px-6 py-2.5 text-sm ${
+        notice.tone === "danger" ? "bg-danger-soft text-danger" : "bg-warning-soft text-ink"
+      }`}
+    >
+      <span>
+        {notice.text}
+        {manager
+          ? billing.locked
+            ? t("appShell.payForThePlanAnd")
+            : t("appShell.payByCardSoWork")
+          : t("appShell.askAnAdministratorToPay")}
+      </span>
+      {manager && pathname !== "/settings/billing" && (
         <Link href="/settings/billing" className="font-medium underline">
-          
-          {t("appShell.payForThePlan")}
+          {notice.action}
         </Link>
       )}
     </div>
@@ -328,7 +380,7 @@ function Shell({ children }: { children: React.ReactNode }) {
                 className="flex h-7 w-full items-center gap-1 rounded-md px-2 text-xs text-chrome-ink-faint transition-colors hover:text-chrome-ink"
               >
                 
-                {t("common.active")}
+                {t("settings.templates.id.inProgress")}
                 <ChevronDown
                   size={12}
                   className={`transition-transform ${projectsOpen ? "" : "-rotate-90"}`}
@@ -432,6 +484,16 @@ function Shell({ children }: { children: React.ReactNode }) {
                   
                   {t("common.profile")}
                 </Link>
+                {SUPPORT.url && (
+                  <a
+                    href={SUPPORT.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex h-8 w-full items-center gap-2 rounded-md px-2 text-sm text-ink transition-colors hover:bg-surface-soft"
+                  >
+                    <LifeBuoy size={15} strokeWidth={1.75} className="text-ink-ghost" />  {t("appShell.support")}
+                  </a>
+                )}
                 <button
                   onClick={() => {
                     setToken(null);
@@ -455,7 +517,7 @@ function Shell({ children }: { children: React.ReactNode }) {
 
       {/* Work area: white sheet inset from the sidebar */}
       <main className="my-2 mr-2 min-w-0 flex-1 overflow-auto rounded-lg bg-bg">
-        <LockedBanner />
+        <BillingBanner />
         <div className="flex min-h-full flex-col px-6">{children}</div>
       </main>
 

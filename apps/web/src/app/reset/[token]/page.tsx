@@ -40,7 +40,7 @@ export default function ResetPage() {
           </Link>
         </p>
       )}
-      <Button variant="primary" className="w-full py-2.5">{t("common.savePassword")}</Button>
+      <Button variant="primary" className="h-10 w-full text-sm">{t("common.savePassword")}</Button>
     </AuthCard>
   );
 }

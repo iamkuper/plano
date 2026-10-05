@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { goal } from "@/lib/analytics";
 import { api, setToken } from "@/lib/api";
 import { AuthCard } from "@/components/auth-card";
 import { Button, Field, Input } from "@/components/ui";
@@ -19,6 +21,7 @@ export default function RegisterPage() {
     setError(null);
     try {
       const { accessToken } = await api.register(workspaceName, name, email, password);
+      goal("signup");
       setToken(accessToken);
       router.replace("/dashboard");
     } catch (err) {
@@ -27,7 +30,7 @@ export default function RegisterPage() {
   }
 
   return (
-    <AuthCard title={t("register.newWorkspace")} subtitle={t("register.youWillBecomeTheAdministrator")} onSubmit={submit}>
+    <AuthCard title={t("register.createAWorkspace")} subtitle={t("register.14DaysOfProFree")} onSubmit={submit}>
       <Field label={t("register.companyName")}>
         {(a) => (
           <Input {...a} value={workspaceName} onChange={(e) => setWorkspaceName(e.target.value)} autoFocus />
@@ -55,7 +58,30 @@ export default function RegisterPage() {
         )}
       </Field>
       {error && <p className="text-base text-danger">{error}</p>}
-      <Button variant="primary" className="w-full py-2.5">{t("common.create")}</Button>
+      <Button variant="primary" className="h-10 w-full text-sm">{t("common.create")}</Button>
+      <p className="text-center text-xs leading-relaxed text-ink-ghost">
+        
+        {t("register.byClickingCreateYouAccept")}{" "}
+        <Link href="/legal/terms" target="_blank" className="underline hover:text-ink">
+          
+          {t("register.termsOfService")}
+        </Link>{" "}
+        
+        {t("register.andGive")}{" "}
+        <Link href="/legal/consent" target="_blank" className="underline hover:text-ink">
+          
+          {t("register.consentToPersonalDataProcessing")}
+        </Link>
+        .
+      </p>
+      <p className="text-center text-xs text-ink-faint">
+        
+        {t("register.alreadyHaveAnAccount")}{" "}
+        <Link href="/login" className="font-medium text-accent hover:underline">
+          
+          {t("login.signIn2")}
+        </Link>
+      </p>
     </AuthCard>
   );
 }

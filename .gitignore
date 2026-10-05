@@ -11,3 +11,6 @@ coverage/
 apps/api/uploads/
 test-results/
 playwright-report/
+
+deploy/.env
+deploy/api.env

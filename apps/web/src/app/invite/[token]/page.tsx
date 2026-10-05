@@ -55,7 +55,7 @@ export default function InvitePage() {
             {(a) => <Input {...a} type="password" placeholder={t("common.atLeast8Characters")} value={password} onChange={(e) => setPassword(e.target.value)} />}
           </Field>
           {error && <p className="text-base text-danger">{error}</p>}
-          <Button variant="primary" className="w-full py-2.5">{t("invite.token.acceptInvitation")}</Button>
+          <Button variant="primary" className="h-10 w-full text-sm">{t("invite.token.acceptInvitation")}</Button>
         </>
       )}
     </AuthCard>

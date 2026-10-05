@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query, UseGuards } from "@nestjs/common";
-import { IsInt, IsNumber, IsOptional, IsString, Min, MinLength } from "class-validator";
+import { LABEL_COLORS, t } from "@plano/shared";
+import { IsIn, IsInt, IsNumber, IsOptional, IsString, Min, MinLength } from "class-validator";
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard";
 import { PermissionGuard, RequirePermission } from "../auth/guards/permission.guard";
 import { AuthenticatedUser, CurrentUser } from "../auth/current-user.decorator";
@@ -25,6 +26,11 @@ class UpdateColumnDto {
   @IsOptional()
   @IsNumber()
   position?: number;
+
+  // null resets to the automatic colour.
+  @IsOptional()
+  @IsIn([...LABEL_COLORS], { message: () => t("common.unknownColour") })
+  color?: string | null;
 }
 
 @Controller()
