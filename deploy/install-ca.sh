@@ -14,15 +14,25 @@ ROOT_URL="${CA_ROOT_URL:-https://gu-st.ru/content/lending/russian_trusted_root_c
 SUB_URL="${CA_SUB_URL:-https://gu-st.ru/content/lending/russian_trusted_sub_ca_pem.crt}"
 BANK_HOST="${CA_FALLBACK_HOST:-securepay.tinkoff.ru}"
 
+# A file is good when it holds at least one certificate and every one of them
+# parses (a cut-off or mixed-up file is what Node rejects as "bad end line").
+valid() {
+  [ "$(grep -c 'BEGIN CERTIFICATE' "$1" 2>/dev/null || true)" -ge 1 ] || return 1
+  [ "$(grep -c 'BEGIN CERTIFICATE' "$1")" = "$(grep -c 'END CERTIFICATE' "$1")" ] || return 1
+  openssl crl2pkcs7 -nocrl -certfile "$1" 2>/dev/null | openssl pkcs7 -print_certs -noout >/dev/null 2>&1
+}
+
 mkdir -p certs
 if [ -s "$OUT" ] && [ "${1:-}" != "--force" ]; then
-  echo "certificates: $OUT is there ($(grep -c 'BEGIN CERTIFICATE' "$OUT") certificates)"
-  exit 0
+  if valid "$OUT"; then
+    echo "certificates: $OUT is there ($(grep -c 'BEGIN CERTIFICATE' "$OUT") certificates)"
+    exit 0
+  fi
+  echo "certificates: $OUT is damaged, fetching it again"
 fi
 
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
-valid() { [ "$(grep -c 'BEGIN CERTIFICATE' "$1" 2>/dev/null || true)" -ge 1 ] && openssl x509 -in "$1" -noout 2>/dev/null; }
 
 # 1. The official files of the Ministry of Digital Development.
 if curl -fsSL --max-time 30 "$ROOT_URL" -o "$tmp/root.pem" && curl -fsSL --max-time 30 "$SUB_URL" -o "$tmp/sub.pem" && valid "$tmp/root.pem" && valid "$tmp/sub.pem"; then
